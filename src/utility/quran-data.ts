@@ -1,0 +1,20 @@
+export const DATA_SURAT = [
+  { nomor: 1, nama: "Al-Fatihah", ayat: 7 },
+  { nomor: 2, nama: "Al-Baqarah", ayat: 286 },
+  { nomor: 3, nama: "Ali 'Imran", ayat: 200 },
+  { nomor: 4, nama: "An-Nisa'", ayat: 176 },
+  { nomor: 5, nama: "Al-Ma'idah", ayat: 120 },
+  { nomor: 6, nama: "Al-An'am", ayat: 165 },
+  // ... idealnya lengkapi sampai 114 surat. 
+  { nomor: 18, nama: "Al-Kahf", ayat: 110 },
+  { nomor: 36, nama: "Ya-Sin", ayat: 83 },
+  { nomor: 55, nama: "Ar-Rahman", ayat: 78 },
+  { nomor: 56, nama: "Al-Waqi'ah", ayat: 96 },
+  { nomor: 67, nama: "Al-Mulk", ayat: 30 },
+  { nomor: 78, nama: "An-Naba'", ayat: 40 },
+  { nomor: 79, nama: "An-Nazi'at", ayat: 46 },
+  { nomor: 80, nama: "'Abasa", ayat: 42 },
+  { nomor: 112, nama: "Al-Ikhlas", ayat: 4 },
+  { nomor: 113, nama: "Al-Falaq", ayat: 5 },
+  { nomor: 114, nama: "An-Nas", ayat: 6 },
+];

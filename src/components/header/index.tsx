@@ -1,61 +1,69 @@
-import type { RefineThemedLayoutHeaderProps } from "@refinedev/antd";
-import { useGetIdentity } from "@refinedev/core";
-import {
-  Layout as AntdLayout,
-  Avatar,
-  Space,
-  Switch,
-  theme,
-  Typography,
-} from "antd";
-import React, { useContext } from "react";
-import { ColorModeContext } from "../../contexts/color-mode";
+import { useGetIdentity, useActiveAuthProvider } from "@refinedev/core";
+import { Layout, Space, Typography, Avatar, theme, Button, Tag } from "antd";
+import { useColorMode } from "../../contexts/color-mode"; // Sesuaikan path context Anda
+import { MoonOutlined, SunOutlined, UserOutlined, BellOutlined } from "@ant-design/icons";
 
-const { Text } = Typography;
+const { Header: AntdHeader } = Layout;
 const { useToken } = theme;
+const { Text } = Typography;
 
-type IUser = {
-  id: number;
-  name: string;
-  avatar: string;
-};
-
-export const Header: React.FC<RefineThemedLayoutHeaderProps> = ({
-  sticky = true,
-}) => {
+export const Header: React.FC<{ sticky?: boolean }> = ({ sticky }) => {
   const { token } = useToken();
-  const { data: user } = useGetIdentity<IUser>();
-  const { mode, setMode } = useContext(ColorModeContext);
+  const { mode, setMode } = useColorMode();
+  const authProvider = useActiveAuthProvider();
+  const { data: user } = useGetIdentity({ v3LegacyAuthProviderCompatible: Boolean(authProvider?.isLegacy), });
 
-  const headerStyles: React.CSSProperties = {
-    backgroundColor: token.colorBgElevated,
-    display: "flex",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    padding: "0px 24px",
-    height: "64px",
-  };
-
-  if (sticky) {
-    headerStyles.position = "sticky";
-    headerStyles.top = 0;
-    headerStyles.zIndex = 1;
-  }
+  // Warna Header menyesuaikan mode
+  const headerBg = mode === "dark" ? token.colorBgContainer : "#ffffff";
 
   return (
-    <AntdLayout.Header style={headerStyles}>
-      <Space>
-        <Switch
-          checkedChildren="🌛"
-          unCheckedChildren="🔆"
-          onChange={() => setMode(mode === "light" ? "dark" : "light")}
-          defaultChecked={mode === "dark"}
+    <AntdHeader
+      style={{
+        backgroundColor: headerBg,
+        position: sticky ? "sticky" : "relative",
+        top: 0,
+        zIndex: 999,
+        display: "flex",
+        justifyContent: "flex-end", // Konten rata kanan
+        alignItems: "center",
+        padding: "0 24px",
+        height: "64px",
+        borderBottom: mode === "dark" ? "1px solid #303030" : "1px solid #f0f0f0",
+        boxShadow: mode === "light" ? "0 2px 8px #f0f1f2" : "none",
+      }}
+    >
+      <Space size="middle">
+        {/* Tombol Notifikasi (Mockup) */}
+        <Button 
+            type="text" 
+            icon={<BellOutlined style={{ fontSize: 18, color: token.colorTextSecondary }} />} 
         />
-        <Space style={{ marginLeft: "8px" }} size="middle">
-          {user?.name && <Text strong>{user.name}</Text>}
-          {user?.avatar && <Avatar src={user?.avatar} alt={user?.name} />}
+
+        {/* Toggle Dark Mode */}
+        <Button
+          type="text"
+          icon={mode === "light" ? <MoonOutlined /> : <SunOutlined />}
+          onClick={() => setMode(mode === "light" ? "dark" : "light")}
+        />
+
+        {/* Profil User Informatif */}
+        <Space size={10} style={{ borderLeft: "1px solid #eee", paddingLeft: 16, marginLeft: 8 }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", lineHeight: 1.2 }}>
+                <Text strong style={{ fontSize: 14 }}>
+                    {user?.name || user?.full_name || "Administrator"}
+                </Text>
+                <Tag color="gold" style={{ margin: 0, fontSize: 10, lineHeight: "16px", border: 0 }}>
+                    {user?.role?.toUpperCase() || "PENGURUS"}
+                </Tag>
+            </div>
+            <Avatar 
+                size="large" 
+                src={user?.avatar || user?.foto_url} 
+                icon={<UserOutlined />} 
+                style={{ backgroundColor: token.colorPrimary, verticalAlign: 'middle' }}
+            />
         </Space>
       </Space>
-    </AntdLayout.Header>
+    </AntdHeader>
   );
 };
