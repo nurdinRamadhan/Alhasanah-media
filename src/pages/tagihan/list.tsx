@@ -393,10 +393,10 @@ export const TagihanList = () => {
                             />
                         </div>
                         <div>
-                            <Text type="secondary" className="text-[10px] uppercase font-bold mb-1 block">Jurusan</Text>
+                            <Text type="secondary" className="text-[10px] uppercase font-bold mb-1 block">Takhasus</Text>
                             <Select 
                                 allowClear 
-                                placeholder="Semua Jurusan" 
+                                placeholder="Semua Takhasus" 
                                 className="w-full" 
                                 options={[{label:'Tahfidz', value:'TAHFIDZ'}, {label:'Kitab', value:'KITAB'}]} 
                                 onChange={setFilterJurusan} 
@@ -439,7 +439,7 @@ export const TagihanList = () => {
                     <button onClick={handleCashPayment} disabled={isProcessing} className="group flex flex-col items-center justify-center p-6 border-2 border-gray-100 rounded-xl hover:border-emerald-500 hover:bg-emerald-50 transition-all cursor-pointer bg-white">
                         <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform"><ShopOutlined className="text-2xl text-emerald-600" /></div>
                         <div className="font-bold text-gray-700 group-hover:text-emerald-700">Tunai (Cash)</div>
-                        <div className="text-xs text-gray-400 text-center mt-1">Bayar langsung di loket</div>
+                        <div className="text-xs text-gray-400 text-center mt-1">Bayar langsung di Tempat</div>
                     </button>
                     <button onClick={handleMidtransPayment} className="group flex flex-col items-center justify-center p-6 border-2 border-gray-100 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all cursor-pointer bg-white">
                         <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform"><CreditCardOutlined className="text-2xl text-blue-600" /></div>
@@ -450,7 +450,7 @@ export const TagihanList = () => {
             </Modal>
 
             {/* MODAL GENERATE MASSAL (Fix: Sudah dihubungkan ke Button) */}
-            <Modal title="Generate SPP Massal" open={isBulkModalOpen} onCancel={() => setIsBulkModalOpen(false)} footer={null}>
+            <Modal title="Generate Tagihan Massal" open={isBulkModalOpen} onCancel={() => setIsBulkModalOpen(false)} footer={null}>
                 <Form form={formBulk} layout="vertical" onFinish={handleBulkCreate}>
                     <Form.Item label="Target Kelas" name="kelas" rules={[{ required: true }]}>
                         <Select placeholder="Pilih Kelas" options={[1,2,3].map(k => ({ label:`Kelas ${k}`, value:`${k}` }))}/>
@@ -469,10 +469,10 @@ export const TagihanList = () => {
                         <Text strong className="mb-2 block">Tipe Laporan</Text>
                         <Radio.Group value={exportType} onChange={e => setExportType(e.target.value)} buttonStyle="solid" className="w-full">
                             <Radio.Button value="GLOBAL" className="w-1/2 text-center">Rekap Global</Radio.Button>
-                            <Radio.Button value="PERSONAL" className="w-1/2 text-center">Personal (Kartu SPP)</Radio.Button>
+                            <Radio.Button value="PERSONAL" className="w-1/2 text-center">Personal (Kartu Syahriah)</Radio.Button>
                         </Radio.Group>
                     </Card>
-                    {exportType === 'GLOBAL' && (<div className="grid grid-cols-2 gap-4"><div><Text className="text-xs font-semibold">Filter Kelas</Text><Select allowClear placeholder="Semua" style={{width:'100%'}} options={[1,2,3,4,5,6].map(k=>({label:`Kelas ${k}`,value:`${k}`}))} onChange={setFilterKelas}/></div><div><Text className="text-xs font-semibold">Filter Jurusan</Text><Select allowClear placeholder="Semua" style={{width:'100%'}} options={[{label:'Tahfidz',value:'TAHFIDZ'},{label:'Kitab',value:'KITAB'}]} onChange={setFilterJurusan}/></div></div>)}
+                    {exportType === 'GLOBAL' && (<div className="grid grid-cols-2 gap-4"><div><Text className="text-xs font-semibold">Filter Kelas</Text><Select allowClear placeholder="Semua" style={{width:'100%'}} options={[1,2,3,4,5,6].map(k=>({label:`Kelas ${k}`,value:`${k}`}))} onChange={setFilterKelas}/></div><div><Text className="text-xs font-semibold">Filter Takhasus</Text><Select allowClear placeholder="Semua" style={{width:'100%'}} options={[{label:'Tahfidz',value:'TAHFIDZ'},{label:'Kitab',value:'KITAB'}]} onChange={setFilterJurusan}/></div></div>)}
                     {exportType === 'PERSONAL' && (<div><Text className="text-xs font-semibold">Pilih Santri</Text><Select {...santriSelectProps} showSearch placeholder="Cari Nama Santri..." style={{width:'100%'}} onChange={(val) => setSelectedSantriNIS(val as unknown as string)}/></div>)}
                     <div><Text className="text-xs font-semibold">Periode</Text><RangePicker value={exportDateRange} onChange={dates => setExportDateRange(dates as any)} style={{width:'100%'}} format="DD MMM YYYY"/></div>
                 </div>
@@ -557,8 +557,8 @@ export const TagihanList = () => {
                         <tbody>
                             <tr>
                                 <td style={{textAlign: 'center', width: '30%'}}>
-                                    <QRCode value={`INV:${selectedTagihan?.id}`} size={60} bordered={false} />
-                                    <div style={{fontSize: '9px', color: '#999', marginTop: '5px'}}>Scan Validasi</div>
+                                    <QRCode value={`INV:${selectedTagihan?.id}`} size={75} bordered={false} />
+                                    <div style={{fontSize: '9px', color: '#999', marginTop: '9px'}}>Scan Validasi</div>
                                 </td>
                                 <td style={{width: '40%'}}></td>
                                 <td style={{textAlign: 'center', width: '30%'}}>

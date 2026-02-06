@@ -99,8 +99,8 @@ export const SantriList = () => {
       },
     },
     {
-      title: "Akademik",
-      key: "akademik",
+      title: "Takhasus & Kelas",
+      key: "TakhasusKelas",
       hideInSearch: true,
       render: (_, record) => (
         <Space direction="vertical" size={0}>

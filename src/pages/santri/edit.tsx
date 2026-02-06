@@ -13,7 +13,7 @@ export const SantriEdit = () => {
                  <Form.Item
                     label="NIS"
                     name="nis"
-                    help="NIS tidak bisa diubah (Primary Key)"
+                    help="NIS tidak bisa diubah setelah dibuat."
                 >
                     <Input disabled />
                 </Form.Item>
@@ -33,7 +33,7 @@ export const SantriEdit = () => {
                         </Form.Item>
                     </Col>
                     <Col span={8}>
-                        <Form.Item label="Jurusan" name="jurusan">
+                        <Form.Item label="Takhasus" name="Takhasus">
                             <Select options={[
                                 { label: "Kitab", value: "KITAB" },
                                 { label: "Tahfidz", value: "TAHFIDZ" },
