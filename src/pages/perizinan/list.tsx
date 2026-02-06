@@ -270,6 +270,10 @@ export const PerizinanList = () => {
         }
     ];
 
+    function push(_path: string): void {
+        throw new Error("Function not implemented.");
+    }
+
     return (
         <>
             <ProTable<IPerizinanSantri>
@@ -303,7 +307,7 @@ export const PerizinanList = () => {
                         key="create" 
                         type="primary" 
                         icon={<PlusOutlined />} 
-                        onClick={() => create("perizinan_santri")}
+                        onClick={() => push("/perizinan/create")}
                         className="bg-blue-600"
                     >
                         Buat Izin

@@ -274,6 +274,10 @@ export const PelanggaranList = () => {
         }
     ];
 
+    function push(_path: string): void {
+        throw new Error("Function not implemented.");
+    }
+
     return (
         <ProTable<IPelanggaranSantri>
             {...tableProps}
@@ -312,7 +316,7 @@ export const PelanggaranList = () => {
                     key="create" 
                     type="primary" 
                     icon={<PlusOutlined />} 
-                    onClick={() => create("pelanggaran_santri")}
+                    onClick={() => push("/pelanggaran/create")}
                     className="bg-emerald-600 hover:bg-emerald-500 shadow-sm border-0"
                 >
                     Catat Pelanggaran

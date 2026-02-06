@@ -9,7 +9,7 @@ export type Json =
 // --- ENUMS (Sesuai Database) ---
 export type TipeGender = 'L' | 'P';
 export type TipeKelas = '1' | '2' | '3';
-export type TipeJurusan = 'KITAB' | 'TAHFIDZ' | 'BAHASA';
+export type TipeJurusan = 'KITAB' | 'TAHFIDZ';
 export type StatusSantri = 'AKTIF' | 'LULUS' | 'KELUAR' | 'ALUMNI';
 export type StatusTagihan = 'LUNAS' | 'BELUM' | 'CICILAN';
 export type StatusTransaksi = 'pending' | 'settlement' | 'expire' | 'deny' | 'cancel';
@@ -26,6 +26,29 @@ export interface IProfile {
   foto_url: string | null;
   is_active: boolean;
   created_at: string;
+}
+// --- INSTANSI & STRUKTUR KEPENGURUSAN ---
+export interface IInstansiInfo {
+    id: number;
+    nama_instansi: string;
+    alamat: string;
+    logo_url: string;
+    no_telp: number;
+    email: string;
+    kepala_pesantren: string;
+    tahun_ajaran_aktif: string;
+}
+
+export interface IStrukturOrganisasi {
+    id: number;
+    parent_id: number | null;
+    jabatan: string;
+    nama_pejabat: string;
+    nip_niy: string;
+    foto_url: string;
+    warna_kartu: string;
+    urutan: number;
+    children?: IStrukturOrganisasi[]; // Untuk keperluan rendering tree
 }
 
 export interface ISantri {

@@ -32,6 +32,12 @@ import {
 } from "@ant-design/icons";
 
 // --- IMPORT PAGES ---
+import { DashboardPage } from "./pages/dashboard";
+import { DashboardOutlined } from "@ant-design/icons";
+
+import { InstansiPage } from "./pages/instansi";
+import { BankOutlined } from "@ant-design/icons";
+
 import { SantriList } from "./pages/santri/list";
 import { SantriCreate } from "./pages/santri/create";
 import { SantriEdit } from "./pages/santri/edit";
@@ -94,6 +100,19 @@ const InnerApp = () => {
                         routerProvider={routerBindings}
                         notificationProvider={useNotificationProvider}
                         resources={[
+                            //DASHBOARD
+                            {
+                                name: "dashboard",
+                                list: "/", // URL root
+                                meta: { label: "Dashboard", icon: <DashboardOutlined /> }
+                            },
+
+                            // INSTANSI INFO
+                            {
+                                name: "instansi_info",
+                                list: "/instansi",
+                                meta: { label: "Profil Instansi", icon: <BankOutlined /> }
+                            },
                             // 1. DATA SANTRI
                             {
                                 name: "santri",
@@ -146,7 +165,7 @@ const InnerApp = () => {
                                 meta: { label: "Tahfidz Quran", icon: <ReadOutlined /> }
                             },
                             {
-                                name: "hafalan",
+                                name: "hafalan_tahfidz",
                                 list: "/hafalan",
                                 create: "/hafalan/create",
                                 edit: "/hafalan/edit/:id",
@@ -155,7 +174,7 @@ const InnerApp = () => {
                                 meta: { label: "Ziyadah (Baru)", parent: "tahfidz_menu", icon: <BookOutlined /> } 
                             },
                             {
-                                name: "murojaah",
+                                name: "murojaah_tahfidz",
                                 list: "/murojaah",
                                 create: "/murojaah/create",
                                 show: "/murojaah/show/:id",
@@ -233,8 +252,11 @@ const InnerApp = () => {
                                     </Authenticated>
                                 }
                             >
-                                {/* Default Route ke Santri */}
-                                <Route index element={<NavigateToResource resource="santri" />} />
+                                {/*  ROUTE INDEX DASHBOARD */}
+                                <Route index element={<DashboardPage />} />
+
+                                {/*  ROUTE INSTANSI */}
+                                <Route path="/instansi" element={<InstansiPage />} />
                                 
                                 {/* 1. Module Santri */}
                                 <Route path="/santri">

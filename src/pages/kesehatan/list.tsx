@@ -30,7 +30,7 @@ export const KesehatanList = () => {
         sorters: { initial: [{ field: "tanggal", order: "desc" }] }
     });
 
-    const { create, edit } = useNavigation();
+    const { create, edit, push } = useNavigation();
     const { mutate: deleteMutate } = useDelete();
 
     // State Modal Export Personal
@@ -241,7 +241,7 @@ export const KesehatanList = () => {
                     </Button>,
                     <Button 
                         key="create" type="primary" icon={<PlusOutlined />} 
-                        onClick={() => create("kesehatan_santri")}
+                        onClick={() => push("/kesehatan/create")}
                         className="bg-red-600 hover:bg-red-500 shadow-sm border-0"
                     >
                         Catat Sakit
