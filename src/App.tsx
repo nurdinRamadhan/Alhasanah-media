@@ -1,4 +1,6 @@
 import React from "react";
+import "@refinedev/antd/dist/reset.css";
+import "./styles/mobile-fix.css"
 import { Authenticated, Refine } from "@refinedev/core";
 import { DevtoolsProvider } from "@refinedev/devtools";
 import { AuthPage, ErrorComponent, ThemedLayoutV2, ThemedSiderV2, useNotificationProvider } from "@refinedev/antd";

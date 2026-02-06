@@ -1,7 +1,7 @@
 import React, { useState, useRef } from "react";
 import { useTable, useSelect } from "@refinedev/antd";
 import { ProTable, ProColumns } from "@ant-design/pro-components";
-import { Tag, Space, Button, Typography, Tooltip, Avatar, Modal, Form, Select, InputNumber, Input, message, DatePicker, Card, Row, Col, Statistic, Divider, QRCode, Radio } from "antd";
+import { Tag, Space, Button, Typography, Tooltip, Avatar, Modal, Form, Select, InputNumber, Input, message, DatePicker, Card, Row, Col, Statistic, Divider, QRCode, Radio, theme } from "antd";
 import { 
     PlusOutlined, DollarOutlined, CreditCardOutlined, DownloadOutlined, 
     UsergroupAddOutlined, CheckCircleOutlined, WalletOutlined, 
@@ -20,6 +20,7 @@ const { Text, Title } = Typography;
 const { RangePicker } = DatePicker;
 
 export const TagihanList = () => {
+    const { token } = theme.useToken();
     const { create, push } = useNavigation();
     const { mutate: deleteMutate } = useDelete();
     const { mutate: updateMutate } = useUpdate();
@@ -30,7 +31,7 @@ export const TagihanList = () => {
     const [filterJurusan, setFilterJurusan] = useState<string | null>(null);
 
     // --- TABLE CONFIG ---
-    const { tableProps, tableQueryResult } = useTable<ITagihanSantri>({
+    const { tableProps, tableQueryResult,  } = useTable<ITagihanSantri>({
         resource: "tagihan_santri",
         syncWithLocation: false,
         filters: {
@@ -62,7 +63,9 @@ export const TagihanList = () => {
     const finalTableProps = {
         ...tableProps,
         dataSource: filteredData,
-        pagination: { ...tableProps.pagination, total: filteredData.length }
+        pagination: { ...tableProps.pagination, total: filteredData.length },
+        // ENTERPRISE FIX: Aktifkan scroll horizontal
+        scroll: { x: 1000 } // Angka ini memaksa tabel melebar, memicu scrollbar horizontal
     };
 
     // --- STATE MODALS ---
@@ -262,8 +265,11 @@ export const TagihanList = () => {
 
     const columns: ProColumns<ITagihanSantri>[] = [
         {
-            title: "Tanggal", dataIndex: "created_at", width: 110,
-            render: (_, r) => dayjs(r.created_at).format("DD MMM YYYY")
+            title: "Tanggal", 
+            dataIndex: "created_at", 
+            width: 100,
+            fixed: "left", // Tanggal selalu terlihat di kiri
+            render: (_, r) => dayjs(r.created_at).format("DD MMM")
         },
         {
             title: "Santri", dataIndex: "santri_nis", width: 250,
@@ -305,7 +311,7 @@ export const TagihanList = () => {
             }
         },
         {
-            title: "Aksi", valueType: "option", width: 160, fixed: "right",
+            title: "Aksi", valueType: "option", width: 140, fixed: "right",
             render: (_, record) => [
                 <div className="flex gap-2 justify-end" key="actions">
                     {record.status !== 'LUNAS' ? (
@@ -353,32 +359,65 @@ export const TagihanList = () => {
                 </Col>
             </Row>
 
-            {/* 2. FILTER BAR */}
-            <Card bodyStyle={{ padding: '12px 24px' }} className="shadow-sm border-gray-200 rounded-lg">
-                <div className="flex flex-col md:flex-row items-center gap-6">
-                    <div className="flex items-center gap-2 text-gray-500 font-semibold min-w-[80px]">
+            {/* 2. FILTER BAR (RESPONSIVE) */}
+            <Card bodyStyle={{ padding: '12px 16px' }}>
+                {/* Gunakan 'flex-col' untuk mobile, 'md:flex-row' untuk laptop */}
+                <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+                    
+                    {/* Label Filter */}
+                    <div className="flex items-center gap-2 font-semibold min-w-[80px]" style={{ color: token.colorTextSecondary }}>
                         <FilterOutlined /> Filter :
                     </div>
-                    <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+
+                    {/* Input Filters - Grid 1 kolom di HP, 3 kolom di Laptop */}
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3 w-full">
                         <div>
-                            <Text type="secondary" className="text-[10px] uppercase tracking-wider font-bold mb-1 block">Periode</Text>
-                            <DatePicker.MonthPicker value={filterMonth} onChange={(val) => setFilterMonth(val || dayjs())} allowClear={false} className="w-full" suffixIcon={<CalendarOutlined className="text-emerald-600"/>} />
+                            {/* Label kecil di atas input */}
+                            <Text type="secondary" className="text-[10px] uppercase font-bold mb-1 block">Periode</Text>
+                            <DatePicker.MonthPicker 
+                                value={filterMonth} 
+                                onChange={(val) => setFilterMonth(val || dayjs())} 
+                                allowClear={false} 
+                                className="w-full" 
+                                suffixIcon={<CalendarOutlined style={{color: token.colorPrimary}}/>} 
+                            />
                         </div>
                         <div>
-                            <Text type="secondary" className="text-[10px] uppercase tracking-wider font-bold mb-1 block">Kelas</Text>
-                            <Select allowClear placeholder="Semua Kelas" className="w-full" options={[1,2,3].map(k => ({ label: `Kelas ${k}`, value: `${k}` }))} onChange={setFilterKelas} />
+                            <Text type="secondary" className="text-[10px] uppercase font-bold mb-1 block">Kelas</Text>
+                            <Select 
+                                allowClear 
+                                placeholder="Semua Kelas" 
+                                className="w-full" 
+                                options={[1,2,3,4,5,6].map(k => ({ label: `Kelas ${k}`, value: `${k}` }))} 
+                                onChange={setFilterKelas} 
+                            />
                         </div>
                         <div>
-                            <Text type="secondary" className="text-[10px] uppercase tracking-wider font-bold mb-1 block">Jurusan</Text>
-                            <Select allowClear placeholder="Semua Jurusan" className="w-full" options={[{label:'Tahfidz', value:'TAHFIDZ'}, {label:'Kitab', value:'KITAB'}]} onChange={setFilterJurusan} />
+                            <Text type="secondary" className="text-[10px] uppercase font-bold mb-1 block">Jurusan</Text>
+                            <Select 
+                                allowClear 
+                                placeholder="Semua Jurusan" 
+                                className="w-full" 
+                                options={[{label:'Tahfidz', value:'TAHFIDZ'}, {label:'Kitab', value:'KITAB'}]} 
+                                onChange={setFilterJurusan} 
+                            />
                         </div>
                     </div>
-                    <div className="border-l pl-6 ml-2">
-                         <Button type="primary" icon={<PlusOutlined />} onClick={() => push("/tagihan/create")} className="bg-emerald-600 h-10 px-6">Buat Tagihan</Button>
+
+                    {/* Tombol Buat Tagihan - Full width di HP */}
+                    <div className="w-full md:w-auto md:border-l md:pl-4" style={{ borderColor: token.colorBorderSecondary }}>
+                         <Button 
+                            type="primary" 
+                            icon={<PlusOutlined />} 
+                            onClick={() => push("/tagihan/create")} 
+                            className="w-full md:w-auto h-10 shadow-md"
+                        >
+                            Buat Tagihan
+                        </Button>
                     </div>
                 </div>
             </Card>
-
+            
             {/* 3. TABEL */}
             <ProTable<ITagihanSantri>
                 {...finalTableProps}

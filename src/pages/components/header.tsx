@@ -27,17 +27,18 @@ export const Header: React.FC<RefineThemedLayoutV2HeaderProps> = ({ sticky }) =>
   const { mode, setMode } = useColorMode(); // Hook untuk ganti tema
 
   const headerStyles: React.CSSProperties = {
-    backgroundColor: "#001529", // Tetap Dark Navy/Black agar elegan
+    backgroundColor: "#001529", 
     display: "flex",
-    justifyContent: "space-between", // Kiri Teks, Kanan Menu
+    justifyContent: "space-between",
     alignItems: "center",
-    padding: "0px 24px",
-    height: "auto", // Auto height agar muat 2 baris teks jika perlu
+    padding: "0px 16px", // Kurangi padding horizontal agar muat di HP
+    height: "auto",
     minHeight: "64px",
     position: sticky ? "sticky" : "relative",
     top: 0,
-    zIndex: 1,
+    zIndex: 1000, // ENTERPRISE FIX: Pastikan ini lebih tinggi dari z-index tabel (biasanya 100)
     borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.15)" // Tambah bayangan agar pemisah jelas saat discroll
   };
 
   const userMenuItems: MenuProps['items'] = [
