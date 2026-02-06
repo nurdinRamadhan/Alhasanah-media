@@ -414,7 +414,7 @@ export const TagihanList = () => {
             <Modal title="Generate SPP Massal" open={isBulkModalOpen} onCancel={() => setIsBulkModalOpen(false)} footer={null}>
                 <Form form={formBulk} layout="vertical" onFinish={handleBulkCreate}>
                     <Form.Item label="Target Kelas" name="kelas" rules={[{ required: true }]}>
-                        <Select placeholder="Pilih Kelas" options={[1,2,3,4,5,6].map(k => ({ label:`Kelas ${k}`, value:`${k}` }))}/>
+                        <Select placeholder="Pilih Kelas" options={[1,2,3].map(k => ({ label:`Kelas ${k}`, value:`${k}` }))}/>
                     </Form.Item>
                     <Form.Item label="Deskripsi" name="deskripsi" initialValue={`SPP ${dayjs().format('MMMM YYYY')}`} rules={[{ required: true }]}><Input /></Form.Item>
                     <Form.Item label="Nominal (Rp)" name="nominal" initialValue={500000} rules={[{ required: true }]}><InputNumber style={{width:'100%'}}/></Form.Item>
