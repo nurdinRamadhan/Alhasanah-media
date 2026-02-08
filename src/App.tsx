@@ -28,7 +28,8 @@ import {
   UserOutlined,
   TeamOutlined,
   BookOutlined,
-  SyncOutlined
+  SyncOutlined,
+  RocketOutlined
 } from "@ant-design/icons";
 
 // --- IMPORT PAGES ---
@@ -76,6 +77,11 @@ import { MurojaahList } from "./pages/murojaah/list";
 import { MurojaahCreate } from "./pages/murojaah/create";
 import { MurojaahShow } from "./pages/murojaah/show";
 
+import { PengeluaranList } from "./pages/pengeluaran/list";
+import { ShoppingCartOutlined } from "@ant-design/icons";
+import { DiklatList } from "./pages/diklat/list";
+
+
 
 const InnerApp = () => {
     const { mode } = useColorMode();
@@ -111,7 +117,7 @@ const InnerApp = () => {
                             {
                                 name: "instansi_info",
                                 list: "/instansi",
-                                meta: { label: "Profil Instansi", icon: <BankOutlined /> }
+                                meta: { label: "Profil Pesantren", icon: <BankOutlined /> }
                             },
                             // 1. DATA SANTRI
                             {
@@ -189,6 +195,23 @@ const InnerApp = () => {
                                 create: "/tagihan/create",
                                 edit: "/tagihan/edit/:id",
                                 meta: { label: "Keuangan & SPP", icon: <WalletOutlined /> }
+                            },
+
+                            {
+                                name: "diklat",
+                                list: "/diklat",
+                                meta: { 
+                                    label: "Diklat & Pasaran", 
+                                    icon: <RocketOutlined /> 
+                                }
+                            },
+
+                            // PENGELUARAN
+
+                            {
+                                name: "pengeluaran",
+                                list: "/pengeluaran",
+                                meta: { label: "Pengeluaran", icon: <ShoppingCartOutlined /> }
                             },
 
                             // 6. INVENTARIS
@@ -309,6 +332,10 @@ const InnerApp = () => {
                                     <Route path="create" element={<TagihanCreate />} />
                                     <Route path="edit/:id" element={<TagihanEdit />} />
                                 </Route>
+                                <Route path="/diklat" element={<DiklatList />} />
+
+                                {/* Pengeluaran */}
+                                <Route path="/pengeluaran" element={<PengeluaranList />} />
 
                                 {/* 6. Module Inventaris */}
                                 <Route path="/inventaris">

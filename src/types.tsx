@@ -228,6 +228,40 @@ export interface ITagihanSantri {
   // midtrans_order_id SUDAH DIHAPUS sesuai request
 }
 
+// --- DIKLAT PASARAN ---
+export interface IPesertaDiklat {
+    id: number;
+    created_at: string;
+    nama_lengkap: string;
+    tempat_lahir: string;
+    tanggal_lahir: string;
+    alamat_lengkap: string;
+    no_telepon: string;
+    pesantren_asal: string;
+    jenis_diklat: 'MULUD' | 'SYABAN' | 'RAMADHAN' | 'DZULHIJJAH';
+    tahun_diklat: number;
+    biaya_pendaftaran: number;
+    belanja_kitab_nominal: number;
+    rincian_belanja: string;
+    status_pembayaran: string;
+    qr_code_id: string;
+    dicatat_oleh: string;
+}
+
+// --- PENGELUARAN DANA ---
+export interface IPengeluaran {
+    id: number;
+    created_at: string;
+    judul: string;
+    kategori: 'OPERASIONAL' | 'PEMBANGUNAN' | 'DAPUR' | 'KEGIATAN' | 'LAINNYA';
+    nominal: number;
+    tanggal_pengeluaran: string;
+    keterangan: string;
+    bukti_url: string;
+    dicatat_oleh_id: string;
+    dicatat_oleh_nama: string;
+}
+
 export interface ITransaksiKeuangan {
   id: string; // UUID
   wali_id: string | null;
