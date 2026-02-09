@@ -389,10 +389,9 @@ const InnerApp = () => {
                                 <Route path="*" element={<ErrorComponent />} />
                             </Route>
                         </Routes>
-
-                        <AiFloatingButton />   {/* Robot Biru (Simple Insight) */}
+                    <GeminiConsultant />   {/* Robot Ungu (Deep Analysis) */}
+                   <AiFloatingButton />   {/* Robot Biru (Simple Insight) */}
                         
-                        <GeminiConsultant />   {/* Robot Ungu (Deep Analysis) */}
 
                         <UnsavedChangesNotifier />
                         <DocumentTitleHandler />
