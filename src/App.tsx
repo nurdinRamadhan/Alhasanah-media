@@ -36,6 +36,7 @@ import {
 import { DashboardPage } from "./pages/dashboard";
 import { AiFloatingButton } from "./components/AiFloatingButton";
 import { GlobalCriticalAlert } from "./components/GlobalCriticalAlert";
+import { GeminiConsultant } from "./components/GeminiConsultant";
 import { DashboardOutlined } from "@ant-design/icons";
 
 import { InstansiPage } from "./pages/instansi";
@@ -254,8 +255,7 @@ const InnerApp = () => {
                         }}
                         
                     >
-                        {/* EWS SYSTEM */}
-                        <GlobalCriticalAlert />
+                        
                         <Routes>
                             {/* --- LOGIN PAGE --- */}
                             <Route
@@ -390,8 +390,9 @@ const InnerApp = () => {
                             </Route>
                         </Routes>
 
-                        {/* PASANG DISINI AGAR MENGAMBANG DI SEMUA HALAMAN */}
-                  <AiFloatingButton />
+                        <AiFloatingButton />   {/* Robot Biru (Simple Insight) */}
+                        
+                        <GeminiConsultant />   {/* Robot Ungu (Deep Analysis) */}
 
                         <UnsavedChangesNotifier />
                         <DocumentTitleHandler />
