@@ -262,6 +262,40 @@ export interface IPengeluaran {
     dicatat_oleh_nama: string;
 }
 
+export interface IAuditLog {
+    id: number;
+    created_at: string;
+    user_id: string;
+    user_name: string;
+    user_role: string;
+    action: 'CREATE' | 'UPDATE' | 'DELETE' | 'LOGIN' | 'EXPORT';
+    resource: string;
+    record_id: string;
+    details: any;
+}
+
+export interface IMataPelajaran {
+    id: number;
+    nama_mapel: string;
+    kategori: 'KITAB' | 'TAHFIDZ';
+    kkm: number;
+    aktif: boolean;
+}
+
+export interface INilaiSantri {
+    id: number;
+    santri_nis: string;
+    mapel_id: number;
+    semester: string;
+    tahun_ajaran: string;
+    nilai_angka: number;
+    catatan_ustadz: string;
+    dicatat_oleh: string;
+    // Join
+    santri?: ISantri;
+    mata_pelajaran?: IMataPelajaran;
+}
+
 export interface ITransaksiKeuangan {
   id: string; // UUID
   wali_id: string | null;

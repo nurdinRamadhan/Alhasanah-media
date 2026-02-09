@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useTable } from "@refinedev/antd";
+import { logActivity } from "../../utility/logger";
 import { ProTable, ProColumns } from "@ant-design/pro-components";
 import { 
     Tag, Space, Button, Typography, Tooltip, Avatar, Modal, Form, 
@@ -124,12 +125,12 @@ export const PengeluaranList = () => {
     };
 
     const handleSubmit = async (values: any) => {
+        // 1. Siapkan Payload Bersih untuk Database
         const payload = {
             ...values,
-            nominal: Number(values.nominal),
-            tanggal_pengeluaran: values.tanggal_pengeluaran.format('YYYY-MM-DD'),
-            bukti_url: buktiUrl,
-            // Jika Create, simpan info user. Jika Edit, jangan ubah pencatat asli (opsional)
+            nominal: Number(values.nominal), // Pastikan angka
+            tanggal_pengeluaran: values.tanggal_pengeluaran ? dayjs(values.tanggal_pengeluaran).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
+            bukti_url: buktiUrl || null,
             ...(modalMode === 'CREATE' && {
                 dicatat_oleh_id: user?.id,
                 dicatat_oleh_nama: user?.full_name || user?.email
@@ -138,15 +139,45 @@ export const PengeluaranList = () => {
 
         try {
             if (modalMode === 'CREATE') {
+                // Simpan DB
                 await createMutate({ resource: "pengeluaran", values: payload });
+                
+                // Log (Kirim data spesifik saja, jangan object 'values' mentah)
+                logActivity({
+                    user: user,
+                    action: 'CREATE',
+                    resource: 'pengeluaran',
+                    record_id: '-', 
+                    details: { 
+                        judul: String(payload.judul), 
+                        nominal: Number(payload.nominal),
+                        kategori: String(payload.kategori)
+                    }
+                });
+
                 message.success("Pengeluaran berhasil dicatat");
             } else {
+                // Update DB
                 await updateMutate({ resource: "pengeluaran", id: editingItem!.id, values: payload });
+                
+                // Log
+                logActivity({
+                    user: user,
+                    action: 'UPDATE',
+                    resource: 'pengeluaran',
+                    record_id: String(editingItem!.id),
+                    details: { 
+                        judul_baru: String(payload.judul),
+                        nominal_baru: Number(payload.nominal)
+                    }
+                });
+
                 message.success("Data diperbarui");
             }
             setIsModalOpen(false);
-            tableQueryResult.refetch();
+            tableQueryResult.refetch(); // Refresh tabel
         } catch (err) {
+            console.error(err);
             message.error("Terjadi kesalahan");
         }
     };

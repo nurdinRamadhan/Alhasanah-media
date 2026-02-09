@@ -34,6 +34,8 @@ import {
 
 // --- IMPORT PAGES ---
 import { DashboardPage } from "./pages/dashboard";
+import { AiFloatingButton } from "./components/AiFloatingButton";
+import { GlobalCriticalAlert } from "./components/GlobalCriticalAlert";
 import { DashboardOutlined } from "@ant-design/icons";
 
 import { InstansiPage } from "./pages/instansi";
@@ -80,6 +82,11 @@ import { MurojaahShow } from "./pages/murojaah/show";
 import { PengeluaranList } from "./pages/pengeluaran/list";
 import { ShoppingCartOutlined } from "@ant-design/icons";
 import { DiklatList } from "./pages/diklat/list";
+
+import { AuditLogList } from "./pages/audit/list";
+import { AkademikPage } from "./pages/akademik/list";
+import { SafetyCertificateOutlined } from "@ant-design/icons";
+
 
 
 
@@ -144,21 +151,21 @@ const InnerApp = () => {
                                 meta: { label: "Kesantrian", icon: <TeamOutlined /> }
                             },
                             {
-                                name: "pelanggaran",
+                                name: "pelanggaran_santri",
                                 list: "/pelanggaran",
                                 create: "/pelanggaran/create",
                                 edit: "/pelanggaran/edit/:id",
                                 meta: { label: "Pelanggaran", parent: "kesantrian_menu", icon: <WarningOutlined /> }
                             },
                             {
-                                name: "perizinan",
+                                name: "perizinan_santri",
                                 list: "/perizinan",
                                 create: "/perizinan/create",
                                 edit: "/perizinan/edit/:id",
                                 meta: { label: "Perizinan", parent: "kesantrian_menu", icon: <FileProtectOutlined /> }
                             },
                             {
-                                name: "kesehatan",
+                                name: "kesehatan_santri",
                                 list: "/kesehatan",
                                 create: "/kesehatan/create",
                                 edit: "/kesehatan/edit/:id",
@@ -188,9 +195,24 @@ const InnerApp = () => {
                                 meta: { label: "Murojaah (Ulang)", parent: "tahfidz_menu", icon: <SyncOutlined /> } 
                             },
 
+
+                            {
+                                name: "audit_logs",
+                                list: "/audit-logs",
+                                meta: { label: "Log Aktivitas (Permanen)", icon: <SafetyCertificateOutlined /> }
+                            },
+                            {
+                                name: "akademik",
+                                list: "/akademik",
+                                meta: { label: "Laporan nilai", icon: <BookOutlined /> }
+                            },
+
+
+                        
+
                             // 5. KEUANGAN
                             {
-                                name: "tagihan",
+                                name: "tagihan_santri",
                                 list: "/tagihan",
                                 create: "/tagihan/create",
                                 edit: "/tagihan/edit/:id",
@@ -230,7 +252,10 @@ const InnerApp = () => {
                             useNewQueryKeys: true,
                             projectId: "alhasanah-admin-panel",
                         }}
+                        
                     >
+                        {/* EWS SYSTEM */}
+                        <GlobalCriticalAlert />
                         <Routes>
                             {/* --- LOGIN PAGE --- */}
                             <Route
@@ -258,6 +283,7 @@ const InnerApp = () => {
                                     }
                                 />
                             </Route>
+                            
 
                             {/* --- DASHBOARD & PROTECTED ROUTES --- */}
                             <Route
@@ -273,8 +299,12 @@ const InnerApp = () => {
                                             <Outlet />
                                         </ThemedLayoutV2>
                                     </Authenticated>
+                                    
                                 }
+                                
+                                
                             >
+                                
                                 {/*  ROUTE INDEX DASHBOARD */}
                                 <Route index element={<DashboardPage />} />
 
@@ -326,6 +356,18 @@ const InnerApp = () => {
                                     <Route path="show/:id" element={<MurojaahShow />} />
                                 </Route>
 
+                                {/* 4.5 Module Audit Log */}
+                                <Route path="/audit-logs">
+                                    <Route index element={<AuditLogList />} />
+                                </Route>
+
+                                {/* 4.5 Module Akademik */
+                                <Route path="/akademik">
+                                    <Route index element={<AkademikPage />} />
+                                </Route>}
+
+
+
                                 {/* 5. Module Keuangan */}
                                 <Route path="/tagihan">
                                     <Route index element={<TagihanList />} />
@@ -347,6 +389,9 @@ const InnerApp = () => {
                                 <Route path="*" element={<ErrorComponent />} />
                             </Route>
                         </Routes>
+
+                        {/* PASANG DISINI AGAR MENGAMBANG DI SEMUA HALAMAN */}
+                  <AiFloatingButton />
 
                         <UnsavedChangesNotifier />
                         <DocumentTitleHandler />

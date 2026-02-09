@@ -562,9 +562,9 @@ export const TagihanList = () => {
                                 </td>
                                 <td style={{width: '40%'}}></td>
                                 <td style={{textAlign: 'center', width: '30%'}}>
-                                    <div style={{fontSize: '11px', color: '#666', marginBottom: '50px'}}>Petugas Administrasi,</div>
+                                    <div style={{fontSize: '11px', color: '#666', marginBottom: '50px'}}>Administrasi</div>
                                     <div style={{borderBottom: '1px solid #ccc', width: '100%'}}></div>
-                                    <div style={{fontSize: '11px', fontWeight: 'bold', marginTop: '5px'}}>( Admin Keuangan )</div>
+                                    <div style={{fontSize: '11px', fontWeight: 'bold', marginTop: '5px'}}>( Bendahara Pesantren )</div>
                                 </td>
                             </tr>
                         </tbody>
