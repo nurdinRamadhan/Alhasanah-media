@@ -48,7 +48,7 @@ import { SantriEdit } from "./pages/santri/edit";
 import { SantriShow } from "./pages/santri/show";
 
 import { PelanggaranList } from "./pages/pelanggaran/list";
-import { PelanggaranCreate } from "./pages/pelanggaran/create";
+import { GeminiConsultant as PelanggaranCreate } from "./pages/pelanggaran/create";
 import { PelanggaranEdit } from "./pages/pelanggaran/edit";
 
 import { PerizinanList } from "./pages/perizinan/list";
@@ -389,10 +389,9 @@ const InnerApp = () => {
                                 <Route path="*" element={<ErrorComponent />} />
                             </Route>
                         </Routes>
-
-                        <AiFloatingButton />   {/* Robot Biru (Simple Insight) */}
+                    <GeminiConsultant />   {/* Robot Ungu (Deep Analysis) */}
+                   <AiFloatingButton />   {/* Robot Biru (Simple Insight) */}
                         
-                        <GeminiConsultant />   {/* Robot Ungu (Deep Analysis) */}
 
                         <UnsavedChangesNotifier />
                         <DocumentTitleHandler />

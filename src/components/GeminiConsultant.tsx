@@ -63,6 +63,13 @@ export const GeminiConsultant = () => {
         queryOptions: { enabled: isOpen }
     });
 
+    const { data: dataSantri } = useList({
+        resource: "santri",
+        pagination: { mode: "off" }, 
+        meta: { select: "*" }, // Pastikan kolom 'total_hafalan' terambil
+        queryOptions: { enabled: isOpen }
+    });
+
     // =========================================================================
     // 2. THE CONSULTANT BRAIN (LOGIC ASLI)
     // =========================================================================
@@ -79,13 +86,13 @@ export const GeminiConsultant = () => {
             case "KESEHATAN":
                 const sakitList = dataSakit?.data.map(d => `- ${d.santri?.nama}: ${d.keluhan || d.keterangan}`).join("\n") || "Nihil";
                 contextData = `Total Sakit Minggu Ini: ${dataSakit?.total}\nDetail:\n${sakitList}`;
-                promptInstruction = "Analisa tren penyakit santri minggu ini. Apakah ada indikasi wabah menular? Berikan saran medis preventif.";
+                promptInstruction = "Analisa tren penyakit santri minggu ini. Apakah ada indikasi wabah menular? serta apakah ada penyakit jenis penyakit dengan kategori bahaya misal jantung, dbd, tipes atau apapun yang membutuhkan istirahat intensif? Berikan saran medis preventif.";
                 break;
 
             case "PELANGGARAN":
                 const langgarList = dataPelanggaran?.data.map(d => `- ${d.jenis_pelanggaran || d.pelanggaran} (${d.poin || '-'} Poin)`).join("\n") || "Nihil";
                 contextData = `Total Pelanggaran: ${dataPelanggaran?.total}\nDetail:\n${langgarList}`;
-                promptInstruction = "Analisa moral dan kedisiplinan santri. Apa pelanggaran terbanyak? Berikan saran pendekatan psikologis atau religius.";
+                promptInstruction = "Analisa moral dan kedisiplinan santri. Apa pelanggaran terbanyak dan nama pelanggaranya serta tingkat pelanggaranya? Berikan saran pendekatan psikologis atau religius.";
                 break;
 
             case "KEUANGAN":
@@ -107,17 +114,54 @@ export const GeminiConsultant = () => {
                 break;
             
             case "TAHFIDZ":
-                contextData = "Data Tahfidz Simulasi: Santri A (30 Juz), Santri B (2 Juz), Santri C (Absen 5x).";
-                promptInstruction = "Analisa progres hafalan. Siapa top performa? Siapa yang sering bolos setoran? Berikan saran motivasi.";
+                // 1. Ambil Data Real dari Database
+                const allSantri = dataSantri?.data || [];
+
+                // 2. Sorting: Urutkan berdasarkan total_hafalan (Terbanyak ke Sedikit)
+                // Pastikan di tabel santri ada kolom 'total_hafalan' (angka/float)
+                const sortedSantri = [...allSantri].sort((a: any, b: any) => {
+                    return (Number(b.total_hafalan) || 0) - (Number(a.total_hafalan) || 0);
+                });
+
+                // 3. Ambil Top 3 (Terbanyak) & Bottom 3 (Paling Sedikit)
+                const topPerformers = sortedSantri.slice(0, 3).map((s: any) => 
+                    `- ${s.nama} (${s.kelas || '-'}): ${s.total_hafalan || 0} Juz`
+                ).join("\n");
+
+                const lowPerformers = sortedSantri.length > 3 
+                    ? sortedSantri.slice(-3).reverse().map((s: any) => 
+                        `- ${s.nama} (${s.kelas || '-'}): ${s.total_hafalan || 0} Juz`
+                      ).join("\n")
+                    : "";
+
+                // 4. Susun Data untuk Dikirim ke Gemini
+                contextData = `
+                    LAPORAN PROGRES TAHFIDZ (REAL-TIME):
+                    
+                    🏆 SANTRI DENGAN HAFALAN TERBANYAK (MUMTAZ):
+                    ${topPerformers || "Belum ada data hafalan."}
+
+                    ⚠️ SANTRI PERLU BIMBINGAN (Hafalan Paling Sedikit):
+                    ${lowPerformers || "Semua santri memiliki progres baik."}
+                `;
+
+                // 5. Prompt Instruksi yang Sangat Kepesantrenan
+                promptInstruction = `
+                    Sebagai Musyrif Tahfidz Utama, berikan evaluasi mendalam:
+                    1. Berikan apresiasi tinggi (Barakallah) untuk santri-santri Mumtaz di atas. Sarankan mereka dijadikan 'Qudwah' (teladan) bagi yang lain.
+                    2. Untuk santri yang hafalannya masih sedikit, berikan analisa bijak. Jangan menghakimi, tapi berikan solusi: Apakah perlu metode 'Talqin' privat atau pendekatan personal?
+                    3. Berikan nasehat tentang pentingnya 'Murajaah' (mengulang) agar hafalan tidak hilang ('Nasiyah').
+                    4. Akhiri dengan motivasi Qur'ani yang menyentuh hati.
+                `;
                 break;
         }
 
         // RAKIT PROMPT LENGKAP
         const fullPrompt = `
-            Anda adalah Konsultan Ahli Pesantren Al-Hasanah (AI Enterprise System).
+            Anda adalah Konsultan Ahli Pesantren Al-Hasanah (Al-Hasanah AI Enterprise System).
             DATA FAKTA REAL-TIME: ${contextData}
             PERTANYAAN/TUGAS: ${promptInstruction}
-            INSTRUKSI OUTPUT: Gunakan bahasa Indonesia yang formal, takzim kepada Kyai, strategis, dan solutif. Gunakan format Markdown yang rapi.
+            INSTRUKSI OUTPUT: Gunakan bahasa Indonesia yang formal, takzim kepada Kyai dan pengurus pesantren, strategis, dan solutif. Gunakan format Markdown yang rapi.
         `;
 
         try {
@@ -147,11 +191,11 @@ export const GeminiConsultant = () => {
     // =========================================================================
     
     const menuItems = [
-        { key: 'KESEHATAN', label: 'Analisa Kesehatan', sub: 'Medical Audit', icon: <MedicineBoxOutlined />, color: '#ff4d4f' },
-        { key: 'PELANGGARAN', label: 'Cek Kedisiplinan', sub: 'Behavior Analysis', icon: <SafetyCertificateOutlined />, color: '#ffa940' },
-        { key: 'KEUANGAN', label: 'Audit Keuangan', sub: 'Financial Strategy', icon: <WalletOutlined />, color: '#73d13d' },
-        { key: 'ADMIN', label: 'Aktivitas Admin', sub: 'Team Performance', icon: <UserSwitchOutlined />, color: '#40a9ff' },
-        { key: 'TAHFIDZ', label: 'Hafalan Santri', sub: 'Academic Progress', icon: <BookOutlined />, color: '#b37feb' },
+        { key: 'KESEHATAN', label: 'Analisa Kesehatan', sub: 'التدقيق الطبي', icon: <MedicineBoxOutlined />, color: '#ff4d4f' },
+        { key: 'PELANGGARAN', label: 'Cek Kedisiplinan', sub: 'تحليل السلوك', icon: <SafetyCertificateOutlined />, color: '#ffa940' },
+        { key: 'KEUANGAN', label: 'Audit Keuangan', sub: 'الاستراتيجية المالية', icon: <WalletOutlined />, color: '#73d13d' },
+        { key: 'ADMIN', label: 'Aktivitas Admin', sub: 'أداء الفريق', icon: <UserSwitchOutlined />, color: '#40a9ff' },
+        { key: 'TAHFIDZ', label: 'Hafalan Santri', sub: 'التقدم الأكاديمي', icon: <BookOutlined />, color: '#b37feb' },
     ];
 
     return (

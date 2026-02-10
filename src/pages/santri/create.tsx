@@ -1,241 +1,381 @@
-import React from "react";
-import { Create, useForm } from "@refinedev/antd";
-import { Form, Input, Select, DatePicker, Divider, message, Row, Col, InputNumber } from "antd/lib";
-import { supabaseClient } from "../../utility/supabaseClient";
+import React, { useState } from "react";
+import { useForm } from "@refinedev/antd";
+import { useNavigation } from "@refinedev/core";
+import {
+    Form, Input, Select, DatePicker, Card, Button, Typography,
+    Row, Col, Upload, message, theme, Avatar, Divider, Space, Alert, InputNumber
+} from "antd";
+import { 
+    SaveOutlined, CloseOutlined, LoadingOutlined, 
+    UserOutlined, CameraOutlined, MailOutlined, LockOutlined, 
+    NumberOutlined, PhoneOutlined, HomeOutlined
+} from "@ant-design/icons";
 import dayjs from "dayjs";
+import { supabaseClient } from "../../utility/supabaseClient";
+
+const { Title, Text } = Typography;
+const { TextArea } = Input;
+const { Option } = Select;
 
 export const SantriCreate = () => {
-    const { formProps, saveButtonProps, form } = useForm();
+    const { token } = theme.useToken();
+    const { list } = useNavigation();
+    
+    // --- STATES ---
+    const [loadingUpload, setLoadingUpload] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [imageUrl, setImageUrl] = useState<string | null>(null);
+    const [fileList, setFileList] = useState<any[]>([]);
 
-    const handleFinish = async (values: any) => {
+    const { formProps, form } = useForm();
+
+    // --- LOGIKA UTAMA (MENGGUNAKAN EDGE FUNCTION ANDA) ---
+    const customOnFinish = async (values: any) => {
+        setSubmitting(true);
+        let finalFotoUrl = null;
+
         try {
-            message.loading({ content: "Mendaftarkan Wali Santri...", key: "create_process" });
+            // 1. UPLOAD FOTO (Wajib di Frontend karena File Object ada di sini)
+            if (fileList.length > 0) {
+                setLoadingUpload(true);
+                const file = fileList[0].originFileObj || fileList[0];
 
-            // 1. Buat Akun Wali di Supabase Auth
-            const { data: authData, error: authError } = await supabaseClient.auth.signUp({
-                email: values.email_wali,
-                password: values.password_wali,
-                options: {
-                    data: {
-                        full_name: values.nama_wali,
-                        role: "wali", 
-                        no_hp: values.no_kontak, // Simpan no_hp juga di metadata user
-                    },
-                },
-            });
+                if (!file) throw new Error("File foto rusak/tidak terbaca.");
 
-            if (authError) throw authError;
-            if (!authData.user) throw new Error("Gagal membuat user wali");
+                const fileExt = file.name ? file.name.split('.').pop() : 'jpg';
+                const fileName = `santri/${values.nis}_${dayjs().valueOf()}.${fileExt}`;
 
-            const waliId = authData.user.id;
+                const { error: uploadError } = await supabaseClient.storage
+                    .from('images')
+                    .upload(fileName, file, { cacheControl: '3600', upsert: true });
 
-            message.loading({ content: "Menyimpan Data Santri...", key: "create_process" });
+                if (uploadError) throw new Error("Gagal upload foto: " + uploadError.message);
 
-            // 2. Siapkan Data Santri
-            const finalValues = {
-                ...values,
-                wali_id: waliId,
-                tanggal_lahir: values.tanggal_lahir ? dayjs(values.tanggal_lahir).format('YYYY-MM-DD') : null,
-                // Pastikan angka tersimpan sebagai angka
-                anak_ke: values.anak_ke ? Number(values.anak_ke) : null,
+                const { data: urlData } = supabaseClient.storage
+                    .from('images')
+                    .getPublicUrl(fileName);
+                
+                finalFotoUrl = urlData.publicUrl;
+                setLoadingUpload(false);
+            }
+
+            // 2. PERSIAPAN PAYLOAD
+            // Kita harus menyusun data persis seperti yang diminta Edge Function Anda:
+            // { emailWali, passwordWali, namaWali, noHpWali, dataSantri }
+            
+            const payload = {
+                emailWali: values.email_wali,
+                passwordWali: values.password_wali,
+                namaWali: values.nama_wali,
+                noHpWali: values.no_kontak_wali,
+                dataSantri: {
+                    nis: values.nis,
+                    nik: values.nik,
+                    nama: values.nama,
+                    kelas: values.kelas,
+                    jurusan: values.jurusan,
+                    status_santri: values.status_santri,
+                    status_spp: values.status_spp,
+                    pembimbing: values.pembimbing,
+                    hafalan_kitab: values.hafalan_kitab,
+                    total_hafalan: values.total_hafalan ? String(values.total_hafalan) : null,
+                    tempat_lahir: values.tempat_lahir,
+                    tanggal_lahir: values.tanggal_lahir ? values.tanggal_lahir.format('YYYY-MM-DD') : null,
+                    jenis_kelamin: values.jenis_kelamin,
+                    anak_ke: values.anak_ke ? String(values.anak_ke) : null,
+                    ayah: values.ayah,
+                    ibu: values.ibu,
+                    no_kontak_wali: values.no_kontak_wali, // Redundan tapi untuk data santri
+                    alamat_lengkap: values.alamat_lengkap,
+                    foto_url: finalFotoUrl
+                }
             };
 
-            // Hapus field yang bukan kolom tabel santri
-            delete finalValues.email_wali;
-            delete finalValues.password_wali;
-            delete finalValues.nama_wali;
+            // 3. PANGGIL EDGE FUNCTION 'create-user-wali'
+            const { data, error } = await supabaseClient.functions.invoke('create-user-wali', {
+                body: payload
+            });
 
-            // Panggil onFinish bawaan Refine
-            if (formProps.onFinish) {
-                await formProps.onFinish(finalValues);
+            if (error) {
+                // Parsing error message dari Edge Function
+                const errorBody = await error.context?.json(); 
+                throw new Error(errorBody?.error || error.message || "Gagal menghubungi server.");
             }
-            
-            message.success({ content: "Santri & Wali berhasil didaftarkan!", key: "create_process" });
+
+            // Jika sukses
+            message.success("Berhasil! Akun Wali & Data Santri telah dibuat.");
+            list("santri");
 
         } catch (error: any) {
             console.error(error);
-            message.error({ content: `Gagal: ${error.message}`, key: "create_process" });
+            message.error(error.message || "Terjadi kesalahan sistem.");
+            setLoadingUpload(false);
+        } finally {
+            setSubmitting(false);
         }
     };
 
+    const handleUploadChange = (info: any) => {
+        setFileList([info.file]);
+        if (info.file.originFileObj) {
+            const reader = new FileReader();
+            reader.addEventListener('load', () => setImageUrl(reader.result as string));
+            reader.readAsDataURL(info.file.originFileObj);
+        }
+    };
+
+    const uploadButton = (
+        <div style={{ color: token.colorTextSecondary }}>
+            {loadingUpload ? <LoadingOutlined /> : <CameraOutlined style={{ fontSize: 24, marginBottom: 8 }} />}
+            <div style={{ marginTop: 8 }}>Upload Foto</div>
+        </div>
+    );
+
     return (
-        <Create saveButtonProps={{ ...saveButtonProps, onClick: () => form.submit() }}>
+        <div style={{ padding: '24px', paddingBottom: '100px' }}>
+            {/* HEADER */}
+            <Row justify="space-between" align="middle" style={{ marginBottom: '24px' }}>
+                <Col>
+                    <Title level={3} style={{ margin: 0 }}>Registrasi Santri Baru</Title>
+                    <Text style={{ color: token.colorTextSecondary }}>Input data santri & buat akun aplikasi wali otomatis.</Text>
+                </Col>
+                <Col>
+                    <Space>
+                        <Button icon={<CloseOutlined />} onClick={() => list("santri")} disabled={submitting}>
+                            Batal
+                        </Button>
+                        <Button 
+                            type="primary" 
+                            icon={<SaveOutlined />} 
+                            loading={submitting}
+                            onClick={() => form.submit()} 
+                        >
+                            Simpan Data
+                        </Button>
+                    </Space>
+                </Col>
+            </Row>
+
             <Form 
                 {...formProps} 
+                form={form}
                 layout="vertical" 
-                onFinish={handleFinish}
+                onFinish={customOnFinish}
+                initialValues={{ 
+                    status_santri: "AKTIF", 
+                    jenis_kelamin: "L", 
+                    status_spp: "REGULER",
+                    jurusan: "KITAB"
+                }}
             >
-                {/* --- BAGIAN 1: AKUN WALI SANTRI --- */}
-                <Divider orientation="left">Data Akun Wali</Divider>
-                <Row gutter={16}>
-                    <Col span={8}>
-                        <Form.Item
-                            label="Nama Wali"
-                            name="nama_wali"
-                            rules={[{ required: true, message: "Nama Wali wajib diisi" }]}
-                        >
-                            <Input placeholder="Nama Orang Tua" />
-                        </Form.Item>
-                    </Col>
-                    <Col span={8}>
-                        <Form.Item
-                            label="Email (Login)"
-                            name="email_wali"
-                            rules={[
-                                { required: true, message: "Email wajib diisi" },
-                                { type: "email", message: "Format email salah" }
-                            ]}
-                        >
-                            <Input placeholder="contoh@gmail.com" />
-                        </Form.Item>
-                    </Col>
-                    <Col span={8}>
-                        <Form.Item
-                            label="Password"
-                            name="password_wali"
-                            rules={[{ required: true, min: 6 }]}
-                        >
-                            <Input.Password placeholder="Password Login" />
-                        </Form.Item>
-                    </Col>
-                </Row>
-                <Row gutter={16}>
-                     <Col span={8}>
-                        <Form.Item
-                            label="No. WhatsApp / Kontak"
-                            name="no_kontak_wali" // Masuk ke kolom no_kontak di tabel santri
-                            rules={[{ required: true, message: "Nomor kontak wajib diisi" }]}
-                        >
-                            <Input placeholder="0812..." type="tel" />
-                        </Form.Item>
-                    </Col>
-                </Row>
+                <Row gutter={[24, 24]}>
+                    
+                    {/* --- KOLOM KIRI: FOTO & AKADEMIK --- */}
+                    <Col xs={24} lg={8}>
+                        {/* FOTO */}
+                        <Card bordered={false} style={{ textAlign: 'center', marginBottom: 24, boxShadow: token.boxShadowTertiary }}>
+                            <Form.Item style={{ marginBottom: 0 }}>
+                                <Upload
+                                    name="avatar"
+                                    listType="picture-card"
+                                    className="avatar-uploader"
+                                    showUploadList={false}
+                                    beforeUpload={() => false}
+                                    onChange={handleUploadChange}
+                                    style={{ 
+                                        width: 150, height: 150, borderRadius: '50%', overflow: 'hidden',
+                                        border: `2px dashed ${token.colorBorderSecondary}`, backgroundColor: token.colorBgContainerDisabled
+                                    }}
+                                >
+                                    {imageUrl ? <Avatar src={imageUrl} size={140} shape="circle" /> : uploadButton}
+                                </Upload>
+                            </Form.Item>
+                            <Text type="secondary" style={{ fontSize: 12 }}>Format: JPG/PNG, Max 2MB</Text>
+                        </Card>
 
-                {/* --- BAGIAN 2: IDENTITAS SANTRI --- */}
-                <Divider orientation="left">Identitas Santri</Divider>
-                <Row gutter={16}>
-                    <Col span={8}>
-                        <Form.Item
-                            label="NIS"
-                            name="nis"
-                            rules={[{ required: true }]}
-                        >
-                            <Input placeholder="Nomor Induk Santri" />
-                        </Form.Item>
-                    </Col>
-                    <Col span={8}>
-                        <Form.Item
-                            label="NIK (Nomor Induk Kependudukan)"
-                            name="nik"
-                        >
-                            <Input placeholder="16 Digit NIK" maxLength={16} />
-                        </Form.Item>
-                    </Col>
-                    <Col span={8}>
-                        <Form.Item
-                            label="Nama Lengkap Santri"
-                            name="nama"
-                            rules={[{ required: true }]}
-                        >
-                            <Input />
-                        </Form.Item>
-                    </Col>
-                </Row>
+                        {/* DATA AKADEMIK */}
+                        <Card title="Informasi Akademik" bordered={false} style={{ boxShadow: token.boxShadowTertiary }}>
+                            <Form.Item label="Nomor Induk Santri (NIS)" name="nis" rules={[{ required: true, message: "NIS Wajib diisi" }]}>
+                                <Input prefix={<NumberOutlined style={{ color: token.colorTextQuaternary }} />} placeholder="Contoh: 2024001" />
+                            </Form.Item>
+                            
+                            <Row gutter={16}>
+                                <Col span={12}>
+                                    <Form.Item label="Kelas" name="kelas" rules={[{ required: true }]}>
+                                        <Select placeholder="Pilih Kelas">
+                                            <Option value="1">1</Option>
+                                            <Option value="2">2</Option>
+                                            <Option value="3">3</Option>
+                                           
+                                        </Select>
+                                    </Form.Item>
+                                </Col>
+                                <Col span={12}>
+                                    <Form.Item label="Takhasus" name="jurusan" rules={[{ required: true }]}>
+                                        <Select>
+                                            <Option value="KITAB">Kitab</Option>
+                                            <Option value="TAHFIDZ">Tahfidz</Option>
+                                        </Select>
+                                    </Form.Item>
+                                </Col>
+                            </Row>
 
-                <Row gutter={16}>
-                    <Col span={12}>
-                        <Form.Item label="Tempat Lahir" name="tempat_lahir">
-                            <Input placeholder="Kota Kelahiran" />
-                        </Form.Item>
-                    </Col>
-                    <Col span={12}>
-                        <Form.Item label="Tanggal Lahir" name="tanggal_lahir" rules={[{ required: true }]}>
-                            <DatePicker style={{ width: "100%" }} format="DD/MM/YYYY" placeholder="Pilih Tanggal" />
-                        </Form.Item>
-                    </Col>
-                </Row>
+                            <Row gutter={16}>
+                                <Col span={12}>
+                                    <Form.Item label="Status Santri" name="status_santri">
+                                        <Select>
+                                            <Option value="AKTIF">Aktif</Option>
+                                            <Option value="LULUS">Lulus</Option>
+                                            <Option value="KELUAR">Keluar</Option>
+                                        </Select>
+                                    </Form.Item>
+                                </Col>
+                                
+                            </Row>
 
-                <Row gutter={16}>
-                    <Col span={8}>
-                        <Form.Item label="Jenis Kelamin" name="jenis_kelamin" rules={[{ required: true }]}>
-                            <Select
-                                options={[
-                                    { label: "Laki-laki", value: "L" },
-                                    { label: "Perempuan", value: "P" },
-                                ]}
+                            <Form.Item label="Ustadz Pembimbing" name="pembimbing">
+                                <Input prefix={<UserOutlined style={{ color: token.colorTextQuaternary }} />} placeholder="Nama Musyrif" />
+                            </Form.Item>
+
+                            <Divider dashed style={{ margin: '12px 0' }} />
+                            
+                            <Row gutter={16}>
+                                <Col span={12}>
+                                    <Form.Item label="Hafalan (Juz)" name="total_hafalan">
+                                        <InputNumber min={0} max={30} style={{ width: '100%' }} placeholder="0" />
+                                    </Form.Item>
+                                </Col>
+                                <Col span={12}>
+                                    <Form.Item label="Kitab Selesai" name="hafalan_kitab">
+                                        <Input placeholder="Nama Kitab" />
+                                    </Form.Item>
+                                </Col>
+                            </Row>
+                        </Card>
+                    </Col>
+
+                    {/* --- KOLOM KANAN: PRIBADI & WALI --- */}
+                    <Col xs={24} lg={16}>
+                        {/* DATA PRIBADI */}
+                        <Card title="Data Pribadi Santri" bordered={false} style={{ marginBottom: 24, boxShadow: token.boxShadowTertiary }}>
+                            <Row gutter={16}>
+                                <Col xs={24} md={16}>
+                                    <Form.Item label="Nama Lengkap" name="nama" rules={[{ required: true }]}>
+                                        <Input placeholder="Sesuai Ijazah / Akta" style={{ fontWeight: 500 }} />
+                                    </Form.Item>
+                                </Col>
+                                <Col xs={24} md={8}>
+                                    <Form.Item label="NIK (KTP/KK)" name="nik">
+                                        <Input placeholder="16 Digit NIK" maxLength={16} />
+                                    </Form.Item>
+                                </Col>
+                            </Row>
+
+                            <Row gutter={16}>
+                                <Col xs={24} md={8}>
+                                    <Form.Item label="Tempat Lahir" name="tempat_lahir"><Input /></Form.Item>
+                                </Col>
+                                <Col xs={24} md={8}>
+                                    <Form.Item label="Tanggal Lahir" name="tanggal_lahir"><DatePicker style={{ width: "100%" }} format="DD/MM/YYYY" /></Form.Item>
+                                </Col>
+                                <Col xs={12} md={4}>
+                                     <Form.Item label="Gender" name="jenis_kelamin">
+                                        <Select><Option value="L">Laki</Option><Option value="P">Pr</Option></Select>
+                                    </Form.Item>
+                                </Col>
+                                <Col xs={12} md={4}>
+                                     <Form.Item label="Anak Ke" name="anak_ke">
+                                        <InputNumber min={1} style={{ width: '100%' }} />
+                                    </Form.Item>
+                                </Col>
+                            </Row>
+
+                            <Row gutter={16}>
+                                <Col xs={24} md={12}>
+                                    <Form.Item label="Nama Ayah" name="ayah"><Input /></Form.Item>
+                                </Col>
+                                <Col xs={24} md={12}>
+                                    <Form.Item label="Nama Ibu" name="ibu"><Input /></Form.Item>
+                                </Col>
+                            </Row>
+
+                            <Form.Item label="Alamat Lengkap" name="alamat_lengkap">
+                                <TextArea rows={2} placeholder="Jalan, RT/RW, Desa, Kecamatan, Kab/Kota" />
+                            </Form.Item>
+                        </Card>
+
+                        {/* AKUN WALI (LOGIN) */}
+                        <Card 
+                            title={<Space><UserOutlined /><span>Registrasi Akun Wali Santri</span></Space>} 
+                            bordered={false} 
+                            style={{ boxShadow: token.boxShadowTertiary, border: `1px solid ${token.colorPrimaryBorder}` }}
+                            headStyle={{ backgroundColor: token.colorFillAlter, borderBottom: `1px solid ${token.colorBorderSecondary}` }}
+                        >
+                            <Alert 
+                                message="Akun ini akan digunakan Wali Santri untuk login di Aplikasi Android." 
+                                type="info" 
+                                showIcon 
+                                style={{ marginBottom: 24 }} 
                             />
-                        </Form.Item>
-                    </Col>
-                    <Col span={8}>
-                        <Form.Item label="Anak Ke-" name="anak_ke">
-                            <InputNumber style={{ width: "100%" }} min={1} />
-                        </Form.Item>
-                    </Col>
-                     <Col span={8}>
-                        <Form.Item label="Status Santri" name="status_santri" initialValue="AKTIF" rules={[{ required: true }]}>
-                            <Select
-                                options={[
-                                    { label: "Aktif", value: "AKTIF" },
-                                    { label: "Lulus", value: "LULUS" },
-                                    { label: "Keluar", value: "KELUAR" },
-                                    { label: "Alumni", value: "ALUMNI" },
-                                ]}
-                            />
-                        </Form.Item>
-                    </Col>
-                </Row>
-
-                {/* --- BAGIAN 3: AKADEMIK --- */}
-                <Divider orientation="left">Data Akademik</Divider>
-                <Row gutter={16}>
-                    <Col span={8}>
-                        <Form.Item label="Kelas" name="kelas" rules={[{ required: true }]}>
-                            <Select
-                                options={[
-                                    { label: "Kelas 1", value: "1" },
-                                    { label: "Kelas 2", value: "2" },
-                                    { label: "Kelas 3", value: "3" },
-                                ]}
-                            />
-                        </Form.Item>
-                    </Col>
-                    <Col span={8}>
-                        <Form.Item label="Jurusan" name="jurusan" rules={[{ required: true }]}>
-                            <Select
-                                options={[
-                                    { label: "Kitab", value: "KITAB" },
-                                    { label: "Tahfidz", value: "TAHFIDZ" },
-                                ]}
-                            />
-                        </Form.Item>
-                    </Col>
-                    <Col span={8}>
-                        <Form.Item label="Pembimbing / Musyrif" name="pembimbing">
-                            <Input placeholder="Nama Ustadz Pembimbing" />
-                        </Form.Item>
+                            
+                             <Row gutter={16}>
+                                <Col xs={24} md={12}>
+                                    <Form.Item label="Nama Wali (Penanggung Jawab)" name="nama_wali" rules={[{ required: true }]}>
+                                        <Input placeholder="Nama Ayah/Ibu/Wali" />
+                                    </Form.Item>
+                                </Col>
+                                <Col xs={24} md={12}>
+                                     <Form.Item label="No. HP / WhatsApp" name="no_kontak_wali" rules={[{ required: true }]}>
+                                        <Input prefix={<PhoneOutlined style={{ color: token.colorTextQuaternary }} />} placeholder="0812xxxx" style={{ width: '100%' }} />
+                                    </Form.Item>
+                                </Col>
+                             </Row>
+                             
+                             <div style={{ background: token.colorBgLayout, padding: '16px', borderRadius: '8px' }}>
+                                 <Text strong style={{ display: 'block', marginBottom: 12 }}>Kredensial Login Aplikasi:</Text>
+                                 <Row gutter={16}>
+                                    <Col xs={24} md={12}>
+                                        <Form.Item 
+                                            label="Email Login" 
+                                            name="email_wali" 
+                                            rules={[
+                                                { required: true, message: "Wajib diisi" },
+                                                { type: 'email', message: "Format email salah" }
+                                            ]}
+                                        >
+                                            <Input prefix={<MailOutlined />} placeholder="email@contoh.com" />
+                                        </Form.Item>
+                                    </Col>
+                                    <Col xs={24} md={12}>
+                                        <Form.Item 
+                                            label="Password" 
+                                            name="password_wali" 
+                                            rules={[
+                                                { required: true, message: "Wajib diisi" },
+                                                { min: 6, message: "Minimal 6 karakter" }
+                                            ]}
+                                        >
+                                            <Input.Password prefix={<LockOutlined />} placeholder="Min. 6 Karakter" />
+                                        </Form.Item>
+                                    </Col>
+                                 </Row>
+                             </div>
+                        </Card>
                     </Col>
                 </Row>
-
-                {/* --- BAGIAN 4: KELUARGA --- */}
-                <Divider orientation="left">Data Keluarga & Alamat</Divider>
-                <Row gutter={16}>
-                    <Col span={12}>
-                        <Form.Item label="Nama Ayah" name="ayah">
-                            <Input />
-                        </Form.Item>
-                    </Col>
-                    <Col span={12}>
-                        <Form.Item label="Nama Ibu" name="ibu">
-                            <Input />
-                        </Form.Item>
-                    </Col>
-                </Row>
-
-                <Form.Item label="Alamat Lengkap" name="alamat_lengkap">
-                    <Input.TextArea rows={2} />
-                </Form.Item>
-
             </Form>
-        </Create>
+
+            <style>{`
+                .avatar-uploader > .ant-upload {
+                    width: 150px !important; height: 150px !important; border-radius: 50% !important;
+                    padding: 0 !important; margin: 0 auto !important; display: flex !important;
+                    justify-content: center; align-items: center;
+                    border: 2px dashed ${token.colorBorderSecondary} !important;
+                    background: ${token.colorBgContainerDisabled} !important;
+                    transition: border-color 0.3s;
+                }
+                .avatar-uploader > .ant-upload:hover { border-color: ${token.colorPrimary} !important; }
+            `}</style>
+        </div>
     );
 };
