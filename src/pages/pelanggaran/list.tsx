@@ -316,7 +316,7 @@ export const PelanggaranList = () => {
                     key="create" 
                     type="primary" 
                     icon={<PlusOutlined />} 
-                    onClick={() => push("/pelanggaran/create")}
+                    onClick={() => push("pelanggaran_santri/create")}
                     className="bg-emerald-600 hover:bg-emerald-500 shadow-sm border-0"
                 >
                     Catat Pelanggaran
