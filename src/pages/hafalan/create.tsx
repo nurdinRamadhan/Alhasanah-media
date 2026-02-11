@@ -3,13 +3,16 @@ import { Create, useForm, useSelect } from "@refinedev/antd";
 import { Form, Input, Select, DatePicker, Card, Row, Col, InputNumber, Radio, Divider } from "antd";
 import dayjs from "dayjs";
 import { ISantri } from "../../types";
-import { useGetIdentity } from "@refinedev/core";
+import { useGetIdentity, useUpdate } from "@refinedev/core"; //
 import { DATA_SURAT } from "../../utility/quran-data"; 
 
 export const HafalanCreate = () => {
     const { formProps, saveButtonProps, form } = useForm();
     const { data: user } = useGetIdentity<{ id: string }>();
     const [selectedSuratMaxAyat, setSelectedSuratMaxAyat] = useState<number>(286);
+
+    // Hook untuk melakukan update ke tabel santri
+    const { mutate: updateSantri } = useUpdate();
 
     const { selectProps: santriSelectProps } = useSelect<ISantri>({
         resource: "santri",
@@ -27,21 +30,51 @@ export const HafalanCreate = () => {
         }
     };
 
-    // Generate Opsi Juz (Urutan 30, 29, ... 1, atau 1...30 terserah metode)
-    // Di sini kita buat urutan standar 1-30, tapi user bisa pilih manual
+    // Fungsi Custom untuk menangani Submit
+    // 1. Simpan data hafalan baru
+    // 2. Update data total_hafalan di tabel santri
+    const onFinishHandler = async (values: any) => {
+        // Panggil fungsi onFinish bawaan useForm untuk menyimpan data ke tabel 'hafalan'
+        if (formProps.onFinish) {
+            await formProps.onFinish(values);
+        }
+
+        // Jika ada input total_hafalan, update tabel 'santri'
+        if (values.santri_nis && values.total_hafalan) {
+            updateSantri({
+                resource: "santri",
+                id: values.santri_nis,
+                values: {
+                    total_hafalan: values.total_hafalan,
+                },
+                successNotification: (_data, _values, _resource) => {
+                    return {
+                        message: `Data Hafalan & Total Juz Santri Berhasil Diupdate`,
+                        description: "Sukses",
+                        type: "success",
+                    };
+                },
+            });
+        }
+    };
+
     const juzOptions = Array.from({length: 30}, (_, i) => ({ label: `Juz ${i + 1}`, value: i + 1 }));
 
     return (
-        <Create saveButtonProps={saveButtonProps} title="Input Setoran Baru">
+        <Create 
+            saveButtonProps={saveButtonProps} 
+            title="Input Setoran Baru"
+        >
             <Form 
                 {...formProps} 
                 layout="vertical"
+                onFinish={onFinishHandler} // Menggunakan handler custom
                 initialValues={{
                     tanggal: dayjs(),
                     dicatat_oleh_id: user?.id,
                     predikat: "MUMTAZ",
                     status: "LANCAR",
-                    juz: 30 // Default Juz 30 (Anak baru biasanya mulai dari Juz Amma)
+                    juz: 30 
                 }}
             >
                 <Form.Item name="dicatat_oleh_id" hidden><Input /></Form.Item>
@@ -71,7 +104,6 @@ export const HafalanCreate = () => {
                                 <DatePicker showTime format="DD MMM YYYY HH:mm" style={{ width: '100%' }} />
                             </Form.Item>
 
-                            {/* PERBAIKAN LOGIKA JUZ */}
                             <Form.Item 
                                 label="Posisi Juz Saat Ini" 
                                 name="juz" 
@@ -83,6 +115,24 @@ export const HafalanCreate = () => {
                                     placeholder="Pilih Juz"
                                 />
                             </Form.Item>
+
+                            {/* KOLOM BARU: TOTAL HAFALAN */}
+                            <Form.Item 
+                                label="Total Juz yang Sudah Dihafal" 
+                                name="total_hafalan" 
+                                help="Update total pencapaian juz santri ini"
+                                rules={[{ required: true, message: 'Harap isi total juz hafalan' }]}
+                            >
+                                <InputNumber 
+                                    min={0} 
+                                    max={30} 
+                                    step={0.5} // Mengizinkan setengah juz jika perlu, atau ubah ke 1
+                                    style={{ width: '100%' }} 
+                                    placeholder="Contoh: 5"
+                                    addonAfter="Juz"
+                                />
+                            </Form.Item>
+
                         </Card>
                     </Col>
 

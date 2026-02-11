@@ -90,9 +90,44 @@ export const GeminiConsultant = () => {
                 break;
 
             case "PELANGGARAN":
-                const langgarList = dataPelanggaran?.data.map(d => `- ${d.jenis_pelanggaran || d.pelanggaran} (${d.poin || '-'} Poin)`).join("\n") || "Nihil";
-                contextData = `Total Pelanggaran: ${dataPelanggaran?.total}\nDetail:\n${langgarList}`;
-                promptInstruction = "Analisa moral dan kedisiplinan santri. Apa pelanggaran terbanyak dan nama pelanggaranya serta tingkat pelanggaranya? Berikan saran pendekatan psikologis atau religius.";
+                // 1. Ambil Data Real
+                const allSantriPelanggaran = dataSantri?.data || [];
+
+                // 2. Sorting: Urutkan berdasarkan poin_pelanggaran (Terbanyak ke Sedikit)
+                // ASUMSI: Nama kolom di database adalah 'poin_pelanggaran' atau 'total_poin'
+                const sortedPelanggaran = [...allSantriPelanggaran].sort((a: any, b: any) => {
+                    return (Number(b.poin) || 0) - (Number(a.poin) || 0);
+                });
+
+                // 3. Ambil Top 3 (Pelanggaran Terbanyak) & Bottom 3 (Paling Tertib/Nol Poin)
+                const topViolators = sortedPelanggaran.slice(0, 3).map((s: any) => 
+                    `- ${s.nama} (${s.kelas || '-'}): ${s.poin || 0} Poin`
+                ).join("\n");
+
+                const cleanSantri = sortedPelanggaran.length > 3 
+                    ? sortedPelanggaran.slice(-3).reverse().map((s: any) => 
+                        `- ${s.nama} (${s.kelas || '-'}): ${s.poin || 0} Poin`
+                      ).join("\n")
+                    : "";
+
+                // 4. Susun Data untuk Dikirim ke Gemini
+                contextData = `
+                    LAPORAN KEDISIPLINAN & PELANGGARAN (REAL-TIME):
+                    
+                    ⚠️ PERLU PERHATIAN KHUSUS (Poin Pelanggaran Tertinggi):
+                    ${topViolators || "Alhamdulillah, tidak ada pelanggaran berat."}
+
+                    🛡️ SANTRI TELADAN (Poin Terendah/Nihil):
+                    ${cleanSantri || "Semua santri dalam pantauan."}
+                `;
+
+                // 5. Prompt Instruksi khas Bagian Keamanan (Qism Amn)
+                promptInstruction = `
+                    Sebagai Bagian Keamanan/Kedisiplinan (Qism Amn), berikan evaluasi tegas namun mengayomi:
+                    1. Untuk santri dengan poin pelanggaran tinggi, lakukan analisa 'Tabayyun'. Jangan hanya bicara hukuman, tapi cari solusi perbaikan akhlak. Apakah mereka butuh pendekatan personal?
+                    2. Berikan apresiasi kepada santri yang tertib (poin rendah) agar menjadi contoh 'Uswah Hasanah' dalam kedisiplinan.
+                    3. Akhiri dengan nasehat tegas namun menyentuh tentang konsekuensi pelanggaran dan pentingnya menjaga nama baik pondok.
+                `;
                 break;
 
             case "KEUANGAN":

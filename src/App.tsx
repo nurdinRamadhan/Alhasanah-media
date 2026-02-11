@@ -48,7 +48,7 @@ import { SantriEdit } from "./pages/santri/edit";
 import { SantriShow } from "./pages/santri/show";
 
 import { PelanggaranList } from "./pages/pelanggaran/list";
-import { GeminiConsultant as PelanggaranCreate } from "./pages/pelanggaran/create";
+import { PelanggaranCreate } from "./pages/pelanggaran/create";
 import { PelanggaranEdit } from "./pages/pelanggaran/edit";
 
 import { PerizinanList } from "./pages/perizinan/list";

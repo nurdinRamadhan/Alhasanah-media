@@ -236,102 +236,218 @@ export const SantriShow = () => {
                 </Col>
             </Row>
 
-            {/* --- AREA KHUSUS CETAK (ID CARD) --- */}
+            {/* --- AREA KHUSUS CETAK (REVISED PROFESSIONAL) --- */}
             <div style={{ display: 'none' }}>
-                <div ref={componentRef} style={{ padding: '0 10mm', fontFamily: 'Times New Roman, serif', color: '#000' }}>
+                <div 
+                    ref={componentRef} 
+                    style={{ 
+                        width: '210mm', // Lebar A4
+                        minHeight: '297mm', // Tinggi A4
+                        padding: '15mm 20mm', // Margin Aman
+                        fontFamily: "'Times New Roman', serif", 
+                        color: '#000',
+                        backgroundColor: '#fff',
+                        position: 'relative',
+                        boxSizing: 'border-box'
+                    }}
+                >
                     
-                    {/* 1. KOP SURAT */}
-                    <div style={{ textAlign: 'center', borderBottom: '3px double #000', paddingBottom: '10px', marginBottom: '20px' }}>
-                        <h2 style={{ margin: 0, fontSize: '18pt', fontWeight: 'bold', textTransform: 'uppercase' }}>PONDOK PESANTREN AL-HASANAH</h2>
-                        <div style={{ fontSize: '11pt', fontStyle: 'italic' }}>
-                            Jalan Raya Cibeuti, Km. 3 Rt. 01, Rw. 01, Kel. Cibeuti, Kec. Kawalu Tasikmalaya - Jawa Barat
+                    {/* 1. KOP SURAT (Compact & Elegant) */}
+                    <div style={{ 
+                        borderBottom: '3px double #000', 
+                        paddingBottom: '10px', 
+                        marginBottom: '15px', 
+                        textAlign: 'center' 
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px' }}>
+                            {/* Logo bisa dimasukkan disini jika ada */}
+                            <div>
+                                <h2 style={{ margin: '0 0 5px 0', fontSize: '16pt', fontWeight: '900', letterSpacing: '1px' }}>
+                                    PONDOK PESANTREN AL-HASANAH
+                                </h2>
+                                <div style={{ fontSize: '10pt', fontStyle: 'italic', marginBottom: '3px' }}>
+                                    Jalan Raya Cibeuti, Km. 3 Rt. 01, Rw. 01, Kel. Cibeuti, Kec. Kawalu Tasikmalaya - Jawa Barat
+                                </div>
+                                <div style={{ fontSize: '9pt' }}>
+                                    Telp: (021) 1234567 | Email: admin@alhasanah.id | Web: alhasanah.id
+                                </div>
+                            </div>
                         </div>
-                        <div style={{ fontSize: '10pt' }}>Telp: (021) 1234567 | Email: admin@alhasanah.id | Instagram: Al-hasanah cibeuti</div>
                     </div>
 
                     {/* 2. JUDUL DOKUMEN */}
-                    <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-                        <h3 style={{ margin: 0, fontSize: '16pt', fontWeight: 'bold', textDecoration: 'underline' }}>BIODATA SANTRI</h3>
-                        <div style={{ fontSize: '12pt' }}>Nomor Induk Santri: {record.nis}</div>
+                    <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                        <h3 style={{ margin: 0, fontSize: '14pt', fontWeight: 'bold', textDecoration: 'underline', textTransform: 'uppercase' }}>
+                            BIODATA SANTRI
+                        </h3>
+                        <div style={{ fontSize: '11pt', marginTop: '5px' }}>
+                            Nomor Induk Santri (NIS): <b>{record.nis}</b>
+                        </div>
                     </div>
 
-                    {/* 3. FOTO & INFO UTAMA */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+                    {/* 3. LAYOUT SPLIT: DATA PRIBADI (Kiri) & FOTO (Kanan) */}
+                    {/* Strategi ini menghemat ruang vertikal agar muat 1 halaman */}
+                    <div style={{ display: 'flex', gap: '20px', marginBottom: '15px' }}>
+                        
+                        {/* Kiri: Tabel Data Pribadi */}
                         <div style={{ flex: 1 }}>
-                            {/* Data akan diisi tabel dibawah */}
-                        </div>
-                        <div style={{ width: '30mm', height: '40mm', border: '1px solid #000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            {record.foto_url ? 
-                                <img src={record.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : 
-                                <span style={{ fontSize: '9pt', color: '#666' }}>3x4</span>
-                            }
-                        </div>
-                    </div>
-
-                    {/* 4. TABEL DATA */}
-                    <div style={{ fontSize: '12pt', lineHeight: '1.6' }}>
-                        {/* A. DATA PRIBADI */}
-                        <div style={{ fontWeight: 'bold', marginBottom: '5px', backgroundColor: '#eee', padding: '2px 5px', borderBottom: '1px solid #999' }}>A. DATA PRIBADI</div>
-                        <table style={{ width: '100%', marginBottom: '15px' }}>
-                            <tbody>
-                                <tr><td width="35%">Nama Lengkap</td><td width="2%">:</td><td><b>{record.nama}</b></td></tr>
-                                <tr><td>NIK</td><td>:</td><td>{record.nik || '-'}</td></tr>
-                                <tr><td>Tempat, Tanggal Lahir</td><td>:</td><td>{record.tempat_lahir ? `${record.tempat_lahir}, ` : ''} {dayjs(record.tanggal_lahir).format('DD MMMM YYYY')}</td></tr>
-                                <tr><td>Jenis Kelamin</td><td>:</td><td>{record.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'}</td></tr>
-                                <tr><td>Anak Ke-</td><td>:</td><td>{record.anak_ke || '-'}</td></tr>
-                                <tr><td>Alamat Lengkap</td><td>:</td><td>{record.alamat_lengkap || '-'}</td></tr>
-                            </tbody>
-                        </table>
-
-                        {/* B. DATA AKADEMIK */}
-                        <div style={{ fontWeight: 'bold', marginBottom: '5px', backgroundColor: '#eee', padding: '2px 5px', borderBottom: '1px solid #999' }}>B. DATA AKADEMIK & PESANTREN</div>
-                        <table style={{ width: '100%', marginBottom: '15px' }}>
-                            <tbody>
-                                <tr><td width="35%">Tingkat / Kelas</td><td width="2%">:</td><td>{record.kelas}</td></tr>
-                                <tr><td>Takhasus</td><td>:</td><td>{record.jurusan}</td></tr>
-                                <tr><td>Status Santri</td><td>:</td><td>{record.status_santri}</td></tr>
-                                <tr><td>Tanggal Masuk</td><td>:</td><td>{dayjs(record.created_at).format('DD MMMM YYYY')}</td></tr>
-                                <tr><td>Pembimbing</td><td>:</td><td>{record.pembimbing || '-'}</td></tr>
-                                <tr><td>Capaian Hafalan</td><td>:</td><td>{record.total_hafalan || '0'} Juz</td></tr>
-                                <tr><td>Kitab yang Diselesaikan</td><td>:</td><td>{record.hafalan_kitab || '-'}</td></tr>
-                            </tbody>
-                        </table>
-
-                        {/* C. DATA KELUARGA */}
-                        <div style={{ fontWeight: 'bold', marginBottom: '5px', backgroundColor: '#eee', padding: '2px 5px', borderBottom: '1px solid #999' }}>C. DATA KELUARGA / WALI</div>
-                        <table style={{ width: '100%', marginBottom: '15px' }}>
-                            <tbody>
-                                <tr><td width="35%">Nama Ayah Kandung</td><td width="2%">:</td><td>{record.ayah || '-'}</td></tr>
-                                <tr><td>Nama Ibu Kandung</td><td>:</td><td>{record.ibu || '-'}</td></tr>
-                                <tr><td>Nama Wali (Penanggung Jawab)</td><td>:</td><td>{waliData.full_name || '-'}</td></tr>
-                                <tr><td>No. Kontak Wali</td><td>:</td><td>{waliData.no_hp || record.no_kontak_wali || '-'}</td></tr>
-                                <tr><td>Email Akun Wali</td><td>:</td><td>{waliData.email || '-'}</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    {/* 5. TANDA TANGAN & QR */}
-                    <div style={{ marginTop: '50px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                        <div style={{ textAlign: 'center' }}>
-                            <div style={{ marginBottom: '10px' }}>
-                                <QRCodeCanvas value={`VALIDASI_SANTRI:${record.nis}:${record.nama}`} size={90} />
+                            <div style={{ 
+                                backgroundColor: '#f0f0f0', 
+                                padding: '4px 8px', 
+                                borderLeft: '4px solid #000', 
+                                fontWeight: 'bold', 
+                                fontSize: '10pt',
+                                marginBottom: '8px'
+                            }}>
+                                A. DATA PRIBADI
                             </div>
-                            <div style={{ fontSize: '9pt' }}>Scan untuk validasi data</div>
+                            <table style={{ width: '100%', fontSize: '10pt', borderCollapse: 'collapse' }}>
+                                <tbody>
+                                    <tr><td width="130" style={{padding:'3px 0'}}>Nama Lengkap</td><td width="10">:</td><td style={{fontWeight:'bold'}}>{record.nama}</td></tr>
+                                    <tr><td style={{padding:'3px 0'}}>NIK</td><td>:</td><td>{record.nik || '-'}</td></tr>
+                                    <tr><td style={{padding:'3px 0'}}>Tempat, Tgl Lahir</td><td>:</td><td>{record.tempat_lahir ? `${record.tempat_lahir}, ` : ''} {dayjs(record.tanggal_lahir).format('DD MMMM YYYY')}</td></tr>
+                                    <tr><td style={{padding:'3px 0'}}>Jenis Kelamin</td><td>:</td><td>{record.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'}</td></tr>
+                                    <tr><td style={{padding:'3px 0'}}>Anak Ke-</td><td>:</td><td>{record.anak_ke || '-'}</td></tr>
+                                    <tr><td style={{padding:'3px 0', verticalAlign:'top'}}>Alamat</td><td style={{verticalAlign:'top'}}>:</td><td style={{lineHeight:'1.3'}}>{record.alamat_lengkap || '-'}</td></tr>
+                                </tbody>
+                            </table>
                         </div>
 
-                        <div style={{ textAlign: 'center', width: '250px' }}>
-                            <div style={{ marginBottom: '70px' }}>
+                        {/* Kanan: Foto (Fixed Size) */}
+                        <div style={{ width: '35mm' }}>
+                            <div style={{ 
+                                width: '30mm', 
+                                height: '40mm', 
+                                border: '1px solid #000', 
+                                padding: '2px', 
+                                backgroundColor: '#fff',
+                                margin: '0 auto' // Center
+                            }}>
+                                {record.foto_url ? 
+                                    <img src={record.foto_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Foto Santri" /> : 
+                                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8pt', color: '#999', flexDirection: 'column' }}>
+                                        <span>FOTO</span>
+                                        <span>3x4</span>
+                                    </div>
+                                }
+                            </div>
+                            <div style={{ textAlign: 'center', fontSize: '8pt', marginTop: '5px' }}>
+                                {record.nis}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 4. SECTION B: AKADEMIK */}
+                    <div style={{ marginBottom: '15px' }}>
+                        <div style={{ 
+                            backgroundColor: '#f0f0f0', 
+                            padding: '4px 8px', 
+                            borderLeft: '4px solid #000', 
+                            fontWeight: 'bold', 
+                            fontSize: '10pt',
+                            marginBottom: '8px'
+                        }}>
+                            B. DATA AKADEMIK & PESANTREN
+                        </div>
+                        <table style={{ width: '100%', fontSize: '10pt', borderCollapse: 'collapse' }}>
+                            <tbody>
+                                <tr style={{ borderBottom: '1px dashed #ddd' }}>
+                                    <td width="180" style={{padding:'4px 0'}}>Tingkat / Kelas</td><td width="10">:</td>
+                                    <td>{record.kelas}</td>
+                                    
+                                    <td width="150" style={{padding:'4px 0'}}>Takhasus/Jurusan</td><td width="10">:</td>
+                                    <td>{record.jurusan}</td>
+                                </tr>
+                                <tr style={{ borderBottom: '1px dashed #ddd' }}>
+                                    <td style={{padding:'4px 0'}}>Status Santri</td><td>:</td>
+                                    <td><span style={{ border: '1px solid #000', padding: '1px 6px', fontSize: '8pt' }}>{record.status_santri}</span></td>
+                                    
+                                    <td style={{padding:'4px 0'}}>Tanggal Masuk</td><td>:</td>
+                                    <td>{dayjs(record.created_at).format('DD MMM YYYY')}</td>
+                                </tr>
+                                <tr style={{ borderBottom: '1px dashed #ddd' }}>
+                                    <td style={{padding:'4px 0'}}>Pembimbing</td><td>:</td>
+                                    <td colSpan={4}>{record.pembimbing || '-'}</td>
+                                </tr>
+                                <tr style={{ borderBottom: '1px dashed #ddd' }}>
+                                    <td style={{padding:'4px 0'}}>Capaian Hafalan</td><td>:</td>
+                                    <td><b>{record.total_hafalan || '0'} Juz</b></td>
+                                    
+                                    <td style={{padding:'4px 0'}}>Kitab Selesai</td><td>:</td>
+                                    <td>{record.hafalan_kitab || '-'}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* 5. SECTION C: KELUARGA */}
+                    <div style={{ marginBottom: '20px' }}>
+                        <div style={{ 
+                            backgroundColor: '#f0f0f0', 
+                            padding: '4px 8px', 
+                            borderLeft: '4px solid #000', 
+                            fontWeight: 'bold', 
+                            fontSize: '10pt',
+                            marginBottom: '8px'
+                        }}>
+                            C. DATA KELUARGA / WALI
+                        </div>
+                        <table style={{ width: '100%', fontSize: '10pt', borderCollapse: 'collapse' }}>
+                            <tbody>
+                                <tr><td width="180" style={{padding:'3px 0'}}>Nama Ayah Kandung</td><td width="10">:</td><td>{record.ayah || '-'}</td></tr>
+                                <tr><td style={{padding:'3px 0'}}>Nama Ibu Kandung</td><td>:</td><td>{record.ibu || '-'}</td></tr>
+                                <tr><td style={{padding:'3px 0'}}>Nama Wali Penanggung Jawab</td><td>:</td><td><b>{waliData.full_name || '-'}</b></td></tr>
+                                <tr><td style={{padding:'3px 0'}}>No. Kontak / WA</td><td>:</td><td>{waliData.no_hp || record.no_kontak_wali || '-'}</td></tr>
+                                <tr><td style={{padding:'3px 0'}}>Email Akun Wali</td><td>:</td><td>{waliData.email || '-'}</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* 6. TANDA TANGAN & QR (Dipastikan tidak terpotong) */}
+                    <div style={{ 
+                        marginTop: '30px', 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'flex-start',
+                        pageBreakInside: 'avoid' // Mencegah ini terpotong ke halaman baru
+                    }}>
+                        {/* Kiri: QR Validasi */}
+                        <div style={{ textAlign: 'center', width: '120px' }}>
+                            <div style={{ border: '1px solid #ddd', padding: '5px', display: 'inline-block' }}>
+                                <QRCodeCanvas value={`VALIDASI:${record.nis}`} size={80} />
+                            </div>
+                            <div style={{ fontSize: '8pt', color: '#555', marginTop: '4px' }}>Scan Validasi</div>
+                        </div>
+
+                        {/* Kanan: TTD */}
+                        <div style={{ textAlign: 'center', width: '220px', marginRight: '10mm' }}>
+                            <div style={{ fontSize: '10pt', marginBottom: '60px' }}>
                                 Kab. Barokah, {dayjs().format('DD MMMM YYYY')} <br/>
                                 Pengasuh / Kepala Bagian,
                             </div>
-                            <div style={{ fontWeight: 'bold', textDecoration: 'underline' }}>KH. Anton, Lc.</div>
-                            <div>NIP. 19283746 1 001</div>
+                            <div style={{ fontWeight: 'bold', textDecoration: 'underline', fontSize: '10pt' }}>
+                                KH. Anton, Lc.
+                            </div>
+                            <div style={{ fontSize: '9pt' }}>NIP. 19283746 1 001</div>
                         </div>
                     </div>
 
-                    {/* 6. FOOTER CETAK */}
-                    <div style={{ position: 'fixed', bottom: 10, left: 20, right: 0, fontSize: '8pt', color: '#888', fontStyle: 'italic' }}>
-                        Dicetak otomatis oleh Sistem Informasi Pesantren Al-Hasanah pada {dayjs().format('DD/MM/YYYY HH:mm')}
+                    {/* 7. FOOTER FIXED */}
+                    <div style={{ 
+                        position: 'absolute', 
+                        bottom: '10mm', 
+                        left: '20mm', 
+                        right: '20mm', 
+                        borderTop: '1px solid #ccc',
+                        paddingTop: '5px',
+                        fontSize: '8pt', 
+                        color: '#888', 
+                        fontStyle: 'italic',
+                        display: 'flex',
+                        justifyContent: 'space-between'
+                    }}>
+                        <span>Sistem Informasi Pesantren Al-Hasanah</span>
+                        <span>Dicetak: {dayjs().format('DD/MM/YYYY HH:mm')}</span>
                     </div>
 
                 </div>

@@ -4,7 +4,7 @@ import { ProTable, ProColumns } from "@ant-design/pro-components";
 import { Tag, Space, Button, Typography, Badge, Tooltip } from "antd";
 import { 
     ExportOutlined,
-    RestOutlined, // Icon sapu/sampah untuk reset
+    RestOutlined, 
     DownloadOutlined,
     PlusOutlined, 
     WarningOutlined, 
@@ -14,12 +14,12 @@ import {
     FileTextOutlined,
     UserOutlined
 } from "@ant-design/icons";
-import { Modal, message } from "antd"; // Tambah Modal & message
+import { Modal, message } from "antd"; 
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { supabaseClient } from "../../utility/supabaseClient";
 import { IPelanggaranSantri } from "../../types";
-import { useNavigation, useDelete } from "@refinedev/core";
+import { useNavigation, useDelete } from "@refinedev/core"; //
 import dayjs from "dayjs";
 import "dayjs/locale/id";
 
@@ -52,7 +52,6 @@ export const PelanggaranList = () => {
             { header: 'Catatan', key: 'catatan', width: 40 },
         ];
 
-        // Ambil SEMUA data (tanpa paginasi) dari Supabase langsung agar lengkap
         const { data: allData } = await supabaseClient
             .from('pelanggaran_santri')
             .select('*, santri(nama, nis, kelas, jurusan)')
@@ -73,7 +72,6 @@ export const PelanggaranList = () => {
             });
         }
 
-        // Style Header Merah (Warning)
         worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
         worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEF4444' } };
 
@@ -99,13 +97,11 @@ export const PelanggaranList = () => {
         cancelText: 'Batal',
         onOk: async () => {
             try {
-                // MEMANGGIL RPC (Function Database)
                 const { error } = await supabaseClient.rpc('reset_pelanggaran');
 
                 if (error) throw error;
                 
                 message.success("Sistem poin berhasil di-reset. Data bersih.");
-                // Refresh halaman/tabel
                 window.location.reload(); 
             } catch (err: any) {
                 console.error(err);
@@ -115,7 +111,8 @@ export const PelanggaranList = () => {
     });
 };
 
-    const { create, edit } = useNavigation();
+    // Kita sudah punya 'create' dari useNavigation di sini
+    const { create, edit } = useNavigation(); 
     const { mutate: deleteMutate } = useDelete();
 
     const columns: ProColumns<IPelanggaranSantri>[] = [
@@ -124,7 +121,7 @@ export const PelanggaranList = () => {
             dataIndex: "tanggal",
             valueType: "date",
             width: 110,
-            fixed: "left", // Agar tanggal tetap terlihat saat scroll horizontal
+            fixed: "left", 
             render: (_, record) => (
                 <div className="flex flex-col">
                     <Text strong>{dayjs(record.tanggal).format("DD MMM")}</Text>
@@ -139,7 +136,6 @@ export const PelanggaranList = () => {
             width: 200,
             render: (_, record) => (
                 <div className="flex items-center gap-2">
-                    {/* Avatar Kecil jika ada foto */}
                     {record.santri?.foto_url ? (
                         <img 
                             src={record.santri.foto_url} 
@@ -224,12 +220,11 @@ export const PelanggaranList = () => {
         {
             title: "Kronologi / Catatan",
             dataIndex: "catatan",
-            width: 250, // Lebar fixed agar tabel rapi
+            width: 250, 
             hideInSearch: true,
             render: (_, record) => (
                 <div className="flex items-start gap-2 text-gray-600 dark:text-gray-400">
                     <FileTextOutlined className="mt-1 opacity-50" />
-                    {/* Ellipsis otomatis memotong teks panjang */}
                     <Paragraph 
                         ellipsis={{ rows: 2, tooltip: record.catatan }} 
                         className="m-0 text-xs leading-snug"
@@ -263,7 +258,7 @@ export const PelanggaranList = () => {
                             className="text-red-600 hover:bg-red-50"
                             icon={<DeleteOutlined />} 
                             onClick={() => {
-                                if(confirm("Hapus data pelanggaran ini? Poin santri akan dikembalikan.")) {
+                                if(confirm("Hapus data pelanggaran ini? Poin santri akan direset")) {
                                     deleteMutate({ resource: "pelanggaran_santri", id: record.id });
                                 }
                             }}
@@ -274,16 +269,13 @@ export const PelanggaranList = () => {
         }
     ];
 
-    function push(_path: string): void {
-        throw new Error("Function not implemented.");
-    }
+    // FUNGSI PUSH MANUAL DIHAPUS DARI SINI KARENA MENYEBABKAN ERROR
 
     return (
         <ProTable<IPelanggaranSantri>
             {...tableProps}
             columns={columns}
             rowKey="id"
-            // Header Title yang lebih Menarik
             headerTitle={
                 <Space>
                     <div className="bg-red-50 dark:bg-red-900/20 p-2 rounded-lg border border-red-100 dark:border-red-800">
@@ -316,7 +308,8 @@ export const PelanggaranList = () => {
                     key="create" 
                     type="primary" 
                     icon={<PlusOutlined />} 
-                    onClick={() => push("pelanggaran_santri/create")}
+                    // PERBAIKAN: Menggunakan fungsi 'create' bawaan Refine, bukan 'push' manual
+                    onClick={() => create("pelanggaran_santri")} 
                     className="bg-emerald-600 hover:bg-emerald-500 shadow-sm border-0"
                 >
                     Catat Pelanggaran
@@ -338,10 +331,9 @@ export const PelanggaranList = () => {
                 showSizeChanger: true,
                 showTotal: (total) => `Total ${total} Pelanggaran`
             }}
-            // Styling khusus tabel
             className="bg-white dark:bg-[#141414] rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden"
             tableStyle={{ border: 'none' }}
-            scroll={{ x: 1000 }} // Agar bisa di-scroll horizontal di HP
+            scroll={{ x: 1000 }} 
         />
     );
 };
