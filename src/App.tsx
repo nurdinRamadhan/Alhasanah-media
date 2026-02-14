@@ -32,6 +32,13 @@ import {
   RocketOutlined
 } from "@ant-design/icons";
 
+// Providers
+
+import { accessControlProvider } from "./accessControlProvider"; // Pastikan path benar
+// Kita buat wrapper kecil untuk mengecek role sebelum render AI Button
+import { useGetIdentity } from "@refinedev/core";
+import { IUserIdentity } from "./types";
+
 // --- IMPORT PAGES ---
 import { DashboardPage } from "./pages/dashboard";
 import { AiFloatingButton } from "./components/AiFloatingButton";
@@ -88,7 +95,25 @@ import { AuditLogList } from "./pages/audit/list";
 import { AkademikPage } from "./pages/akademik/list";
 import { SafetyCertificateOutlined } from "@ant-design/icons";
 
+import { CreateAdminPage } from "./pages/admin-management/create";
+import { AdminList } from "./pages/admin-management/list";
 
+const AIConsultantWrapper = () => {
+    const { data: user } = useGetIdentity<IUserIdentity>();
+    
+    // Logic: Hanya dewan, super_admin, rois
+    const allowedRoles = ["super_admin", "dewan", "rois"];
+    
+    if (user && allowedRoles.includes(user.role)) {
+        return (
+            <>
+                <AiFloatingButton />
+                <GeminiConsultant />
+            </>
+        );
+    }
+    return null;
+};
 
 
 const InnerApp = () => {
@@ -111,6 +136,7 @@ const InnerApp = () => {
                     <Refine
                         dataProvider={dataProvider(supabaseClient)}
                         authProvider={authProvider}
+                        accessControlProvider={accessControlProvider}
                         routerProvider={routerBindings}
                         notificationProvider={useNotificationProvider}
                         resources={[
@@ -126,6 +152,15 @@ const InnerApp = () => {
                                 name: "instansi_info",
                                 list: "/instansi",
                                 meta: { label: "Profil Pesantren", icon: <BankOutlined /> }
+                            },
+                            {
+                            name: "admin_management",
+                            list: "/admin-management/list",
+                            create: "/admin-management/create",
+                            meta: { 
+                                label: "Buat Admin Baru", 
+                                icon: <UserOutlined /> 
+                            }
                             },
                             // 1. DATA SANTRI
                             {
@@ -173,7 +208,7 @@ const InnerApp = () => {
                                 meta: { label: "Kesehatan (UKS)", parent: "kesantrian_menu", icon: <MedicineBoxOutlined /> }
                             },
 
-                            // 4. TAHFIDZ QURAN (GROUP)
+                            // 4. TAHFIDZ QURAN 
                             {
                                 name: "tahfidz_menu",
                                 meta: { label: "Tahfidz Quran", icon: <ReadOutlined /> }
@@ -246,6 +281,7 @@ const InnerApp = () => {
                                 show: "/inventaris/show/:id",
                                 meta: { label: "Inventaris Aset", icon: <BarcodeOutlined /> }
                             },
+                            
                         ]}
                         options={{
                             syncWithLocation: true,
@@ -297,6 +333,8 @@ const InnerApp = () => {
                                             Sider={(props) => <ThemedSiderV2 {...props} fixed Title={Title} />}
                                         >
                                             <Outlet />
+                                            {/* BUTTON AI DISIMPAN DISINI AGAR GLOBAL TAPI TERFILTER */}
+                                        <AIConsultantWrapper />
                                         </ThemedLayoutV2>
                                     </Authenticated>
                                     
@@ -379,18 +417,21 @@ const InnerApp = () => {
                                 {/* Pengeluaran */}
                                 <Route path="/pengeluaran" element={<PengeluaranList />} />
 
+                                {/* PERBAIKAN: Path disamakan dengan resources.list */}
+                               <Route path="/admin-management/create" element={<CreateAdminPage />} />
+                               <Route path="/admin-management/list" element={<AdminList />} />
                                 {/* 6. Module Inventaris */}
                                 <Route path="/inventaris">
                                     <Route index element={<InventarisList />} />
                                     <Route path="create" element={<InventarisCreate />} />
                                     <Route path="show/:id" element={<InventarisShow />} />
                                 </Route>
+                                
 
                                 <Route path="*" element={<ErrorComponent />} />
                             </Route>
                         </Routes>
-                    <GeminiConsultant />   {/* Robot Ungu (Deep Analysis) */}
-                   <AiFloatingButton />   {/* Robot Biru (Simple Insight) */}
+                    
                         
 
                         <UnsavedChangesNotifier />

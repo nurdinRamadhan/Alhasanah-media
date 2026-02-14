@@ -15,18 +15,36 @@ export type StatusTagihan = 'LUNAS' | 'BELUM' | 'CICILAN';
 export type StatusTransaksi = 'pending' | 'settlement' | 'expire' | 'deny' | 'cancel';
 export type JenisTransaksi = 'masuk' | 'keluar';
 
+// --- SCOPES ---
+export type TGenderScope = 'L' | 'P' | 'ALL';
+export type TJurusanScope = 'KITAB' | 'TAHFIDZ' | 'ALL';
+
+// Role sesuai request (huruf kecil)
+export type TRole = 'super_admin' | 'rois' | 'bendahara' | 'kesantrian' | 'dewan';
+
 // --- INTERFACES ---
 
 export interface IProfile {
-  id: string; // UUID from auth.users
-  full_name: string | null;
-  email: string | null;
-  role: string; // 'admin', 'wali', 'keuangan'
-  no_hp: string | null;
-  foto_url: string | null;
-  is_active: boolean;
-  created_at: string;
+    id: string;
+    email: string;
+    role: TRole; // super_admin, bendahara, dll
+    full_name: string;
+    is_active: boolean;
+    foto_url?: string;
+    no_hp?: string;
+    akses_gender: TGenderScope;
+    akses_jurusan: TJurusanScope;
 }
+
+export interface IUserIdentity {
+    id: string;
+    name: string;
+    avatar?: string;
+    role: TRole;
+    scopeGender: TGenderScope;
+    scopeJurusan: TJurusanScope;
+}
+
 // --- INSTANSI & STRUKTUR KEPENGURUSAN ---
 export interface IInstansiInfo {
     id: number;

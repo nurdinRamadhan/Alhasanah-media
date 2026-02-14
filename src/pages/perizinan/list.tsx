@@ -31,7 +31,8 @@ export const PerizinanList = () => {
         sorters: { initial: [{ field: "created_at", order: "desc" }] }
     });
 
-    const { create, edit } = useNavigation();
+    // PERBAIKAN 1: Tambahkan 'push' ke dalam destructuring useNavigation
+    const { create, edit, push } = useNavigation();
     const { mutate: updateMutate } = useUpdate();
     const { mutate: deleteMutate } = useDelete();
 
@@ -270,9 +271,7 @@ export const PerizinanList = () => {
         }
     ];
 
-    function push(_path: string): void {
-        throw new Error("Function not implemented.");
-    }
+    // PERBAIKAN 2: Blok fungsi push() manual yang membuat error DARI SINI TELAH DIHAPUS
 
     return (
         <>
