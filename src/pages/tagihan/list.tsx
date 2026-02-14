@@ -388,7 +388,7 @@ export const TagihanList = () => {
                                 allowClear 
                                 placeholder="Semua Kelas" 
                                 className="w-full" 
-                                options={[1,2,3,4,5,6].map(k => ({ label: `Kelas ${k}`, value: `${k}` }))} 
+                                options={[1,2,3].map(k => ({ label: `Kelas ${k}`, value: `${k}` }))} 
                                 onChange={setFilterKelas} 
                             />
                         </div>
