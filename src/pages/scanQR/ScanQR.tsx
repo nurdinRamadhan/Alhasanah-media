@@ -21,6 +21,7 @@ export const ScanQR = () => {
     const [scanning, setScanning] = useState(true);
     const [loadingData, setLoadingData] = useState(false);
     const [scannedData, setScannedData] = useState<any>(null);
+    const [tagihanData, setTagihanData] = useState<any[]>([]); // State baru untuk SPP
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     // Fungsi untuk mengambil data dari Supabase berdasarkan NIS
@@ -28,19 +29,28 @@ export const ScanQR = () => {
         setLoadingData(true);
         setErrorMsg(null);
         try {
-            // Asumsi tabel bernama 'santri' dan QR Code berisi NIS
-            const { data, error } = await supabaseClient
+            // 1. Ambil Profil Santri
+            const { data: santri, error: santriError } = await supabaseClient
                 .from('santri')
                 .select('*')
                 .eq('nis', nis)
                 .single();
 
-            if (error || !data) {
+            if (santriError || !santri) {
                 throw new Error("Data santri tidak ditemukan untuk QR Code ini.");
             }
 
-            setScannedData(data);
-            message.success(`Berhasil memuat data: ${data.nama}`);
+            // 2. Ambil Tagihan SPP (berdasarkan skema tabel Anda)
+            const { data: tagihan } = await supabaseClient
+                .from('tagihan_santri')
+                .select('*')
+                .eq('santri_nis', nis)
+                .order('tanggal_jatuh_tempo', { ascending: false })
+                .limit(3); // Ambil 3 tagihan terakhir
+
+            setScannedData(santri);
+            setTagihanData(tagihan || []);
+            message.success(`Berhasil memuat data: ${santri.nama}`);
         } catch (err: any) {
             setErrorMsg(err.message);
             message.error(err.message);
@@ -52,10 +62,22 @@ export const ScanQR = () => {
     // Handler ketika QR Code berhasil dibaca
     const handleDecode = (text: string) => {
         if (text) {
-            setScanning(false); // Matikan kamera sementara
-            fetchSantriData(text);
+            setScanning(false); // Matikan kamera
+            
+            // LOGIKA PEMOTONGAN PREFIX (Agar cocok dengan database)
+            let extractedNis = text;
+            if (text.startsWith("SANTRI:")) {
+                extractedNis = text.replace("SANTRI:", "");
+            } else if (text.startsWith("VALIDASI:")) {
+                extractedNis = text.replace("VALIDASI:", "");
+            }
+            
+            fetchSantriData(extractedNis);
         }
     };
+
+    // Handler ketika QR Code berhasil dibaca
+   
 
     // Reset Scanner
     const handleReset = () => {
@@ -183,30 +205,52 @@ export const ScanQR = () => {
                                 ) : (
                                     <div className="spp-container">
                                         <Title level={4} style={{ color: token.colorPrimary, marginBottom: '24px' }}>
-                                            <WalletOutlined /> Status Pembayaran Syahriah
+                                            <WalletOutlined /> Status Pembayaran SPP Terbaru
                                         </Title>
                                         
-                                        {/* LOGIKA CONTOH SPP - Sesuaikan dengan database Anda */}
-                                        <Card type="inner" style={{ background: scannedData.status_spp_lunas ? '#f6ffed' : '#fff2f0', borderColor: scannedData.status_spp_lunas ? '#b7eb8f' : '#ffccc7' }}>
-                                            <Row justify="space-between" align="middle">
-                                                <Col>
-                                                    <Text strong style={{ fontSize: '18px' }}>Bulan Berjalan (Contoh)</Text>
-                                                    <br/>
-                                                    <Text type="secondary">Tipe: {scannedData.status_spp || 'Reguler'}</Text>
-                                                </Col>
-                                                <Col>
-                                                    {scannedData.status_spp === 'BEASISWA' ? (
-                                                        <Tag color="gold" style={{ padding: '8px 16px', fontSize: '16px' }}>BEASISWA LUNAS</Tag>
-                                                    ) : (
-                                                        <Tag color="error" icon={<CloseCircleOutlined />} style={{ padding: '8px 16px', fontSize: '16px' }}>
-                                                            BELUM LUNAS
-                                                        </Tag>
-                                                    )}
-                                                </Col>
-                                            </Row>
-                                        </Card>
+                                        {tagihanData.length > 0 ? (
+                                            tagihanData.map((tagihan, _index) => (
+                                                <Card 
+                                                    key={tagihan.id} 
+                                                    type="inner" 
+                                                    style={{ 
+                                                        marginBottom: '16px',
+                                                        background: tagihan.status === 'LUNAS' ? '#f6ffed' : '#fff2f0', 
+                                                        borderColor: tagihan.status === 'LUNAS' ? '#b7eb8f' : '#ffccc7' 
+                                                    }}
+                                                >
+                                                    <Row justify="space-between" align="middle">
+                                                        <Col>
+                                                            <Text strong style={{ fontSize: '16px' }}>{tagihan.deskripsi_tagihan || 'Tagihan SPP'}</Text>
+                                                            <br/>
+                                                            <Text type="secondary">
+                                                                Jatuh Tempo: {tagihan.tanggal_jatuh_tempo ? new Date(tagihan.tanggal_jatuh_tempo).toLocaleDateString('id-ID') : '-'}
+                                                            </Text>
+                                                        </Col>
+                                                        <Col style={{ textAlign: 'right' }}>
+                                                            <div style={{ marginBottom: '8px', fontWeight: 'bold' }}>
+                                                                Rp {tagihan.nominal_tagihan?.toLocaleString('id-ID')}
+                                                            </div>
+                                                            {tagihan.status === 'LUNAS' ? (
+                                                                <Tag color="success" icon={<CheckCircleOutlined />}>LUNAS</Tag>
+                                                            ) : tagihan.status === 'CICILAN' ? (
+                                                                <Tag color="warning">Sisa: Rp {tagihan.sisa_tagihan?.toLocaleString('id-ID')}</Tag>
+                                                            ) : (
+                                                                <Tag color="error" icon={<CloseCircleOutlined />}>BELUM LUNAS</Tag>
+                                                            )}
+                                                        </Col>
+                                                    </Row>
+                                                </Card>
+                                            ))
+                                        ) : (
+                                            <div style={{ textAlign: 'center', padding: '24px', color: '#999' }}>
+                                                Tidak ada catatan tagihan untuk santri ini.
+                                            </div>
+                                        )}
                                         <div style={{ marginTop: '24px', textAlign: 'center' }}>
-                                            <Button type="primary" ghost size="large" style={{ borderRadius: '8px' }}>Lihat Riwayat Lengkap Pembayaran</Button>
+                                            <Button type="primary" ghost size="large" style={{ borderRadius: '8px' }}>
+                                                Buka Menu Keuangan
+                                            </Button>
                                         </div>
                                     </div>
                                 )}
