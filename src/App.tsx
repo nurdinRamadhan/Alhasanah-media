@@ -95,6 +95,8 @@ import { AuditLogList } from "./pages/audit/list";
 import { AkademikPage } from "./pages/akademik/list";
 import { SafetyCertificateOutlined } from "@ant-design/icons";
 
+import { ScanQR } from "./pages/scanQR/ScanQR";
+
 import { CreateAdminPage } from "./pages/admin-management/create";
 import { AdminList } from "./pages/admin-management/list";
 
@@ -272,6 +274,12 @@ const InnerApp = () => {
                                 meta: { label: "Pengeluaran", icon: <ShoppingCartOutlined /> }
                             },
 
+                            {
+                                name: "scan-qr",
+                                list: "/scanQr",
+                                meta: { label: "Scan QR", icon: <BarcodeOutlined /> }
+                            },
+
                             // 6. INVENTARIS
                             {
                                 name: "inventaris",
@@ -281,6 +289,8 @@ const InnerApp = () => {
                                 show: "/inventaris/show/:id",
                                 meta: { label: "Inventaris Aset", icon: <BarcodeOutlined /> }
                             },
+
+                            
                             
                         ]}
                         options={{
@@ -416,6 +426,14 @@ const InnerApp = () => {
 
                                 {/* Pengeluaran */}
                                 <Route path="/pengeluaran" element={<PengeluaranList />} />
+
+                                {/* Scan QR */}
+                                <Route path="/scanQr" element={<ScanQR />} />
+
+                            
+                            
+
+                                       
 
                                 {/* PERBAIKAN: Path disamakan dengan resources.list */}
                                <Route path="/admin-management/create" element={<CreateAdminPage />} />
