@@ -332,78 +332,156 @@ export const DashboardPage = () => {
 
             {/* --- SEPARATOR --- */}
             <Divider orientation="left" style={{borderColor: token.colorBorder}}>
-                <Space><RocketOutlined /> <Text strong style={{fontSize: 16}}>Analisis Event & Diklat</Text></Space>
+                <Space><RocketOutlined /> <Text strong style={{fontSize: 16}}>Analisis Diklat Tahunan</Text></Space>
             </Divider>
 
-            {/* --- ROW 3: DIKLAT SECTION --- */}
-            <Row gutter={[24, 24]}>
-                {/* 1. FILTER HIJRI & KPI DIKLAT */}
-                <Col xs={24} md={8}>
-                    <div className="flex flex-col gap-4 h-full">
-                        {/* Control Panel */}
-                        <Card bordered={false} className="shadow-sm">
-                            <Text type="secondary" className="block mb-2 font-bold text-xs uppercase">Filter Tahun Hijriah</Text>
-                            <Select 
-                                value={selectedHijriYear} 
-                                onChange={setSelectedHijriYear} 
-                                options={HIJRI_YEARS}
-                                className="w-full mb-4"
-                                size="large"
-                            />
-                            <Statistic 
-                                title="Total Peserta Tahun Ini" 
-                                value={totalDiklatParticipants} 
-                                prefix={<UserOutlined />}
-                                valueStyle={{ color: token.colorPrimary, fontWeight: 'bold' }}
-                            />
-                            <div className="mt-4 pt-4 border-t border-dashed">
-                                <Text type="secondary" className="text-xs">
-                                    Menampilkan data pasaran Maulid, Syaban, Ramadhan, dan Dzulhijjah pada tahun {selectedHijriYear} H.
-                                </Text>
-                            </div>
-                        </Card>
-                        
-                        {/* Mini Revenue Diklat */}
-                        <Card bordered={false} className="shadow-sm bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900 dark:to-teal-900 border-none">
-                             <Statistic 
-                                title={<span className="text-emerald-700 dark:text-emerald-300">Total pemasukan Diklat</span>}
-                                value={diklatStats.reduce((acc, curr) => acc + curr.Pemasukan, 0)} 
-                                prefix="Rp"
-                                valueStyle={{ color: '#047857', fontWeight: 'bold', fontSize: 22 }}
-                                precision={0}
-                            />
-                            <div className="flex items-center gap-2 mt-2 text-emerald-600 dark:text-emerald-400 text-xs">
-                                <ShopOutlined /> Termasuk Penjualan Kitab
-                            </div>
-                        </Card>
+            {/* --- ROW 3: REFINED DIKLAT SECTION --- */}
+<Row gutter={[24, 24]}>
+    {/* 1. ANALYTICAL CONTROL CENTER */}
+    <Col xs={24} lg={7}>
+        <div className="flex flex-col gap-4 h-full">
+            <Card 
+                bordered={false} 
+                className="shadow-xl bg-white/80 backdrop-blur-md border border-white/20 overflow-hidden"
+                style={{ borderRadius: '24px' }}
+                bodyStyle={{ padding: '24px' }}
+            >
+                <div className="mb-6">
+                    <Text strong className="text-gray-400 text-xs uppercase tracking-widest block mb-4">
+                        Control Center
+                    </Text>
+                    <div className="flex items-center justify-between p-2 bg-gray-50 rounded-2xl border border-gray-100">
+                        <Space className="ml-2">
+                            <SyncOutlined className="text-blue-500" spin={diklatLoading} />
+                            <Text strong>Tahun Hijriah</Text>
+                        </Space>
+                        <Select 
+                            variant="borderless"
+                            value={selectedHijriYear} 
+                            onChange={setSelectedHijriYear} 
+                            options={HIJRI_YEARS}
+                            className="w-28 font-bold text-blue-600"
+                        />
                     </div>
-                </Col>
+                </div>
 
-                {/* 2. GRAFIK BATANG PESERTA */}
-                <Col xs={24} md={16}>
-                    <Card 
-                        title={`Tren Peserta Pasaran (${selectedHijriYear} H)`}
-                        bordered={false} 
-                        className="shadow-sm h-full"
-                    >
-                         <div style={{ width: '100%', height: 320 }}>
-                            <ResponsiveContainer>
-                                <BarChart data={diklatStats} barSize={40}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={token.colorBorderSecondary} />
-                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: token.colorTextSecondary}} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{fill: token.colorTextSecondary}} />
-                                    <Tooltip 
-                                         cursor={{fill: 'transparent'}}
-                                         contentStyle={{ backgroundColor: token.colorBgElevated, borderRadius: 8 }}
-                                    />
-                                    <Legend verticalAlign="top"/>
-                                    <Bar dataKey="Peserta" name="Jumlah Santri" fill={token.colorPrimary} radius={[6, 6, 0, 0]} />
-                                </BarChart>
-                            </ResponsiveContainer>
-                         </div>
-                    </Card>
-                </Col>
-            </Row>
+                <div className="space-y-6">
+                    <div>
+                        <Text type="secondary" className="text-xs">Total Mufasirin</Text>
+                        <div className="flex items-baseline gap-2">
+                            <Title level={2} style={{ margin: 0, fontWeight: 800 }}>{totalDiklatParticipants}</Title>
+                            <Text className="text-emerald-500 font-medium text-xs">
+                                <ArrowUpOutlined /> Mufasirin
+                            </Text>
+                        </div>
+                    </div>
+
+                    <Divider className="my-2" dashed />
+
+                    <div className="p-4 bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl text-white shadow-lg relative overflow-hidden">
+                        {/* Decorative circle */}
+                        <div className="absolute -right-4 -top-4 w-20 h-20 bg-emerald-500/20 rounded-full blur-2xl" />
+                        
+                        <Text className="text-gray-400 text-xs font-medium">Dana terkumpul Pasaran</Text>
+                        <div className="mt-1">
+                            <span className="text-emerald-400 text-sm font-bold mr-1">Rp</span>
+                            <span className="text-2xl font-black">
+                                {new Intl.NumberFormat('id-ID').format(diklatStats.reduce((acc, curr) => acc + curr.Pemasukan, 0))}
+                            </span>
+                        </div>
+                        <div className="mt-4 flex items-center gap-2 opacity-80 text-[10px]">
+                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                            Live Update
+                        </div>
+                    </div>
+                </div>
+            </Card>
+        </div>
+    </Col>
+
+    {/* 2. ADVANCED ANALYTICS CHART */}
+    <Col xs={24} lg={17}>
+        <Card 
+            title={
+                <div className="py-2">
+                    <Title level={4} style={{ margin: 0 }}>Statistik </Title>
+                    <Text type="secondary" className="text-xs font-normal">Perbandingan Volume Peserta vs Uang terkumpul (Tahun {selectedHijriYear} H)</Text>
+                </div>
+            }
+            bordered={false} 
+            className="shadow-xl"
+            style={{ borderRadius: '24px' }}
+        >
+            <div style={{ width: '100%', height: 350 }}>
+                <ResponsiveContainer>
+                    <BarChart data={diklatStats} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                        <defs>
+                            <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#3b82f6" stopOpacity={1}/>
+                                <stop offset="100%" stopColor="#60a5fa" stopOpacity={0.8}/>
+                            </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                        <XAxis 
+                            dataKey="name" 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }} 
+                            dy={10}
+                        />
+                        <YAxis 
+                            yAxisId="left"
+                            axisLine={false} 
+                            tickLine={false} 
+                            tick={{ fill: '#94a3b8', fontSize: 11 }} 
+                        />
+                        <YAxis 
+                            yAxisId="right"
+                            orientation="right"
+                            axisLine={false} 
+                            tickLine={false} 
+                            tick={{ fill: '#94a3b8', fontSize: 11 }}
+                            tickFormatter={(val) => `Rp${val/1000}k`}
+                        />
+                        <Tooltip 
+                            cursor={{ fill: '#f8fafc', radius: 12 }}
+                            contentStyle={{ 
+                                borderRadius: '16px', 
+                                border: 'none', 
+                                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                                padding: '12px'
+                            }}
+                        />
+                        <Legend 
+                            verticalAlign="top" 
+                            align="right" 
+                            iconType="circle"
+                            wrapperStyle={{ paddingBottom: '20px' }}
+                        />
+                        <Bar 
+                            yAxisId="left"
+                            dataKey="Peserta" 
+                            name="Jumlah Santri" 
+                            fill="url(#barGradient)" 
+                            radius={[10, 10, 10, 10]} 
+                            barSize={32}
+                        />
+                        <Area 
+                            yAxisId="right"
+                            type="monotone" 
+                            dataKey="Pemasukan" 
+                            name="Terkumpul (Rp)" 
+                            stroke="#10b981" 
+                            strokeWidth={3}
+                            fill="#10b981"
+                            fillOpacity={0.1}
+                        />
+                    </BarChart>
+                </ResponsiveContainer>
+            </div>
+        </Card>
+    </Col>
+</Row>
         </div>
     );
 };

@@ -251,6 +251,9 @@ export interface IPesertaDiklat {
     id: number;
     created_at: string;
     nama_lengkap: string;
+    nama_wali: string;
+    pekerjaan_wali: string;
+    alamat_pesantren: string;
     tempat_lahir: string;
     tanggal_lahir: string;
     alamat_lengkap: string;
