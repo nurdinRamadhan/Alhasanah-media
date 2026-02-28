@@ -1,0 +1,58 @@
+/* --- 1. GLOBAL PADDING FIX --- */
+/* Di HP, padding konten utama dikurangi drastis agar tabel muat */
+@media (max-width: 768px) {
+    .ant-layout-content {
+        padding: 8px !important; /* Default Refine 24px -> 8px */
+    }
+    
+    .ant-card-body {
+        padding: 12px !important;
+    }
+
+    /* Judul Halaman diperkecil */
+    h1, .ant-typography-title {
+        font-size: 18px !important;
+    }
+}
+
+/* --- 2. TABLE SCROLL FIX --- */
+/* Paksa tabel punya scrollbar sendiri, JANGAN geser layout utama */
+.ant-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+}
+
+/* Fix Header Tabel Tabrakan */
+/* Saat di mobile, matikan sticky header tabel jika sangat mengganggu */
+@media (max-width: 768px) {
+    .ant-table-sticky-holder {
+        display: none !important; /* Opsi ekstrim: matikan sticky header tabel di HP */
+    }
+    
+    /* Atau opsi soft: turunkan z-indexnya */
+    .ant-table-thead > tr > th {
+        z-index: 10 !important; 
+    }
+}
+
+/* --- 3. MODAL RESPONSIVE --- */
+/* Modal memenuhi layar di HP agar tombol terlihat */
+@media (max-width: 768px) {
+    .ant-modal {
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding-bottom: 0 !important;
+    }
+    .ant-modal-content {
+        border-radius: 12px 12px 0 0 !important;
+        min-height: 40vh;
+    }
+}
+
+/* --- 4. HIDE COLUMNS ON MOBILE (Utility Class) --- */
+/* Gunakan class ini di kolom tabel yang mau disembunyikan di HP */
+@media (max-width: 768px) {
+    .mobile-hidden {
+        display: none !important;
+    }
+}
