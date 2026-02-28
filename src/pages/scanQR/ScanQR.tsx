@@ -142,17 +142,30 @@ export const ScanQR = () => {
     };
 
     // Handler ketika QR Code berhasil dibaca
-    const handleDecode = (text: string) => {
+       const handleDecode = (text: string) => {
         if (!text) return;
         
-        // FIX UTAMA: Bersihkan spasi dari hasil scan
         const cleanText = text.trim();
         setScanning(false); 
         
-        if (cleanText.startsWith("DIKLAT:")) {
-            const qrId = cleanText.replace("DIKLAT:", "").trim();
+        // PERBAIKAN: Deteksi jika ada prefix "DIKLAT:" ATAU posisi UI sedang di tab/mode 'diklat'
+        if (cleanText.startsWith("DIKLAT:") || mode === 'diklat') {
+            
+            // Ambil ID-nya: Hapus prefix jika ada, jika tidak ada langsung gunakan teksnya (contoh: AH-VALID-5)
+            const qrId = cleanText.startsWith("DIKLAT:") 
+                ? cleanText.replace("DIKLAT:", "").trim() 
+                : cleanText;
+            
+            // Pastikan UI pindah ke tab diklat (berguna jika scan otomatis pakai prefix dari tab lain)
+            if (mode !== 'diklat') {
+                setMode('diklat');
+            }
+            
+            // Panggil fetch khusus diklat
             fetchDiklatData(qrId);
+            
         } else {
+            // Logika Santri (Tetap seperti semula, tidak diganggu gugat)
             let extractedNis = cleanText;
             
             if (cleanText.startsWith("SANTRI:")) {
@@ -161,8 +174,8 @@ export const ScanQR = () => {
                 extractedNis = cleanText.replace("VALIDASI:", "").trim();
             }
             
-            // Pindahkan mode ke info jika sedang di mode diklat
-            if (mode === 'diklat') {
+            // Pindahkan mode ke info jika sedang di mode lain
+            if (mode !== 'info' && mode !== 'spp') {
                 setMode('info');
             }
             
