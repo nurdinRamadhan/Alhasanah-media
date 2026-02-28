@@ -422,7 +422,7 @@ export const SantriShow = () => {
                         {/* Kanan: TTD */}
                         <div style={{ textAlign: 'center', width: '220px', marginRight: '10mm' }}>
                             <div style={{ fontSize: '10pt', marginBottom: '60px' }}>
-                                Kab. Barokah, {dayjs().format('DD MMMM YYYY')} <br/>
+                                l. Raya Cibeuti RT 001 RW 006, Kec. Kawalu, Kota Tasikmalaya, Prov. Jawa Barat {dayjs().format('DD MMMM YYYY')} <br/>
                                 Pengasuh / Kepala Bagian,
                             </div>
                             <div style={{ fontWeight: 'bold', textDecoration: 'underline', fontSize: '10pt' }}>

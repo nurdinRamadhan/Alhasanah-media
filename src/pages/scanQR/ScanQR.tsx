@@ -16,6 +16,25 @@ import { supabaseClient } from "../../utility/supabaseClient";
 
 const { Title, Text } = Typography;
 
+export interface ISantri {
+    id: number;
+    nis: string;
+    nama: string;
+    kelas: string;
+    jurusan: string;
+    status_santri: 'AKTIF' | 'NONAKTIF';
+    foto_url?: string;
+    nik?: string;
+    tempat_lahir: string;
+    tanggal_lahir: string;
+    pembimbing?: string;
+    total_hafalan?: number;
+    ayah: string;
+    ibu: string;
+    no_kontak_wali: string;
+    alamat_lengkap: string;
+}
+
 export interface IPesertaDiklat {
     id: number;
     created_at: string;
@@ -45,7 +64,7 @@ export const ScanQR = () => {
     const [mode, setMode] = useState<'info' | 'spp' | 'diklat'>('info');
     const [scanning, setScanning] = useState(true);
     const [loadingData, setLoadingData] = useState(false);
-    const [scannedData, setScannedData] = useState<any>(null);
+    const [scannedData, setScannedData] = useState<ISantri | null>(null);
     const [diklatData, setDiklatData] = useState<IPesertaDiklat | null>(null);
     const [tagihanData, setTagihanData] = useState<any[]>([]); 
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -55,6 +74,9 @@ export const ScanQR = () => {
         setLoadingData(true);
         setErrorMsg(null);
         setDiklatData(null);
+        setScannedData(null); // Reset state sebelum fetch baru
+        setTagihanData([]);
+
         try {
             // 1. Ambil Profil Santri
             const { data: santri, error: santriError } = await supabaseClient
@@ -63,8 +85,10 @@ export const ScanQR = () => {
                 .eq('nis', nis)
                 .single();
 
+            // PENTING: single() akan melempar error jika data kosong (PGRST116)
             if (santriError || !santri) {
-                throw new Error("Data santri tidak ditemukan untuk QR Code ini.");
+                console.error("Supabase Santri Error:", santriError);
+                throw new Error(`Data santri dengan NIS ${nis} tidak ditemukan.`);
             }
 
             // 2. Ambil Tagihan SPP
@@ -75,7 +99,7 @@ export const ScanQR = () => {
                 .order('tanggal_jatuh_tempo', { ascending: false })
                 .limit(3); 
 
-            setScannedData(santri);
+            setScannedData(santri as ISantri);
             setTagihanData(tagihan || []);
             message.success(`Berhasil memuat data: ${santri.nama}`);
         } catch (err: any) {
@@ -91,7 +115,9 @@ export const ScanQR = () => {
         setLoadingData(true);
         setErrorMsg(null);
         setScannedData(null);
+        setDiklatData(null); // Reset state
         setTagihanData([]);
+        
         try {
             const { data: diklat, error: diklatError } = await supabaseClient
                 .from('peserta_diklat')
@@ -100,10 +126,11 @@ export const ScanQR = () => {
                 .single();
 
             if (diklatError || !diklat) {
+                console.error("Supabase Diklat Error:", diklatError);
                 throw new Error("Data peserta diklat tidak ditemukan.");
             }
 
-            setDiklatData(diklat);
+            setDiklatData(diklat as IPesertaDiklat);
             setMode('diklat');
             message.success(`Berhasil memuat data Diklat: ${diklat.nama_lengkap}`);
         } catch (err: any) {
@@ -116,24 +143,30 @@ export const ScanQR = () => {
 
     // Handler ketika QR Code berhasil dibaca
     const handleDecode = (text: string) => {
-        if (text) {
-            setScanning(false); 
+        if (!text) return;
+        
+        // FIX UTAMA: Bersihkan spasi dari hasil scan
+        const cleanText = text.trim();
+        setScanning(false); 
+        
+        if (cleanText.startsWith("DIKLAT:")) {
+            const qrId = cleanText.replace("DIKLAT:", "").trim();
+            fetchDiklatData(qrId);
+        } else {
+            let extractedNis = cleanText;
             
-            // Deteksi prefix untuk menentukan jenis data
-            if (text.startsWith("DIKLAT:")) {
-                const qrId = text.replace("DIKLAT:", "");
-                fetchDiklatData(qrId);
-            } else {
-                let extractedNis = text;
-                if (text.startsWith("SANTRI:")) {
-                    extractedNis = text.replace("SANTRI:", "");
-                } else if (text.startsWith("VALIDASI:")) {
-                    extractedNis = text.replace("VALIDASI:", "");
-                }
-                
-                if (mode === 'diklat') setMode('info');
-                fetchSantriData(extractedNis);
+            if (cleanText.startsWith("SANTRI:")) {
+                extractedNis = cleanText.replace("SANTRI:", "").trim();
+            } else if (cleanText.startsWith("VALIDASI:")) {
+                extractedNis = cleanText.replace("VALIDASI:", "").trim();
             }
+            
+            // Pindahkan mode ke info jika sedang di mode diklat
+            if (mode === 'diklat') {
+                setMode('info');
+            }
+            
+            fetchSantriData(extractedNis);
         }
     };
 
