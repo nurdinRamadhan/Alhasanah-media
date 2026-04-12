@@ -209,32 +209,34 @@ export const DashboardPage = () => {
                 </div>
             </div>
 
-            {/* --- ROW 1: KPI UTAMA (FINANSIAL & SANTRI) --- */}
-            <Row gutter={[24, 24]} className="mb-8">
+            {/* --- ROW 1: KPI UTAMA --- */}
+            <Row gutter={[24, 24]}>
                 <Col xs={24} sm={12} lg={6}>
                     <KPICard 
                         title="Santri Mukim Aktif" 
                         value={totalSantri} 
                         icon={<UserOutlined style={{ fontSize: 24 }} />}
-                        color="#3b82f6"
+                        color="#065f46" // Green
                         loading={santriLoading}
-                        subtext={<Tag color="blue">Reguler</Tag>}
+                        subtext={<Tag color="success">AKTIF</Tag>}
                     />
                 </Col>
                 <Col xs={24} sm={12} lg={6}>
                     <KPICard 
-                        title="Pemasukan Bersih (Syahriah)" 
-                        value={new Intl.NumberFormat('id-ID', { notation: "compact", compactDisplay: "short", style: "currency", currency: "IDR" }).format(totalRevenue)} 
+                        title="Pemasukan Syahriah" 
+                        value={totalRevenue} 
+                        prefix="Rp"
                         icon={<ArrowUpOutlined style={{ fontSize: 24 }} />}
-                        color="#10b981"
+                        color="#065f46"
                         loading={tagihanLoading}
-                        subtext={<span className="text-emerald-500 font-bold">Uang Masuk</span>}
+                        subtext={<span style={{ color: '#065f46', fontWeight: 'bold' }}>Uang Masuk</span>}
                     />
                 </Col>
                 <Col xs={24} sm={12} lg={6}>
                     <KPICard 
                         title="Pengeluaran Operasional" 
-                        value={new Intl.NumberFormat('id-ID', { notation: "compact", compactDisplay: "short", style: "currency", currency: "IDR" }).format(totalExpense)} 
+                        value={totalExpense} 
+                        prefix="Rp"
                         icon={<ShoppingCartOutlined style={{ fontSize: 24 }} />}
                         color="#ef4444"
                         loading={pengeluaranLoading}
@@ -243,26 +245,28 @@ export const DashboardPage = () => {
                 </Col>
                 <Col xs={24} sm={12} lg={6}>
                     <KPICard 
-                        title="Sisa Kas" 
-                        value={new Intl.NumberFormat('id-ID', { notation: "compact", compactDisplay: "short", style: "currency", currency: "IDR" }).format(netProfit)} 
+                        title="Sisa Kas Pesantren" 
+                        value={netProfit} 
+                        prefix="Rp"
                         icon={<WalletOutlined style={{ fontSize: 24 }} />}
-                        color={netProfit >= 0 ? "#8b5cf6" : "#ef4444"}
+                        color={netProfit >= 0 ? "#fbbf24" : "#ef4444"} // Gold or Red
                         loading={tagihanLoading || pengeluaranLoading}
                         subtext={
                             netProfit >= 0 
-                            ? <span className="text-purple-600 font-bold">Surplus</span> 
-                            : <span className="text-red-500 font-bold">Defisit</span>
+                            ? <span style={{ color: '#b45309', fontWeight: 'bold' }}>SURPLUS</span> 
+                            : <span className="text-red-500 font-bold">DEFISIT</span>
                         }
                     />
                 </Col>
             </Row>
 
-            {/* --- ROW 2: CHART KEUANGAN (INCOME VS EXPENSE) --- */}
-            <Row gutter={[24, 24]} className="mb-8">
+            {/* --- ROW 2: CHART KEUANGAN --- */}
+            <Row gutter={[24, 24]} style={{ marginTop: '32px' }}>
                 <Col xs={24} lg={16}>
                     <Card 
-                        title={<Space><WalletOutlined className="text-emerald-600"/><span>Arus Kas</span></Space>}
+                        title={<Space><WalletOutlined style={{ color: '#065f46' }}/><span>Arus Kas Tahunan</span></Space>}
                         bordered={false} 
+                        style={{ borderRadius: '16px' }}
                         className="shadow-sm h-full"
                     >
                         <div style={{ width: '100%', height: 350 }}>
@@ -270,8 +274,8 @@ export const DashboardPage = () => {
                                 <AreaChart data={cashflowChartData}>
                                     <defs>
                                         <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
-                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                                            <stop offset="5%" stopColor="#065f46" stopOpacity={0.8}/>
+                                            <stop offset="95%" stopColor="#065f46" stopOpacity={0}/>
                                         </linearGradient>
                                         <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
                                             <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8}/>
@@ -280,13 +284,13 @@ export const DashboardPage = () => {
                                     </defs>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={token.colorBorderSecondary} />
                                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: token.colorTextSecondary, fontSize: 12}} dy={10} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{fill: token.colorTextSecondary, fontSize: 12}} tickFormatter={(val) => `${val/1000000}M`} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{fill: token.colorTextSecondary, fontSize: 12}} tickFormatter={(val) => `Rp${val/1000000}M`} />
                                     <Tooltip 
                                         contentStyle={{ backgroundColor: token.colorBgElevated, borderColor: token.colorBorder, borderRadius: 8 }}
                                         formatter={(value: any) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(Number(value))}
                                     />
                                     <Legend verticalAlign="top" height={36}/>
-                                    <Area type="monotone" dataKey="income" name="Pemasukan" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorIncome)" />
+                                    <Area type="monotone" dataKey="income" name="Pemasukan" stroke="#065f46" strokeWidth={3} fillOpacity={1} fill="url(#colorIncome)" />
                                     <Area type="monotone" dataKey="expense" name="Pengeluaran" stroke="#ef4444" strokeWidth={3} fillOpacity={1} fill="url(#colorExpense)" />
                                 </AreaChart>
                             </ResponsiveContainer>
@@ -294,11 +298,12 @@ export const DashboardPage = () => {
                     </Card>
                 </Col>
 
-                {/* EXPENSE BREAKDOWN (DONUT) */}
+                {/* EXPENSE BREAKDOWN */}
                 <Col xs={24} lg={8}>
                     <Card 
-                        title={<Space><PieChartOutlined className="text-blue-500"/><span>Komposisi Pengeluaran</span></Space>}
+                        title={<Space><PieChartOutlined style={{ color: '#fbbf24' }}/><span>Komposisi Pengeluaran</span></Space>}
                         bordered={false} 
+                        style={{ borderRadius: '16px' }}
                         className="shadow-sm h-full"
                     >
                          <div style={{ width: '100%', height: 350, position: 'relative' }}>
@@ -309,9 +314,9 @@ export const DashboardPage = () => {
                                             data={expenseCategoryData}
                                             cx="50%"
                                             cy="50%"
-                                            innerRadius={60}
-                                            outerRadius={80}
-                                            paddingAngle={5}
+                                            innerRadius={70}
+                                            outerRadius={90}
+                                            paddingAngle={8}
                                             dataKey="value"
                                         >
                                             {expenseCategoryData.map((_entry, index) => (
@@ -319,11 +324,11 @@ export const DashboardPage = () => {
                                             ))}
                                         </Pie>
                                         <Tooltip formatter={(value: any) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(Number(value))}/>
-                                        <Legend verticalAlign="bottom" />
+                                        <Legend verticalAlign="bottom" iconType="circle" />
                                     </PieChart>
                                 </ResponsiveContainer>
                             ) : (
-                                <Empty description="Belum ada pengeluaran" className="mt-20" />
+                                <Empty description="Belum ada data" className="mt-20" />
                             )}
                          </div>
                     </Card>
@@ -331,12 +336,12 @@ export const DashboardPage = () => {
             </Row>
 
             {/* --- SEPARATOR --- */}
-            <Divider orientation="left" style={{borderColor: token.colorBorder}}>
-                <Space><RocketOutlined /> <Text strong style={{fontSize: 16}}>Analisis Diklat Tahunan</Text></Space>
+            <Divider orientation="left" style={{ borderColor: token.colorBorder, marginTop: '48px', marginBottom: '32px' }}>
+                <Space><RocketOutlined style={{ color: '#065f46' }} /> <Text strong style={{fontSize: 18, color: token.colorTextHeading}}>Analisis Kegiatan Diklat</Text></Space>
             </Divider>
 
-            {/* --- ROW 3: REFINED DIKLAT SECTION --- */}
-<Row gutter={[24, 24]}>
+            {/* --- ROW 3: DIKLAT SECTION --- */}
+            <Row gutter={[24, 24]} style={{ marginBottom: '40px' }}>
     {/* 1. ANALYTICAL CONTROL CENTER */}
     <Col xs={24} lg={7}>
         <div className="flex flex-col gap-4 h-full">

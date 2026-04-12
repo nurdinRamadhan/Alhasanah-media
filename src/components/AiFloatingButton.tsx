@@ -184,6 +184,7 @@ export const AiFloatingButton = () => {
             <FloatButton 
                 type="primary" 
                 icon={<RobotOutlined />} 
+                className="ai-pulse"
                 style={{ width: 60, height: 60 }}
                 tooltip="Tanya AI laporan sistem"
                 badge={{ dot: true, color: 'green' }}

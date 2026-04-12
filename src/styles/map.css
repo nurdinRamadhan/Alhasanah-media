@@ -1,0 +1,63 @@
+/* src/styles/map.css - REPLACE seluruh file dengan ini */
+
+/* Base full height so map can fill */
+html, body, #root, .ant-layout, .ant-layout-content {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* Page container children fix */
+.ant-page-container-children {
+  padding-bottom: 0 !important;
+}
+
+/* Map root: stacking context and full size */
+.map-container, .map-root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 480px;
+  overflow: hidden;
+  display: block;
+}
+
+/* L7 / MapLibre canvas must exactly fill the container */
+.l7-container, .l7-scene, .l7-container canvas, .maplibregl-canvas {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 0 !important;
+  display: block !important;
+  touch-action: auto !important;
+  cursor: grab !important;
+}
+
+/* Ensure interactive overlays are above the map */
+.map-sidebar {
+  position: relative;
+  z-index: 60;
+  pointer-events: auto;
+}
+
+/* AntD overlays */
+.ant-select-dropdown, .ant-picker-dropdown, .ant-drawer {
+  z-index: 10001 !important;
+}
+
+/* Branding & decorative elements non-interactive */
+.map-branding { pointer-events: none; }
+
+/* Prevent horizontal scroll and white bottom strip */
+body { overflow-x: hidden; }
+
+/* Neon / popup visuals preserved */
+.map-popup-neon {
+  background: linear-gradient(135deg, rgba(12,60,170,0.95), rgba(36,11,77,0.92));
+  color: #e6f7ff;
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: 0 8px 28px rgba(60,80,255,0.12);
+  z-index: 10002;
+}

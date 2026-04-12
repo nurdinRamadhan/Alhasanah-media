@@ -1,4 +1,5 @@
 import React from "react";
+import "@ant-design/v5-patch-for-react-19";
 import "@refinedev/antd/dist/reset.css";
 import "./styles/mobile-fix.css"
 import { Authenticated, Refine } from "@refinedev/core";
@@ -13,7 +14,7 @@ import { BrowserRouter, Outlet, Route, Routes } from "react-router-dom";
 import { authProvider } from "./authProvider";
 import { Header } from "./pages/components/header";
 import { Title } from "./pages/components/title"; 
-import { ColorModeContextProvider, useColorMode } from "./contexts/color-mode"; 
+import { ColorModeContextProvider } from "./contexts/color-mode";
 import { supabaseClient } from "./utility/supabaseClient";
 
 // --- IMPORT ICON ---
@@ -29,7 +30,8 @@ import {
   TeamOutlined,
   BookOutlined,
   SyncOutlined,
-  RocketOutlined
+  RocketOutlined,
+  SettingOutlined,
 } from "@ant-design/icons";
 
 // Providers
@@ -42,7 +44,6 @@ import { IUserIdentity } from "./types";
 // --- IMPORT PAGES ---
 import { DashboardPage } from "./pages/dashboard";
 import { AiFloatingButton } from "./components/AiFloatingButton";
-import { GlobalCriticalAlert } from "./components/GlobalCriticalAlert";
 import { GeminiConsultant } from "./components/GeminiConsultant";
 import { DashboardOutlined } from "@ant-design/icons";
 
@@ -53,6 +54,7 @@ import { SantriList } from "./pages/santri/list";
 import { SantriCreate } from "./pages/santri/create";
 import { SantriEdit } from "./pages/santri/edit";
 import { SantriShow } from "./pages/santri/show";
+import PersebaranSantriPage from "./pages/santri/PersebaranSantri";
 
 import { PelanggaranList } from "./pages/pelanggaran/list";
 import { PelanggaranCreate } from "./pages/pelanggaran/create";
@@ -91,6 +93,8 @@ import { PengeluaranList } from "./pages/pengeluaran/list";
 import { ShoppingCartOutlined } from "@ant-design/icons";
 import { DiklatList } from "./pages/diklat/list";
 
+import { MasterDataPage } from "./pages/diklat/master";
+
 import { AuditLogList } from "./pages/audit/list";
 import { AkademikPage } from "./pages/akademik/list";
 import { SafetyCertificateOutlined } from "@ant-design/icons";
@@ -118,240 +122,272 @@ const AIConsultantWrapper = () => {
 };
 
 
-const InnerApp = () => {
-    const { mode } = useColorMode();
-    const { defaultAlgorithm, darkAlgorithm } = theme;
+import { motion, AnimatePresence } from "framer-motion";
 
+const PageWrapper = ({ children }: { children: React.ReactNode }) => (
+    <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -10 }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+    >
+        {children}
+    </motion.div>
+);
+
+const InnerApp = () => {
     return (
-        <ConfigProvider
-            locale={idID}
-            theme={{
-                algorithm: mode === "dark" ? darkAlgorithm : defaultAlgorithm,
-                token: {
-                    colorPrimary: "#059669",
-                    colorLink: "#059669",
-                },
-            }}
-        >
+        <ConfigProvider locale={idID} theme={{ algorithm: theme.darkAlgorithm }}>
             <AntdApp>
                 <DevtoolsProvider>
                     <Refine
-                        dataProvider={dataProvider(supabaseClient)}
-                        authProvider={authProvider}
-                        accessControlProvider={accessControlProvider}
-                        routerProvider={routerBindings}
-                        notificationProvider={useNotificationProvider}
-                        resources={[
-                            //DASHBOARD
-                            {
-                                name: "dashboard",
-                                list: "/", // URL root
-                                meta: { label: "Dashboard", icon: <DashboardOutlined /> }
-                            },
+                    dataProvider={dataProvider(supabaseClient)}
+                    authProvider={authProvider}
+                    accessControlProvider={accessControlProvider}
+                    routerProvider={routerBindings}
+                    notificationProvider={useNotificationProvider}
+                    resources={[
+                        //DASHBOARD
+                        {
+                            name: "dashboard",
+                            list: "/", // URL root
+                            meta: { label: "Dashboard", icon: <DashboardOutlined /> }
+                        },
 
-                            // INSTANSI INFO
-                            {
-                                name: "instansi_info",
-                                list: "/instansi",
-                                meta: { label: "Profil Pesantren", icon: <BankOutlined /> }
-                            },
-                            {
-                            name: "admin_management",
-                            list: "/admin-management/list",
-                            create: "/admin-management/create",
+                        // INSTANSI INFO
+                        {
+                            name: "instansi_info",
+                            list: "/instansi",
+                            meta: { label: "Profil Pesantren", icon: <BankOutlined /> }
+                        },
+                        {
+                        name: "admin_management",
+                        list: "/admin-management/list",
+                        create: "/admin-management/create",
+                        meta: { 
+                            label: "Manajemen Admin", 
+                            icon: <UserOutlined /> 
+                        }
+                        },
+                        // 1. DATA SANTRI
+                        {
+                            name: "santri",
+                            list: "/santri",
+                            create: "/santri/create",
+                            edit: "/santri/edit/:id",
+                            show: "/santri/show/:id",
+                            meta: { label: "Data Santri", icon: <UserOutlined/>, idColumnName: "nis" }
+                        },
+                        {
+                            name: "persebaran_santri",
+                            list: "/persebaran-santri", // URL yang akan diakses
                             meta: { 
-                                label: "Buat Admin Baru", 
-                                icon: <UserOutlined /> 
+                                label: "Persebaran Santri", 
+                                icon: <GlobalOutlined />, // Menggunakan icon bola dunia agar relevan dengan peta
                             }
-                            },
-                            // 1. DATA SANTRI
-                            {
-                                name: "santri",
-                                list: "/santri",
-                                create: "/santri/create",
-                                edit: "/santri/edit/:id",
-                                show: "/santri/show/:id",
-                                meta: { label: "Data Santri", icon: <UserOutlined/>, idColumnName: "nis" }
-                            },
+                        },
+                        
+                    
+                        // 2. INFORMASI & BERITA
+                        {
+                            name: "berita",
+                            list: "/berita",
+                            create: "/berita/create",
+                            edit: "/berita/edit/:id",
+                            meta: { label: "Informasi & Berita", icon: <GlobalOutlined /> }
+                        },
 
-                            // 2. INFORMASI & BERITA
-                            {
-                                name: "berita",
-                                list: "/berita",
-                                create: "/berita/create",
-                                edit: "/berita/edit/:id",
-                                meta: { label: "Informasi & Berita", icon: <GlobalOutlined /> }
-                            },
+                        // 3. KESANTRIAN (GROUP)
+                        {
+                            name: "kesantrian_menu",
+                            meta: { label: "Kesantrian", icon: <TeamOutlined /> }
+                        },
+                        {
+                            name: "pelanggaran_santri",
+                            list: "/pelanggaran",
+                            create: "/pelanggaran/create",
+                            edit: "/pelanggaran/edit/:id",
+                            meta: { label: "Pelanggaran", parent: "kesantrian_menu", icon: <WarningOutlined /> }
+                        },
+                        {
+                            name: "perizinan_santri",
+                            list: "/perizinan",
+                            create: "/perizinan/create",
+                            edit: "/perizinan/edit/:id",
+                            meta: { label: "Perizinan", parent: "kesantrian_menu", icon: <FileProtectOutlined /> }
+                        },
+                        {
+                            name: "kesehatan_santri",
+                            list: "/kesehatan",
+                            create: "/kesehatan/create",
+                            edit: "/kesehatan/edit/:id",
+                            meta: { label: "Kesehatan (UKS)", parent: "kesantrian_menu", icon: <MedicineBoxOutlined /> }
+                        },
 
-                            // 3. KESANTRIAN (GROUP)
-                            {
-                                name: "kesantrian_menu",
-                                meta: { label: "Kesantrian", icon: <TeamOutlined /> }
-                            },
-                            {
-                                name: "pelanggaran_santri",
-                                list: "/pelanggaran",
-                                create: "/pelanggaran/create",
-                                edit: "/pelanggaran/edit/:id",
-                                meta: { label: "Pelanggaran", parent: "kesantrian_menu", icon: <WarningOutlined /> }
-                            },
-                            {
-                                name: "perizinan_santri",
-                                list: "/perizinan",
-                                create: "/perizinan/create",
-                                edit: "/perizinan/edit/:id",
-                                meta: { label: "Perizinan", parent: "kesantrian_menu", icon: <FileProtectOutlined /> }
-                            },
-                            {
-                                name: "kesehatan_santri",
-                                list: "/kesehatan",
-                                create: "/kesehatan/create",
-                                edit: "/kesehatan/edit/:id",
-                                meta: { label: "Kesehatan (UKS)", parent: "kesantrian_menu", icon: <MedicineBoxOutlined /> }
-                            },
-
-                            // 4. TAHFIDZ QURAN 
-                            {
-                                name: "tahfidz_menu",
-                                meta: { label: "Tahfidz Quran", icon: <ReadOutlined /> }
-                            },
-                            {
-                                name: "hafalan_tahfidz",
-                                list: "/hafalan",
-                                create: "/hafalan/create",
-                                edit: "/hafalan/edit/:id",
-                                show: "/hafalan/show/:id",
-                                // Ziyadah masuk ke parent tahfidz_menu
-                                meta: { label: "Ziyadah (Baru)", parent: "tahfidz_menu", icon: <BookOutlined /> } 
-                            },
-                            {
-                                name: "murojaah_tahfidz",
-                                list: "/murojaah",
-                                create: "/murojaah/create",
-                                show: "/murojaah/show/:id",
-                                // Murojaah juga masuk ke parent tahfidz_menu
-                                meta: { label: "Murojaah (Ulang)", parent: "tahfidz_menu", icon: <SyncOutlined /> } 
-                            },
+                        // 4. TAHFIDZ QURAN 
+                        {
+                            name: "tahfidz_menu",
+                            meta: { label: "Tahfidz Quran", icon: <ReadOutlined /> }
+                        },
+                        {
+                            name: "hafalan_tahfidz",
+                            list: "/hafalan",
+                            create: "/hafalan/create",
+                            edit: "/hafalan/edit/:id",
+                            show: "/hafalan/show/:id",
+                            // Ziyadah masuk ke parent tahfidz_menu
+                            meta: { label: "Ziyadah (Baru)", parent: "tahfidz_menu", icon: <BookOutlined /> } 
+                        },
+                        {
+                            name: "murojaah_tahfidz",
+                            list: "/murojaah",
+                            create: "/murojaah/create",
+                            show: "/murojaah/show/:id",
+                            // Murojaah juga masuk ke parent tahfidz_menu
+                            meta: { label: "Murojaah (Ulang)", parent: "tahfidz_menu", icon: <SyncOutlined /> } 
+                        },
 
 
-                            {
-                                name: "audit_logs",
-                                list: "/audit-logs",
-                                meta: { label: "Log Aktivitas (Permanen)", icon: <SafetyCertificateOutlined /> }
-                            },
-                            {
-                                name: "akademik",
-                                list: "/akademik",
-                                meta: { label: "Laporan nilai", icon: <BookOutlined /> }
-                            },
+                        {
+                            name: "audit_logs",
+                            list: "/audit-logs",
+                            meta: { label: "Log Aktivitas (Permanen)", icon: <SafetyCertificateOutlined /> }
+                        },
+                        {
+                            name: "akademik",
+                            list: "/akademik",
+                            meta: { label: "Laporan nilai", icon: <BookOutlined /> }
+                        },
 
 
+                    
+
+                        // 5. KEUANGAN
+                        {
+                            name: "tagihan_santri",
+                            list: "/tagihan",
+                            create: "/tagihan/create",
+                            edit: "/tagihan/edit/:id",
+                            meta: { label: "Keuangan & SPP", icon: <WalletOutlined /> }
+                        },
+
+                        {
+                            name: "diklat",
+                            meta: { 
+                                label: "Diklat & Pasaran", 
+                                icon: <RocketOutlined /> 
+                            }
+                        },
+                        {
+                            name: "diklat_list",
+                            list: "/diklat",
+                            meta: { 
+                                label: "Daftar Peserta", 
+                                parent: "diklat",
+                                icon: <TeamOutlined /> 
+                            }
+                        },
+                        {
+                            name: "diklat_master",
+                            list: "/diklat/master",
+                            meta: { 
+                                label: "Master Data Diklat", 
+                                parent: "diklat",
+                                icon: <SettingOutlined /> 
+                            }
+                        },
                         
 
-                            // 5. KEUANGAN
-                            {
-                                name: "tagihan_santri",
-                                list: "/tagihan",
-                                create: "/tagihan/create",
-                                edit: "/tagihan/edit/:id",
-                                meta: { label: "Keuangan & SPP", icon: <WalletOutlined /> }
-                            },
+                        // PENGELUARAN
 
-                            {
-                                name: "diklat",
-                                list: "/diklat",
-                                meta: { 
-                                    label: "Diklat & Pasaran", 
-                                    icon: <RocketOutlined /> 
-                                }
-                            },
+                        {
+                            name: "pengeluaran",
+                            list: "/pengeluaran",
+                            meta: { label: "Pengeluaran", icon: <ShoppingCartOutlined /> }
+                        },
 
-                            // PENGELUARAN
+                        {
+                            name: "scan-qr",
+                            list: "/scanQr",
+                            meta: { label: "Scan QR", icon: <BarcodeOutlined /> }
+                        },
 
-                            {
-                                name: "pengeluaran",
-                                list: "/pengeluaran",
-                                meta: { label: "Pengeluaran", icon: <ShoppingCartOutlined /> }
-                            },
+                        // 6. INVENTARIS
+                        {
+                            name: "inventaris",
+                            list: "/inventaris",
+                            create: "/inventaris/create",
+                            edit: "/inventaris/edit/:id",
+                            show: "/inventaris/show/:id",
+                            meta: { label: "Inventaris Aset", icon: <BarcodeOutlined /> }
+                        },
 
-                            {
-                                name: "scan-qr",
-                                list: "/scanQr",
-                                meta: { label: "Scan QR", icon: <BarcodeOutlined /> }
-                            },
-
-                            // 6. INVENTARIS
-                            {
-                                name: "inventaris",
-                                list: "/inventaris",
-                                create: "/inventaris/create",
-                                edit: "/inventaris/edit/:id",
-                                show: "/inventaris/show/:id",
-                                meta: { label: "Inventaris Aset", icon: <BarcodeOutlined /> }
-                            },
-
-                            
-                            
-                        ]}
-                        options={{
-                            syncWithLocation: true,
-                            warnWhenUnsavedChanges: true,
-                            useNewQueryKeys: true,
-                            projectId: "alhasanah-admin-panel",
-                        }}
                         
-                    >
                         
-                        <Routes>
-                            {/* --- LOGIN PAGE --- */}
+                    ]}
+                    options={{
+                        syncWithLocation: true,
+                        warnWhenUnsavedChanges: true,
+                        useNewQueryKeys: true,
+                        projectId: "alhasanah-admin-panel",
+                    }}
+                    
+                >
+                    
+                    <Routes>
+                        {/* --- LOGIN PAGE --- */}
+                        <Route
+                            element={
+                                <Authenticated key="auth-pages" fallback={<Outlet />}>
+                                    <NavigateToResource />
+                                </Authenticated>
+                            }
+                        >
                             <Route
+                                path="/login"
                                 element={
-                                    <Authenticated key="auth-pages" fallback={<Outlet />}>
-                                        <NavigateToResource />
-                                    </Authenticated>
+                                    <AuthPage
+                                        type="login"
+                                        title={
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 20 }}>
+                                                 <div style={{ background: '#059669', padding: '8px 16px', borderRadius: 8, color: 'white', fontWeight: 'bold', fontSize: 24 }}>AH</div>
+                                                 <span style={{ color: '#064e3b', fontWeight: 'bold', marginTop: 8 }}>Admin Al-Hasanah</span>
+                                            </div>
+                                        }
+                                        formProps={{
+                                            initialValues: { email: "admin@alhasanah.com", password: "password123" },
+                                        }}
+                                    />
                                 }
-                            >
-                                <Route
-                                    path="/login"
-                                    element={
-                                        <AuthPage
-                                            type="login"
-                                            title={
-                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 20 }}>
-                                                     <div style={{ background: '#059669', padding: '8px 16px', borderRadius: 8, color: 'white', fontWeight: 'bold', fontSize: 24 }}>AH</div>
-                                                     <span style={{ color: '#064e3b', fontWeight: 'bold', marginTop: 8 }}>Admin Al-Hasanah</span>
-                                                </div>
-                                            }
-                                            formProps={{
-                                                initialValues: { email: "admin@alhasanah.com", password: "password123" },
-                                            }}
-                                        />
-                                    }
-                                />
-                            </Route>
-                            
+                            />
+                        </Route>
+                        
 
-                            {/* --- DASHBOARD & PROTECTED ROUTES --- */}
-                            <Route
-                                element={
-                                    <Authenticated
-                                        key="authenticated-inner"
-                                        fallback={<CatchAllNavigate to="/login" />}
+                        {/* --- DASHBOARD & PROTECTED ROUTES --- */}
+                        <Route
+                            element={
+                                <Authenticated
+                                    key="authenticated-inner"
+                                    fallback={<CatchAllNavigate to="/login" />}
+                                >
+                                    <ThemedLayoutV2
+                                        Header={() => <Header sticky />}
+                                        Sider={(props) => <ThemedSiderV2 {...props} fixed Title={Title} />}
                                     >
-                                        <ThemedLayoutV2
-                                            Header={() => <Header sticky />}
-                                            Sider={(props) => <ThemedSiderV2 {...props} fixed Title={Title} />}
-                                        >
-                                            <Outlet />
-                                            {/* BUTTON AI DISIMPAN DISINI AGAR GLOBAL TAPI TERFILTER */}
-                                        <AIConsultantWrapper />
-                                        </ThemedLayoutV2>
-                                    </Authenticated>
-                                    
-                                }
+                                        <AnimatePresence mode="wait">
+                                            <PageWrapper>
+                                                <Outlet />
+                                            </PageWrapper>
+                                        </AnimatePresence>
+                                        {/* BUTTON AI DISIMPAN DISINI AGAR GLOBAL TAPI TERFILTER */}
+                                    <AIConsultantWrapper />
+                                    </ThemedLayoutV2>
+                                </Authenticated>
                                 
-                                
-                            >
+                            }
+                            
+                            
+                        >
                                 
                                 {/*  ROUTE INDEX DASHBOARD */}
                                 <Route index element={<DashboardPage />} />
@@ -365,7 +401,10 @@ const InnerApp = () => {
                                     <Route path="create" element={<SantriCreate />} />
                                     <Route path="edit/:id" element={<SantriEdit />} />
                                     <Route path="show/:id" element={<SantriShow />} />
+                                    
                                 </Route>
+                                {/* TAMBAHKAN ROUTE BARU DISINI */}
+                                 <Route path="/persebaran-santri" element={<PersebaranSantriPage />} />
 
                                 {/* 2. Module Berita */}
                                 <Route path="/berita">
@@ -422,8 +461,11 @@ const InnerApp = () => {
                                     <Route path="create" element={<TagihanCreate />} />
                                     <Route path="edit/:id" element={<TagihanEdit />} />
                                 </Route>
-                                <Route path="/diklat" element={<DiklatList />} />
-
+                                <Route path="/diklat">
+                                    <Route index element={<DiklatList />} />
+                                    <Route path="master" element={<MasterDataPage />} />
+                                    <Route path="list" element={<DiklatList/>} />
+                                </Route>
                                 {/* Pengeluaran */}
                                 <Route path="/pengeluaran" element={<PengeluaranList />} />
 
@@ -452,23 +494,26 @@ const InnerApp = () => {
                     
                         
 
-                        <UnsavedChangesNotifier />
-                        <DocumentTitleHandler />
-                    </Refine>
-                </DevtoolsProvider>
-            </AntdApp>
-        </ConfigProvider>
-    );
-};
+                                <UnsavedChangesNotifier />
+                                <DocumentTitleHandler />
+                            </Refine>
+                        </DevtoolsProvider>
+                    </AntdApp>
+                </ConfigProvider>
+            );
+        };
 
-function App() {
+const App = () => {
   return (
     <BrowserRouter>
       <ColorModeContextProvider>
-         <InnerApp />
+        <ConfigProvider locale={idID} theme={{ algorithm: theme.darkAlgorithm }}>
+          <InnerApp />
+        </ConfigProvider>
       </ColorModeContextProvider>
     </BrowserRouter>
   );
-}
+};
 
 export default App;
+

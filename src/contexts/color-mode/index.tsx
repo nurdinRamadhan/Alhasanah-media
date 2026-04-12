@@ -25,34 +25,56 @@ export const ColorModeContextProvider: React.FC<{ children: React.ReactNode }> =
   return (
     <ColorModeContext.Provider value={{ setMode, mode }}>
       <ConfigProvider
-        locale={idID} // ✅ FIX BAHASA CINA: Paksa semua komponen pakai Bahasa Indonesia
+        locale={idID}
         theme={{
           algorithm: mode === "dark" ? theme.darkAlgorithm : theme.defaultAlgorithm,
           token: {
-            colorPrimary: "#059669", // Emerald-600
-            colorLink: "#059669",
+            colorPrimary: "#059669", 
+            colorInfo: "#059669",
+            colorSuccess: "#10b981",
+            colorWarning: "#ffb700", // More vibrant gold
+            colorError: "#ef4444",
             borderRadius: 8,
             fontFamily: "'Inter', sans-serif",
+            fontSize: 14,
+            // DEEP DARK DRACULA / FUTURISTIC
+            colorBgBase: mode === "dark" ? "#000000" : "#ffffff", 
+            colorBgContainer: mode === "dark" ? "#0a0a0a" : "#ffffff",
+            colorTextBase: mode === "dark" ? "#e5e7eb" : "#1a1a1a",
+            colorBorder: mode === "dark" ? "rgba(255, 183, 0, 0.15)" : "#e5e7eb",
           },
           components: {
             Layout: {
-              // ✅ FIX SIDEBAR:
-              // Dark Mode: Hijau Emerald Gelap (Mewah)
-              // Light Mode: Putih (Bersih)
-              siderBg: mode === "dark" ? "#022c22" : "#ffffff", 
-              triggerBg: mode === "dark" ? "#064e3b" : "#ffffff",
-              bodyBg: mode === "dark" ? "#141414" : "#f0f2f5",
+              siderBg: mode === "dark" ? "#000000" : "#ffffff",
+              headerBg: mode === "dark" ? "#000000" : "#ffffff",
+              bodyBg: mode === "dark" ? "#000000" : "#f4f7f5",
             },
             Menu: {
-              // Warna Menu Sidebar
-              darkItemBg: "#022c22", // Samakan dengan sider
-              darkItemSelectedBg: "#059669", // Highlight Emerald
-              itemSelectedColor: "#059669", // Text Highlight
-              itemSelectedBg: mode === "dark" ? "#064e3b" : "#ecfdf5", // Background item aktif
+              itemSelectedBg: "#ffb700",
+              itemSelectedColor: "#000000",
+              itemHoverColor: "#ffb700",
+              darkItemSelectedBg: "#ffb700",
+              darkItemSelectedColor: "#000000",
+              itemBg: "transparent",
+              activeBarBorderWidth: 0,
             },
             Table: {
-              headerBg: mode === "dark" ? "#1f1f1f" : "#ecfdf5", // Header Tabel Hijau Muda
-              headerColor: mode === "dark" ? "#e5e7eb" : "#064e3b",
+              headerBg: mode === "dark" ? "rgba(255, 183, 0, 0.05)" : "#f9fafb",
+              headerColor: mode === "dark" ? "#ffb700" : "#065f46",
+              rowHoverBg: mode === "dark" ? "rgba(255, 255, 255, 0.02)" : "#f0fdf4",
+              headerBorderRadius: 4,
+            },
+            Card: {
+              colorBgContainer: mode === "dark" ? "#0a0a0a" : "#ffffff",
+              colorBorderSecondary: mode === "dark" ? "rgba(255, 183, 0, 0.1)" : "#f0f0f0",
+              boxShadowTertiary: mode === "dark" ? "0 0 20px rgba(0,0,0,0.5)" : "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
+            },
+            Button: {
+              borderRadius: 4,
+              fontWeight: 600,
+            },
+            Switch: {
+              colorPrimary: "#ffb700",
             }
           }
         }}

@@ -90,6 +90,9 @@ export interface ISantri {
   total_hafalan : number | null; // in Juz
   pembimbing: string | null;
   created_at: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  kecamatan_id?: string | null;
 }
 // --- CONTENT MANAGEMENT SYSTEM (CMS) ---
 export interface IBerita {
@@ -233,7 +236,7 @@ export interface IRefJenisPembayaran {
 }
 
 export interface ITagihanSantri {
-  santri: any;
+  santri?: ISantri;
   id: string; // UUID
   santri_nis: string;
   jenis_pembayaran_id: number;
@@ -247,6 +250,26 @@ export interface ITagihanSantri {
 }
 
 // --- DIKLAT PASARAN ---
+export interface IConfigDiklat {
+    id: number;
+    tahun_hijriah: number;
+    uang_miftah: number;
+    biaya_listrik: number;
+    kos_makan: number;
+    tafaruqon: number;
+    is_active: boolean;
+    created_at: string;
+    periode: number;
+}
+
+export interface IMasterKitab {
+    id: number;
+    nama_kitab: string;
+    harga: number;
+    jenis_diklat: 'MAULID' | 'SYABAN' | 'RAMADHAN' | 'DZULHIJJAH';
+    is_active: boolean;
+}
+
 export interface IPesertaDiklat {
     id: number;
     created_at: string;
@@ -259,9 +282,13 @@ export interface IPesertaDiklat {
     alamat_lengkap: string;
     no_telepon: string;
     pesantren_asal: string;
-    jenis_diklat: 'MULUD' | 'SYABAN' | 'RAMADHAN' | 'DZULHIJJAH';
+    jenis_diklat: 'MAULID' | 'SYABAN' | 'RAMADHAN' | 'DZULHIJJAH';
     tahun_diklat: number;
     biaya_pendaftaran: number;
+    uang_miftah: number;
+    biaya_listrik: number;
+    kos_makan: number;
+    tafaruqon: number;
     belanja_kitab_nominal: number;
     rincian_belanja: string;
     status_pembayaran: string;
@@ -292,7 +319,7 @@ export interface IAuditLog {
     action: 'CREATE' | 'UPDATE' | 'DELETE' | 'LOGIN' | 'EXPORT';
     resource: string;
     record_id: string;
-    details: any;
+    details: Record<string, unknown>;
 }
 
 export interface IMataPelajaran {

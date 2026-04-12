@@ -1,52 +1,73 @@
 import React from "react";
 import { Typography, theme } from "antd"; // Import theme dari antd
 import { BankOutlined } from "@ant-design/icons";
+import { useColorMode } from "../../contexts/color-mode";
 
 const { Text } = Typography;
 const { useToken } = theme; // Hook untuk mengambil token warna aktif
 
 export const Title: React.FC<{ collapsed: boolean }> = ({ collapsed }) => {
-    const { token } = useToken(); // Ambil token tema saat ini
+    const { token } = useToken();
+    const { mode } = useColorMode();
 
     return (
         <div style={{ 
             display: "flex", 
             alignItems: "center", 
-            justifyContent: "center", 
-            height: "50px",
-            gap: "10px"
+            justifyContent: collapsed ? "center" : "flex-start", 
+            height: "72px",
+            gap: "14px",
+            padding: collapsed ? "0" : "0 20px",
+            transition: "all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1)",
+            width: "100%",
+            overflow: "hidden",
+            backgroundColor: mode === "dark" ? "#000000" : "transparent"
         }}>
-            {/* Logo Icon */}
+            {/* Logo Icon with Deep Dark Palette */}
             <div style={{
-                background: token.colorBgContainer, // Background ikon menyesuaikan tema (Putih/Gelap)
-                borderRadius: "6px",
-                width: "32px",
-                height: "32px",
+                background: mode === "dark" ? "#000000" : `linear-gradient(135deg, #065f46 0%, #042f2e 100%)`,
+                borderRadius: "8px",
+                width: "42px",
+                height: "42px",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                boxShadow: "0 2px 5px rgba(0,0,0,0.1)" // Sedikit bayangan agar pop
+                boxShadow: mode === "dark" ? `0 0 15px rgba(255, 183, 0, 0.2)` : `0 4px 10px rgba(6, 95, 70, 0.3)`,
+                border: `2px solid ${mode === 'dark' ? '#ffb700' : '#fbbf24'}`,
+                flexShrink: 0
             }}>
-                <BankOutlined style={{ fontSize: "20px", color: "#059669" }} />
+                <BankOutlined style={{ fontSize: "24px", color: mode === 'dark' ? '#ffb700' : '#ffffff' }} />
             </div>
 
-            {/* Nama Pesantren (Hilang jika sidebar collapsed) */}
+            {/* Nama Pesantren */}
             {!collapsed && (
-                <div style={{ display: "flex", flexDirection: "column", lineHeight: "1.2" }}>
-                    <Text style={{ 
-                        color: token.colorTextHeading, // FIX: Otomatis Hitam/Putih
-                        fontSize: "16px", 
-                        fontWeight: "700",
-                        letterSpacing: "0.5px"
+                <div style={{ 
+                    display: "flex", 
+                    flexDirection: "column", 
+                    lineHeight: "1.2",
+                    justifyContent: "center",
+                    minWidth: 0
+                }}>
+                    <Text strong style={{ 
+                        color: mode === "dark" ? "#ffffff" : token.colorTextHeading,
+                        fontSize: "15px", 
+                        fontWeight: "900",
+                        letterSpacing: "0.05em",
+                        textTransform: "uppercase",
+                        whiteSpace: "nowrap"
                     }}>
-                        AL-HASANAH MEDIA
+                        AL-HASANAH
                     </Text>
                     <Text style={{ 
-                        color: token.colorTextSecondary, // FIX: Otomatis Abu gelap/Abu terang
+                        color: "#ffb700", 
                         fontSize: "10px", 
-                        fontWeight: "400" 
+                        fontWeight: "800",
+                        letterSpacing: "0.2em",
+                        marginTop: "2px",
+                        whiteSpace: "nowrap",
+                        opacity: 0.9
                     }}>
-                        Admin Panel
+                        MANAGEMENT
                     </Text>
                 </div>
             )}

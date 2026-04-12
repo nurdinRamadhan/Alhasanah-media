@@ -1,41 +1,73 @@
 import { AuthBindings } from "@refinedev/core";
 import { supabaseClient } from "./utility/supabaseClient";
-import { IUserIdentity, IProfile } from "./types";
+import { IUserIdentity, TRole, TGenderScope, TJurusanScope } from "./types";
 
 export const authProvider: AuthBindings = {
   // --- BAGIAN INI TIDAK DIUBAH (Sesuai kode asli Anda) ---
   login: async ({ email, password }) => {
-    const { data, error } = await supabaseClient.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const { data, error } = await supabaseClient.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
 
-    if (error) return { success: false, error: { message: "Login Gagal", name: error.message } };
-
-    if (data.session) {
-      // 1. Cek rolenya dari database
-      const { data: profile } = await supabaseClient
-        .from("profiles")
-        .select("role")
-        .eq("id", data.session.user.id)
-        .single();
-
-      // 2. Arahkan URL (Redirect) berdasarkan Role
-      let targetUrl = "/"; // Default (Super Admin, Dewan, Rois ke Dashboard)
-      
-      if (profile?.role === "kesantrian") {
-          targetUrl = "/santri"; // Arahkan kesantrian langsung ke halaman Data Santri
-      } else if (profile?.role === "bendahara") {
-          targetUrl = "/tagihan"; // Arahkan bendahara langsung ke halaman Keuangan
+      if (error) {
+        console.error("Supabase Auth Error:", error.message);
+        return { 
+          success: false, 
+          error: { 
+            message: error.message, 
+            name: "Login Error" 
+          } 
+        };
       }
 
+      if (data.session) {
+        // Ambil profil user
+        const { data: profile, error: profileError } = await supabaseClient
+          .from("profiles")
+          .select("role")
+          .eq("id", data.session.user.id)
+          .single();
+
+        if (profileError) {
+          console.warn("Profile fetch error (login tetap dilanjutkan):", profileError.message);
+        }
+
+        // Tentukan redirect URL berdasarkan role (fallback ke dashboard /)
+        let targetUrl = "/";
+        const role = profile?.role || "dewan"; // Gunakan default jika null
+
+        if (role === "kesantrian") {
+          targetUrl = "/santri";
+        } else if (role === "bendahara") {
+          targetUrl = "/tagihan";
+        }
+
+        return {
+          success: true,
+          redirectTo: targetUrl,
+        };
+      }
+
+      return { 
+        success: false, 
+        error: { 
+          message: "Gagal memuat sesi", 
+          name: "Session Error" 
+        } 
+      };
+    } catch (err: Error | unknown) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      console.error("Unexpected login error:", error);
       return {
-        success: true,
-        redirectTo: targetUrl, // <- Arahkan ke target URL yang sesuai
+        success: false,
+        error: {
+          message: error.message || "Terjadi kesalahan tidak terduga",
+          name: "Unknown Error"
+        }
       };
     }
-
-    return { success: false, error: { message: "Login Gagal", name: "Gagal memuat sesi" } };
   },
   logout: async () => {
     const { error } = await supabaseClient.auth.signOut();
@@ -69,28 +101,33 @@ export const authProvider: AuthBindings = {
   },
 
   getIdentity: async (): Promise<IUserIdentity | null> => {
-    const { data: userDat } = await supabaseClient.auth.getUser();
-    const { user } = userDat;
+    try {
+      const { data: userDat } = await supabaseClient.auth.getUser();
+      const { user } = userDat;
 
-    if (user) {
-      // Mengambil data lengkap dari tabel profiles sesuai skema baru
-      const { data } = await supabaseClient
-        .from("profiles")
-        .select("full_name, foto_url, role, akses_gender, akses_jurusan")
-        .eq("id", user.id)
-        .single();
+      if (user) {
+        // Mengambil data lengkap dari tabel profiles sesuai skema baru
+        const { data, error } = await supabaseClient
+          .from("profiles")
+          .select("full_name, foto_url, role, akses_gender, akses_jurusan")
+          .eq("id", user.id)
+          .single();
 
-      const profile = data as unknown as IProfile; // Casting aman
+        if (error) {
+          console.warn("Gagal mengambil data profil identity:", error.message);
+        }
 
-      return {
-        id: user.id,
-        name: profile?.full_name || user.email || "User",
-        avatar: profile?.foto_url || user.user_metadata?.avatar_url,
-        role: profile?.role || "dewan",
-        // Penting untuk filter data (Putra/Putri/Kitab/Tahfidz)
-        scopeGender: profile?.akses_gender || "ALL", 
-        scopeJurusan: profile?.akses_jurusan || "ALL"
-      };
+        return {
+          id: user.id,
+          name: data?.full_name || user.email || "User",
+          avatar: data?.foto_url || user.user_metadata?.avatar_url,
+          role: (data?.role as TRole) || "dewan",
+          scopeGender: (data?.akses_gender as TGenderScope) || "ALL", 
+          scopeJurusan: (data?.akses_jurusan as TJurusanScope) || "ALL"
+        };
+      }
+    } catch (e) {
+      console.error("Error in getIdentity:", e);
     }
     return null;
   },
