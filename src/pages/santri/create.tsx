@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useForm } from "@refinedev/antd";
-import { useNavigation } from "@refinedev/core";
+import { useNavigation, useGetIdentity } from "@refinedev/core";
 import {
     Form, Input, Select, DatePicker, Card, Button, Typography,
     Row, Col, Upload, message, theme, Avatar, Divider, Space, Alert, InputNumber
@@ -12,6 +12,8 @@ import {
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { supabaseClient } from "../../utility/supabaseClient";
+import { logActivity } from "../../utility/logger";
+import { IUserIdentity } from "../../types";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -20,6 +22,7 @@ const { Option } = Select;
 export const SantriCreate = () => {
     const { token } = theme.useToken();
     const { list } = useNavigation();
+    const { data: user } = useGetIdentity<IUserIdentity>();
     
     // --- STATES ---
     const [loadingUpload, setLoadingUpload] = useState(false);
@@ -101,6 +104,20 @@ export const SantriCreate = () => {
                 const errorBody = await error.context?.json(); 
                 throw new Error(errorBody?.error || error.message || "Gagal menghubungi server.");
             }
+
+            // CATAT LOG AKTIVITAS
+            await logActivity({
+                user,
+                action: 'CREATE',
+                resource: 'santri',
+                record_id: values.nis,
+                details: { 
+                    nama_santri: values.nama,
+                    nis: values.nis,
+                    kelas: values.kelas,
+                    jurusan: values.jurusan
+                }
+            });
 
             // Jika sukses
             message.success("Berhasil! Akun Wali & Data Santri telah dibuat.");

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { logActivity } from "../../utility/logger";
 import { useTable, useSelect } from "@refinedev/antd";
 import { ProTable, ProColumns } from "@ant-design/pro-components";
 import { Tag, Space, Button, Typography, Tooltip, message, Modal, Select, Avatar, Card } from "antd";
@@ -13,7 +14,7 @@ import {
     CalendarOutlined
 } from "@ant-design/icons";
 import { IKesehatanSantri, ISantri } from "../../types";
-import { useNavigation, useDelete } from "@refinedev/core";
+import { useNavigation, useDelete , useGetIdentity} from "@refinedev/core";
 import dayjs from "dayjs";
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
@@ -23,7 +24,8 @@ const { Text, Title } = Typography;
 
 export const KesehatanList = () => {
     // 1. Data Fetching
-    const { tableProps } = useTable<IKesehatanSantri>({
+        const { data: user } = useGetIdentity();
+const { tableProps } = useTable<IKesehatanSantri>({
         resource: "kesehatan_santri",
         syncWithLocation: true,
         meta: { select: "*, santri(nama, nis, kelas, jurusan, foto_url)" },
@@ -139,22 +141,21 @@ export const KesehatanList = () => {
             dataIndex: "santri_nis",
             width: 250,
             render: (_, record) => (
-                <div className="flex items-start gap-3">
-                    {/* AVATAR FIX: Menggunakan component Avatar AntD agar ukuran terkunci */}
+                <div className="flex items-center gap-3 py-1">
                     <Avatar 
-                        shape="square" 
-                        size={48} 
+                        shape="circle" 
+                        size={44} 
                         src={record.santri?.foto_url} 
                         icon={<UserOutlined />}
                         className="bg-gray-100 border border-gray-200 flex-shrink-0"
                     />
-                    <div className="flex flex-col justify-center">
-                        <Text strong className="text-base leading-tight">
+                    <div className="flex flex-col gap-y-0.5 overflow-hidden">
+                        <Text strong className="text-[14px] leading-snug text-gray-900 dark:text-gray-100 block truncate">
                             {record.santri?.nama || "Tanpa Nama"}
                         </Text>
-                        <Text type="secondary" className="text-xs">
+                        <Tag bordered={false} className="m-0 text-[10px] w-fit px-1.5 py-0 bg-gray-50 dark:bg-gray-800 dark:text-gray-400">
                             NIS: {record.santri?.nis || "-"}
-                        </Text>
+                        </Tag>
                     </div>
                 </div>
             ),
@@ -223,7 +224,19 @@ export const KesehatanList = () => {
                             danger 
                             icon={<DeleteOutlined />} 
                             onClick={() => {
-                                if(confirm("Hapus data medis ini?")) deleteMutate({ resource: "kesehatan_santri", id: record.id });
+                                if(confirm("Hapus data medis ini?")) deleteMutate({
+                                    resource: "kesehatan_santri",
+                                    id: record.id,
+                                    onSuccess: () => {
+                                        logActivity({
+                                            user,
+                                            action: "DELETE",
+                                            resource: "kesehatan_santri",
+                                            record_id: record.id.toString(),
+                                            details: { id: record.id }
+                                        });
+                                    }
+                                });
                             }} 
                         />
                     </Tooltip>

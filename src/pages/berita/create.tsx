@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { logActivity } from "../../utility/logger";
 import { Create, useForm } from "@refinedev/antd";
 import { Form, Input, Select, DatePicker, Card, Row, Col, Switch, Upload, message, Button, Image } from "antd";
 import { UploadOutlined, PictureOutlined } from "@ant-design/icons";
@@ -7,7 +8,17 @@ import { supabaseClient } from "../../utility/supabaseClient";
 import { useGetIdentity } from "@refinedev/core";
 
 export const BeritaCreate = () => {
-    const { formProps, saveButtonProps, form } = useForm();
+    const { formProps, saveButtonProps, form } = useForm({
+        onMutationSuccess: (data) => {
+            logActivity({
+                user,
+                action: "CREATE",
+                resource: "berita",
+                record_id: data.data.id.toString(),
+                details: data.data
+            });
+        }
+    });
     const { data: user } = useGetIdentity<{ id: string }>();
     const [imageUrl, setImageUrl] = useState<string | null>(null);
     const [uploading, setUploading] = useState(false);

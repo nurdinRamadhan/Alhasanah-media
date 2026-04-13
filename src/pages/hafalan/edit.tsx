@@ -1,4 +1,6 @@
 import React from "react";
+import { useGetIdentity } from "@refinedev/core";
+import { logActivity } from "../../utility/logger";
 import { Edit, useForm } from "@refinedev/antd";
 import { Form, Input, Select, DatePicker, Card, Row, Col, InputNumber, Radio, Alert } from "antd";
 import dayjs from "dayjs";
@@ -6,7 +8,18 @@ import { IHafalanTahfidz } from "../../types";
 import { DATA_SURAT } from "../../utility/quran-data";
 
 export const HafalanEdit = () => {
-    const { formProps, saveButtonProps, queryResult } = useForm<IHafalanTahfidz>();
+        const { data: user } = useGetIdentity();
+const { formProps, saveButtonProps, queryResult } = useForm<IHafalanTahfidz>({
+        onMutationSuccess: (data) => {
+            logActivity({
+                user,
+                action: "UPDATE",
+                resource: "hafalan",
+                record_id: data.data.id.toString(),
+                details: data.data
+            });
+        }
+    });
     const record = queryResult?.data?.data;
 
     // Generate Juz Options

@@ -1,11 +1,24 @@
 import React from "react";
+import { useGetIdentity } from "@refinedev/core";
+import { logActivity } from "../../utility/logger";
 import { Edit, useForm, useSelect } from "@refinedev/antd";
 import { Form, Input, Select, DatePicker, InputNumber, Card, Row, Col, Alert } from "antd";
 import { ITagihanSantri, ISantri } from "../../types";
 import dayjs from "dayjs";
 
 export const TagihanEdit = () => {
-    const { formProps, saveButtonProps, queryResult } = useForm<ITagihanSantri>();
+        const { data: user } = useGetIdentity();
+const { formProps, saveButtonProps, queryResult } = useForm<ITagihanSantri>({
+        onMutationSuccess: (data) => {
+            logActivity({
+                user,
+                action: "UPDATE",
+                resource: "tagihan_santri",
+                record_id: data.data.id.toString(),
+                details: data.data
+            });
+        }
+    });
     const tagihanData = queryResult?.data?.data;
 
     return (

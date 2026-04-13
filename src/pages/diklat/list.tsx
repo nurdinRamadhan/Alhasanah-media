@@ -9,7 +9,6 @@ import {
     ShopOutlined, DownloadOutlined, DeleteOutlined,
     BankOutlined, SafetyCertificateOutlined, 
     CheckCircleOutlined,
-    InfoCircleOutlined,
     RocketOutlined,
     WalletOutlined,
     SyncOutlined

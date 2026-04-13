@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { logActivity } from "../../utility/logger";
 import { useTable, useSelect } from "@refinedev/antd";
 import { ProTable, ProColumns } from "@ant-design/pro-components";
 import { Tag, Space, Button, Typography, Tooltip, message, Select, Modal, Card } from "antd";
@@ -15,7 +16,7 @@ import {
     FileExcelOutlined
 } from "@ant-design/icons";
 import { IPerizinanSantri, ISantri } from "../../types";
-import { useNavigation, useUpdate, useDelete } from "@refinedev/core";
+import { useNavigation, useUpdate, useDelete , useGetIdentity} from "@refinedev/core";
 import dayjs from "dayjs";
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
@@ -24,7 +25,8 @@ import { supabaseClient } from "../../utility/supabaseClient";
 const { Text } = Typography;
 
 export const PerizinanList = () => {
-    const { tableProps } = useTable<IPerizinanSantri>({
+        const { data: user } = useGetIdentity();
+const { tableProps } = useTable<IPerizinanSantri>({
         resource: "perizinan_santri",
         syncWithLocation: true,
         meta: { select: "*, santri(nama, nis, kelas, jurusan, foto_url)" },
@@ -162,7 +164,16 @@ export const PerizinanList = () => {
             resource: "perizinan_santri",
             id,
             values: { status: newStatus, ...extraData },
-            successNotification: { message: `Status berhasil diubah menjadi ${newStatus}`, type: "success" }
+            successNotification: { message: `Status berhasil diubah menjadi ${newStatus}`, type: "success" },
+            onSuccess: (data) => {
+                logActivity({
+                    user,
+                    action: "UPDATE",
+                    resource: "perizinan_santri",
+                    record_id: id.toString(),
+                    details: { status: newStatus }
+                });
+            }
         });
     };
 
@@ -195,13 +206,18 @@ export const PerizinanList = () => {
         {
             title: "Jenis & Rencana",
             key: "info",
-            width: 160,
+            width: 180,
             render: (_, r) => (
-                <div className="flex flex-col gap-1">
-                    <Tag>{r.jenis_izin}</Tag>
-                    <span className="text-xs text-gray-500">
-                        Kembali: <span className="text-red-600 font-medium">{dayjs(r.tanggal_kembali).format("DD MMM")}</span>
-                    </span>
+                <div className="flex flex-col gap-1.5 py-1">
+                    <Tag className="w-fit m-0 px-2 py-0.5 font-medium bg-gray-50 border-gray-200">
+                        {r.jenis_izin}
+                    </Tag>
+                    <div className="flex flex-col leading-tight">
+                        <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Rencana Kembali:</span>
+                        <span className="text-xs text-red-600 font-bold">
+                            {dayjs(r.tanggal_kembali).format("DD MMM YYYY")}
+                        </span>
+                    </div>
                 </div>
             )
         },
@@ -261,7 +277,19 @@ export const PerizinanList = () => {
                             <Button 
                                 size="small" danger icon={<DeleteOutlined />} 
                                 onClick={() => {
-                                    if(confirm("Hapus data izin ini?")) deleteMutate({ resource: "perizinan_santri", id: record.id });
+                                    if(confirm("Hapus data izin ini?")) deleteMutate({
+                                    resource: "perizinan_santri",
+                                    id: record.id,
+                                    onSuccess: () => {
+                                        logActivity({
+                                            user,
+                                            action: "DELETE",
+                                            resource: "perizinan_santri",
+                                            record_id: record.id.toString(),
+                                            details: { id: record.id }
+                                        });
+                                    }
+                                });
                                 }} 
                             />
                         </Tooltip>

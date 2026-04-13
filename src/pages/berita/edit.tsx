@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { useGetIdentity } from "@refinedev/core";
+import { logActivity } from "../../utility/logger";
 import { Edit, useForm } from "@refinedev/antd";
 import { Form, Input, Select, DatePicker, Card, Row, Col, Switch, Upload, message } from "antd";
 import { PictureOutlined } from "@ant-design/icons";
@@ -6,7 +8,18 @@ import dayjs from "dayjs";
 import { supabaseClient } from "../../utility/supabaseClient";
 
 export const BeritaEdit = () => {
-    const { formProps, saveButtonProps, queryResult, form } = useForm();
+        const { data: user } = useGetIdentity();
+const { formProps, saveButtonProps, queryResult, form } = useForm({
+        onMutationSuccess: (data) => {
+            logActivity({
+                user,
+                action: "UPDATE",
+                resource: "berita",
+                record_id: data.data.id.toString(),
+                details: data.data
+            });
+        }
+    });
     const record = queryResult?.data?.data;
     
     const [imageUrl, setImageUrl] = useState<string | null>(null);

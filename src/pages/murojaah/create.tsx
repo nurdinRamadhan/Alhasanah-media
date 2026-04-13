@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { logActivity } from "../../utility/logger";
 import { Create, useForm, useSelect } from "@refinedev/antd";
 import { Form, Input, Select, DatePicker, Card, Row, Col, InputNumber, Radio, Divider, Segmented } from "antd";
 import dayjs from "dayjs";
@@ -7,7 +8,17 @@ import { useGetIdentity } from "@refinedev/core";
 import { DATA_SURAT } from "../../utility/quran-data";
 
 export const MurojaahCreate = () => {
-    const { formProps, saveButtonProps } = useForm();
+    const { formProps, saveButtonProps } = useForm({
+        onMutationSuccess: (data) => {
+            logActivity({
+                user,
+                action: "CREATE",
+                resource: "murojaah_santri",
+                record_id: data.data.id.toString(),
+                details: data.data
+            });
+        }
+    });
     const { data: user } = useGetIdentity<IProfile>();
     const [inputType, setInputType] = useState<'SURAT' | 'HALAMAN'>('SURAT');
 

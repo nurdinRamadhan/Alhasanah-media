@@ -1,4 +1,5 @@
 import React from "react";
+import { logActivity } from "../../utility/logger";
 import { Create, useForm, useSelect } from "@refinedev/antd";
 import { Form, Input, Select, DatePicker, Card, Row, Col } from "antd";
 import dayjs from "dayjs";
@@ -6,7 +7,17 @@ import { ISantri, IProfile } from "../../types";
 import { useGetIdentity } from "@refinedev/core";
 
 export const KesehatanCreate = () => {
-    const { formProps, saveButtonProps } = useForm();
+    const { formProps, saveButtonProps } = useForm({
+        onMutationSuccess: (data) => {
+            logActivity({
+                user,
+                action: "CREATE",
+                resource: "kesehatan_santri",
+                record_id: data.data.id.toString(),
+                details: data.data
+            });
+        }
+    });
     const { data: user } = useGetIdentity<IProfile>();
 
     const { selectProps: santriSelectProps } = useSelect<ISantri>({

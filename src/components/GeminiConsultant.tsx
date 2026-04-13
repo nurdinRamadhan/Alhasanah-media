@@ -9,6 +9,7 @@ import {
     MessageOutlined, SendOutlined, ThunderboltOutlined
 } from "@ant-design/icons";
 import { useList } from "@refinedev/core";
+import { Routes, Route } from "react-router-dom";
 import dayjs from "dayjs";
 import ReactMarkdown from "react-markdown";
 import { supabaseClient } from "../utility/supabaseClient";
@@ -24,6 +25,13 @@ type TopicKey = "KESEHATAN" | "PELANGGARAN" | "KEUANGAN" | "ADMIN" | "TAHFIDZ" |
 interface CacheEntry {
     answer: string;
     savedAt: number; // epoch ms
+}
+
+interface Santri {
+    nama: string;
+    kelas?: string;
+    poin?: number;
+    total_hafalan?: number;
 }
 
 // Cache TTL: 30 menit
@@ -215,7 +223,7 @@ export const GeminiConsultant = () => {
             case "PELANGGARAN": {
                 const all = dataSantri?.data ?? [];
                 const sorted = [...all].sort(
-                    (a: any, b: any) => (Number(b.poin) || 0) - (Number(a.poin) || 0)
+                    (a: Santri, b: Santri) => (Number(b.poin) || 0) - (Number(a.poin) || 0)
                 );
                 const topViolators = sorted
                     .slice(0, 3)
@@ -280,9 +288,9 @@ export const GeminiConsultant = () => {
 
             // ── TAHFIDZ ────────────────────────────────────────
             case "TAHFIDZ": {
-                const all = dataSantri?.data ?? [];
+                const all = (dataSantri?.data ?? []) as Santri[];
                 const sorted = [...all].sort(
-                    (a: any, b: any) => (Number(b.total_hafalan) || 0) - (Number(a.total_hafalan) || 0)
+                    (a: Santri, b: Santri) => (Number(b.total_hafalan) || 0) - (Number(a.total_hafalan) || 0)
                 );
                 const top = sorted
                     .slice(0, 3)
@@ -378,7 +386,7 @@ ${instruction}
             setLoading(false);
             startTyping(answer);
             return; // agar finally tidak dobel setLoading(false)
-        } catch (err: any) {
+        } catch {
             message.error("Koneksi ke server AI gagal.");
             setInstant("⚠️ **Koneksi Terputus.**\n\nGagal menghubungi server AI. Periksa koneksi internet Anda.");
         } finally {
@@ -597,7 +605,7 @@ ${instruction}
                                         <div className="agc-loading-state">
                                             <Spin size="large" />
                                             <p className="agc-loading-text agc-pulse">
-                                                MENGHUBUNGI INTELIJEN GEMINI...
+                                                SEDANG MEMBUAT RESPON . . .
                                             </p>
                                         </div>
                                     ) : (
@@ -855,5 +863,38 @@ ${instruction}
                 .agc-response-body::-webkit-scrollbar-track { background: transparent; }
             `}</style>
         </>
+    );
+};
+
+export const DiklatList = () => {
+    return (
+        <div>
+            <h2>Daftar Diklat</h2>
+            <ul>
+                <li>Daftar Diklat</li>
+                <li>Daftar Diklat</li>
+            </ul>
+        </div>
+    );
+};
+
+export const MasterDataPage = () => {
+    return (
+        <div>
+            <h2>Data Master</h2>
+            <ul>
+                <li>Data Master</li>
+                <li>Data Master</li>
+            </ul>
+        </div>
+    );
+};
+
+export const DiklatRoutes = () => {
+    return (
+        <Routes>
+            <Route path="/diklat" element={<DiklatList />} />
+            <Route path="/diklat/master" element={<MasterDataPage />} />
+        </Routes>
     );
 };

@@ -1,10 +1,8 @@
-import React, { useState } from "react";
+import React from "react";
 import { useTable } from "@refinedev/antd";
 import { ProTable, ProColumns } from "@ant-design/pro-components";
-import { Tag, Space, Button, Typography, Badge, Tooltip } from "antd";
+import { Tag, Space, Button, Typography, Tooltip, Avatar, Modal, message } from "antd";
 import { 
-    ExportOutlined,
-    RestOutlined, 
     DownloadOutlined,
     PlusOutlined, 
     WarningOutlined, 
@@ -12,14 +10,14 @@ import {
     EditOutlined, 
     ThunderboltOutlined,
     FileTextOutlined,
-    UserOutlined
+    UserOutlined,
+    RestOutlined
 } from "@ant-design/icons";
-import { Modal, message } from "antd"; 
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { supabaseClient } from "../../utility/supabaseClient";
 import { IPelanggaranSantri } from "../../types";
-import { useNavigation, useDelete } from "@refinedev/core"; //
+import { useNavigation, useDelete } from "@refinedev/core";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
 
@@ -35,12 +33,14 @@ export const PelanggaranList = () => {
         sorters: { initial: [{ field: "tanggal", order: "desc" }] }
     });
 
+    const { create, edit } = useNavigation(); 
+    const { mutate: deleteMutate } = useDelete();
+
     // --- LOGIKA EXPORT EXCEL ---
     const exportToExcel = async () => {
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Data Pelanggaran');
 
-        // Header
         worksheet.columns = [
             { header: 'Tanggal', key: 'tanggal', width: 15 },
             { header: 'NIS', key: 'nis', width: 15 },
@@ -80,40 +80,32 @@ export const PelanggaranList = () => {
         message.success("Data pelanggaran berhasil diunduh.");
     };
 
-    // --- LOGIKA RESET TAHUNAN (DELETE ALL) ---
+    // --- LOGIKA RESET TAHUNAN ---
     const handleResetTahunan = () => {
         Modal.confirm({
-        title: 'PEMULIHAN DATA PELANGGARAN',
-        icon: <WarningOutlined style={{ color: 'red' }} />,
-        content: (
-            <div>
-                <p>Anda yakin ingin menghapus <b>SEMUA</b> riwayat pelanggaran?</p>
-                <p className="text-red-600 font-bold">Tindakan ini tidak dapat dibatalkan!</p>
-                <p>Pastikan Anda sudah mengunduh Excel sebagai arsip.</p>
-            </div>
-        ),
-        okText: 'Ya, Hapus Semua',
-        okType: 'danger',
-        cancelText: 'Batal',
-        onOk: async () => {
-            try {
-                const { error } = await supabaseClient.rpc('reset_pelanggaran');
-
-                if (error) throw error;
-                
-                message.success("Sistem poin berhasil di-reset. Data bersih.");
-                window.location.reload(); 
-            } catch (err: any) {
-                console.error(err);
-                message.error("Gagal mereset: " + err.message);
-            }
-        },
-    });
-};
-
-    // Kita sudah punya 'create' dari useNavigation di sini
-    const { create, edit } = useNavigation(); 
-    const { mutate: deleteMutate } = useDelete();
+            title: 'PEMULIHAN DATA PELANGGARAN',
+            icon: <WarningOutlined style={{ color: 'red' }} />,
+            content: (
+                <div>
+                    <p>Anda yakin ingin menghapus <b>SEMUA</b> riwayat pelanggaran?</p>
+                    <p className="text-red-600 font-bold">Tindakan ini tidak dapat dibatalkan!</p>
+                </div>
+            ),
+            okText: 'Ya, Hapus Semua',
+            okType: 'danger',
+            cancelText: 'Batal',
+            onOk: async () => {
+                try {
+                    const { error } = await supabaseClient.rpc('reset_pelanggaran');
+                    if (error) throw error;
+                    message.success("Sistem poin berhasil di-reset.");
+                    window.location.reload(); 
+                } catch (err: any) {
+                    message.error("Gagal mereset: " + err.message);
+                }
+            },
+        });
+    };
 
     const columns: ProColumns<IPelanggaranSantri>[] = [
         {
@@ -133,33 +125,27 @@ export const PelanggaranList = () => {
         {
             title: "Santri",
             dataIndex: "santri_nis",
-            width: 200,
+            width: 250,
             render: (_, record) => (
-                <div className="flex items-center gap-2">
-                    {record.santri?.foto_url ? (
-                        <img 
-                            src={record.santri.foto_url} 
-                            alt="foto" 
-                            className="w-8 h-8 rounded-full object-cover border border-gray-200"
-                        />
-                    ) : (
-                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 border border-gray-200">
-                            <UserOutlined style={{ fontSize: 12 }} />
-                        </div>
-                    )}
-                    
-                    <div className="flex flex-col leading-tight">
-                        <Text strong className="text-gray-800 dark:text-gray-200 text-[13px]">
+                <div className="flex items-center gap-3 py-1">
+                    <Avatar 
+                        src={record.santri?.foto_url} 
+                        size={40} 
+                        icon={<UserOutlined />}
+                        className="bg-gray-100 border border-gray-200 flex-shrink-0 shadow-sm"
+                    />
+                    <div className="flex flex-col gap-y-0.5 overflow-hidden">
+                        <Text strong className="text-gray-900 dark:text-gray-100 text-[14px] leading-snug truncate block">
                             {record.santri?.nama || "-"}
                         </Text>
-                        <Space size={4} className="mt-0.5">
-                            <Tag bordered={false} className="m-0 text-[10px] bg-gray-100 text-gray-500">
-                                {record.santri_nis}
+                        <div className="flex items-center gap-1.5">
+                            <Tag bordered={false} className="m-0 text-[10px] px-1.5 py-0 bg-gray-50 dark:bg-gray-800 dark:text-gray-400 font-medium">
+                                NIS: {record.santri_nis}
                             </Tag>
-                            <Tag bordered={false} color="cyan" className="m-0 text-[10px]">
+                            <Tag bordered={false} color="cyan" className="m-0 text-[10px] px-1.5 py-0 font-medium">
                                 {record.santri?.kelas}-{record.santri?.jurusan}
                             </Tag>
-                        </Space>
+                        </div>
                     </div>
                 </div>
             ),
@@ -178,12 +164,7 @@ export const PelanggaranList = () => {
                 let color = "green";
                 if (record.jenis_pelanggaran === "SEDANG") color = "orange";
                 if (record.jenis_pelanggaran === "BERAT") color = "red";
-                
-                return (
-                    <Tag color={color} className="font-semibold rounded-full px-2">
-                        {record.jenis_pelanggaran}
-                    </Tag>
-                );
+                return <Tag color={color} className="font-semibold rounded-full px-2">{record.jenis_pelanggaran}</Tag>;
             }
         },
         {
@@ -203,15 +184,12 @@ export const PelanggaranList = () => {
         {
             title: "Tindakan / Hukuman",
             dataIndex: "hukuman",
-            width: 180,
+            width: 200,
             hideInSearch: true,
             render: (_, record) => (
                 <div className="flex items-start gap-2 text-rose-700 dark:text-rose-400">
-                    <ThunderboltOutlined className="mt-1 opacity-60" />
-                    <Paragraph 
-                        ellipsis={{ rows: 2, tooltip: true }} 
-                        className="m-0 text-xs font-medium"
-                    >
+                    <ThunderboltOutlined className="mt-1 opacity-60 flex-shrink-0" />
+                    <Paragraph ellipsis={{ rows: 2, tooltip: true }} className="m-0 text-xs font-medium">
                         {record.hukuman}
                     </Paragraph>
                 </div>
@@ -224,12 +202,8 @@ export const PelanggaranList = () => {
             hideInSearch: true,
             render: (_, record) => (
                 <div className="flex items-start gap-2 text-gray-600 dark:text-gray-400">
-                    <FileTextOutlined className="mt-1 opacity-50" />
-                    <Paragraph 
-                        ellipsis={{ rows: 2, tooltip: record.catatan }} 
-                        className="m-0 text-xs leading-snug"
-                        style={{ maxWidth: 220 }}
-                    >
+                    <FileTextOutlined className="mt-1 opacity-50 flex-shrink-0" />
+                    <Paragraph ellipsis={{ rows: 2, tooltip: record.catatan }} className="m-0 text-xs leading-snug">
                         {record.catatan || "-"}
                     </Paragraph>
                 </div>
@@ -244,23 +218,18 @@ export const PelanggaranList = () => {
                 <div className="flex gap-1" key="actions">
                     <Tooltip title="Edit Data">
                         <Button 
-                            type="text" 
-                            size="small" 
+                            type="text" size="small" 
                             className="text-amber-600 hover:bg-amber-50"
-                            icon={<EditOutlined />} 
-                            onClick={() => edit("pelanggaran_santri", record.id)}
+                            icon={<EditOutlined />} onClick={() => edit("pelanggaran_santri", record.id)}
                         />
                     </Tooltip>
                     <Tooltip title="Hapus Data">
                         <Button 
-                            type="text" 
-                            size="small" 
+                            type="text" size="small" 
                             className="text-red-600 hover:bg-red-50"
                             icon={<DeleteOutlined />} 
                             onClick={() => {
-                                if(confirm("Hapus data pelanggaran ini? Poin santri akan direset")) {
-                                    deleteMutate({ resource: "pelanggaran_santri", id: record.id });
-                                }
+                                if(confirm("Hapus data pelanggaran ini?")) deleteMutate({ resource: "pelanggaran_santri", id: record.id });
                             }}
                         />
                     </Tooltip>
@@ -269,8 +238,6 @@ export const PelanggaranList = () => {
         }
     ];
 
-    // FUNGSI PUSH MANUAL DIHAPUS DARI SINI KARENA MENYEBABKAN ERROR
-
     return (
         <ProTable<IPelanggaranSantri>
             {...tableProps}
@@ -278,7 +245,7 @@ export const PelanggaranList = () => {
             rowKey="id"
             headerTitle={
                 <Space>
-                    <div className="bg-red-50 dark:bg-red-900/20 p-2 rounded-lg border border-red-100 dark:border-red-800">
+                    <div className="bg-red-50 dark:bg-red-900/20 p-2 rounded-lg border border-red-100 dark:border-red-800 flex items-center justify-center">
                         <WarningOutlined className="text-red-500 text-lg" />
                     </div>
                     <div className="flex flex-col">
@@ -288,49 +255,13 @@ export const PelanggaranList = () => {
                 </Space>
             }
             toolBarRender={() => [
-                <Button 
-                    key="export" 
-                    icon={<DownloadOutlined />} 
-                    onClick={exportToExcel}
-                >
-                    Unduh Laporan (Excel)
-                </Button>,
-                <Button 
-                    key="reset" 
-                    danger 
-                    icon={<RestOutlined />} 
-                    onClick={handleResetTahunan}
-                    className="border-red-500 text-red-500 hover:bg-red-50"
-                >
-                    Reset Tahun Ajaran
-                </Button>,
-                <Button 
-                    key="create" 
-                    type="primary" 
-                    icon={<PlusOutlined />} 
-                    // PERBAIKAN: Menggunakan fungsi 'create' bawaan Refine, bukan 'push' manual
-                    onClick={() => create("pelanggaran_santri")} 
-                    className="bg-emerald-600 hover:bg-emerald-500 shadow-sm border-0"
-                >
-                    Catat Pelanggaran
-                </Button>
+                <Button key="export" icon={<DownloadOutlined />} onClick={exportToExcel}>Unduh Laporan</Button>,
+                <Button key="reset" danger icon={<RestOutlined />} onClick={handleResetTahunan} className="border-red-500">Reset</Button>,
+                <Button key="create" type="primary" icon={<PlusOutlined />} onClick={() => create("pelanggaran_santri")} className="bg-emerald-600 border-0 shadow-md">Catat</Button>
             ]}
-            options={{ 
-                density: true, 
-                fullScreen: true, 
-                reload: true,
-                setting: true 
-            }}
-            search={{ 
-                labelWidth: 'auto', 
-                layout: 'vertical',
-                defaultCollapsed: false 
-            }}
-            pagination={{ 
-                defaultPageSize: 10, 
-                showSizeChanger: true,
-                showTotal: (total) => `Total ${total} Pelanggaran`
-            }}
+            options={{ density: false, fullScreen: true, reload: true, setting: true }}
+            search={{ labelWidth: 'auto', layout: 'vertical', defaultCollapsed: false }}
+            pagination={{ defaultPageSize: 10, showSizeChanger: true }}
             className="bg-white dark:bg-[#141414] rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden"
             tableStyle={{ border: 'none' }}
             scroll={{ x: 1000 }} 

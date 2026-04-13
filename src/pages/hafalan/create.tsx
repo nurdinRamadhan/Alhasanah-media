@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { logActivity } from "../../utility/logger";
 import { Create, useForm, useSelect } from "@refinedev/antd";
 import { Form, Input, Select, DatePicker, Card, Row, Col, InputNumber, Radio, Divider } from "antd";
 import dayjs from "dayjs";
@@ -37,6 +38,12 @@ export const HafalanCreate = () => {
         // Panggil fungsi onFinish bawaan useForm untuk menyimpan data ke tabel 'hafalan'
         if (formProps.onFinish) {
             await formProps.onFinish(values);
+            await logActivity({
+                user,
+                action: "CREATE",
+                resource: "hafalan",
+                details: values
+            });
         }
 
         // Jika ada input total_hafalan, update tabel 'santri'

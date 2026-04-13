@@ -69,24 +69,29 @@ export const SantriList = () => {
       copyable: true,
       width: 250,
       render: (_, record) => (
-        <Space>
+        <div className="flex items-center gap-3 py-1">
           <Avatar 
             shape="circle" 
-            size={40}
+            size={44}
             style={{ 
                 backgroundColor: record.jenis_kelamin === 'L' ? '#e0f2fe' : '#fce7f3',
                 color: record.jenis_kelamin === 'L' ? '#0284c7' : '#db2777',
-                border: `1px solid ${record.jenis_kelamin === 'L' ? '#bae6fd' : '#fbcfe8'}`
+                border: `1.5px solid ${record.jenis_kelamin === 'L' ? '#bae6fd' : '#fbcfe8'}`,
+                flexShrink: 0
             }}
             icon={record.jenis_kelamin === 'L' ? <ManOutlined /> : <WomanOutlined />} 
           />
-          <div className="flex flex-col">
-            <Text strong className="text-gray-800 dark:text-gray-100">{record.nama}</Text>
-            <Space size={4}>
-                <Tag bordered={false} style={{ fontSize: 10, margin: 0 }}>{record.nis}</Tag>
-            </Space>
+          <div className="flex flex-col gap-y-0.5 overflow-hidden">
+            <Text strong className="text-[14px] text-gray-900 dark:text-gray-100 truncate block leading-snug">
+              {record.nama}
+            </Text>
+            <div className="flex items-center gap-2">
+                <Tag bordered={false} className="m-0 text-[10px] px-1.5 py-0 bg-gray-100 dark:bg-gray-800 dark:text-gray-400">
+                  NIS: {record.nis}
+                </Tag>
+            </div>
           </div>
-        </Space>
+        </div>
       ),
     },
     {
