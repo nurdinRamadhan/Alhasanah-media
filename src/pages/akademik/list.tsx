@@ -12,6 +12,7 @@ import { supabaseClient } from "../../utility/supabaseClient";
 import { useReactToPrint } from 'react-to-print';
 import { ISantri, IMataPelajaran } from "../../types";
 import dayjs from "dayjs";
+import { formatHijri, formatMasehi } from "../../utility/dateHelper";
 
 const { Title, Text } = Typography;
 
@@ -390,7 +391,11 @@ export const AkademikPage = () => {
                                         <div className="border-b border-black w-48 mx-auto"></div>
                                     </div>
                                     <div className="text-center">
-                                        <div className="mb-20">Tasikmalaya, {dayjs().format('DD MMMM YYYY')}<br/>Kepala Pesantren</div>
+                                        <div className="mb-20">
+                                            Tasikmalaya, {formatMasehi(new Date())}<br/>
+                                            <b>{formatHijri(new Date())}</b><br/>
+                                            Kepala Pesantren
+                                        </div>
                                         <div className="font-bold underline">KH. Lili Syamsul Romli</div>
                                     </div>
                                 </div>

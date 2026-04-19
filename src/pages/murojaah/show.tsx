@@ -6,6 +6,7 @@ import { ISantri } from "../../types";
 import { useNavigate, useParams } from "react-router-dom";
 import dayjs from "dayjs";
 import { supabaseClient } from "../../utility/supabaseClient";
+import { formatDualDate } from "../../utility/dateHelper";
 
 const { Title, Text } = Typography;
 
@@ -61,7 +62,7 @@ export const MurojaahShow = () => {
                                 <Timeline.Item 
                                     key={item.id} 
                                     color={item.jenis_murojaah === 'SABAQ' ? 'blue' : 'purple'}
-                                    label={dayjs(item.tanggal).format("DD MMM")}
+                                    label={<div className="text-[10px] text-gray-500">{formatDualDate(item.tanggal)}</div>}
                                 >
                                     <div className="flex flex-col pb-4">
                                         <div className="flex justify-between items-center">

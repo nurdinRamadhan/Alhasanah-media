@@ -130,6 +130,33 @@ export interface IHafalanTahfidz {
   total_hafalan?: number; // Snapshot total hafalan saat itu
 }
 
+export const NAMA_KITAB_LIST = [
+    "Jurumiah", 
+    "Imrity", 
+    "Nadzmul Maqshud", 
+    "Alfiyah", 
+    "Uqudul Juman", 
+    "Sulam Munawraq"
+] as const;
+
+export interface IHafalanKitab {
+    id: number;
+    created_at: string;
+    santri_nis: string;
+    santri?: ISantri;
+    tanggal: string;
+    nama_kitab: typeof NAMA_KITAB_LIST[number];
+    bab_materi: string;
+    bait_awal?: number;
+    bait_akhir?: number;
+    halaman_awal?: number;
+    halaman_akhir?: number;
+    predikat: 'MUMTAZ' | 'JAYYID' | 'KURANG';
+    status: 'LULUS' | 'MENGULANG';
+    catatan: string;
+    dicatat_oleh_id: string;
+}
+
 export interface IMurojaahTahfidz {
   id: number;
   created_at: string;

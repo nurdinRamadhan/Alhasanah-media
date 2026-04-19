@@ -1,12 +1,16 @@
 import React from "react";
 import { Edit, useForm } from "@refinedev/antd";
-import { Form, Input, DatePicker, InputNumber, Row, Col, Radio, Card, Alert } from "antd";
+import { Form, Input, DatePicker, InputNumber, Row, Col, Radio, Card, Alert, Typography } from "antd";
 import dayjs from "dayjs";
 import { IPelanggaranSantri } from "../../types";
+import { formatHijri } from "../../utility/dateHelper";
+
+const { Text } = Typography;
 
 export const PelanggaranEdit = () => {
-    const { formProps, saveButtonProps, queryResult } = useForm<IPelanggaranSantri>();
+    const { formProps, saveButtonProps, queryResult, form } = useForm<IPelanggaranSantri>();
     const record = queryResult?.data?.data;
+    const selectedDate = Form.useWatch("tanggal", form);
 
     return (
         <Edit saveButtonProps={saveButtonProps} title="Revisi Data Pelanggaran">
@@ -39,6 +43,13 @@ export const PelanggaranEdit = () => {
                                 name="tanggal" 
                                 rules={[{ required: true }]}
                                 getValueProps={(value) => ({ value: value ? dayjs(value) : "" })}
+                                help={
+                                    selectedDate && (
+                                        <Text type="success" style={{ fontSize: 12 }}>
+                                            Bertepatan dengan: <b>{formatHijri(selectedDate)}</b>
+                                        </Text>
+                                    )
+                                }
                             >
                                 <DatePicker style={{ width: "100%" }} format="DD MMMM YYYY" />
                             </Form.Item>

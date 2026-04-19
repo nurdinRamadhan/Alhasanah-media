@@ -10,7 +10,7 @@ import {
 } from "@ant-design/icons";
 import { ISantri } from "../../types";
 import { useNavigate, useParams } from "react-router-dom";
-import dayjs from "dayjs";
+import { formatDualDate, formatMasehi, formatHijri } from "../../utility/dateHelper";
 import { supabaseClient } from "../../utility/supabaseClient";
 
 const { Title, Text } = Typography;
@@ -99,7 +99,7 @@ export const HafalanShow = () => {
                                 <Timeline.Item 
                                     key={item.id} 
                                     color={item.predikat === 'MUMTAZ' ? 'green' : item.predikat === 'KURANG' ? 'red' : 'blue'}
-                                    label={dayjs(item.tanggal).format("DD MMM YYYY")}
+                                    label={formatDualDate(item.tanggal)}
                                 >
                                     <div className="flex flex-col pb-4">
                                         <div className="flex justify-between items-center">

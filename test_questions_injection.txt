@@ -1,0 +1,48 @@
+-- =========================================================
+-- SKRIP INJEKSI DATA UJI (TEST DATA)
+-- Gunakan skrip ini untuk mengetes fitur Ulangan Mingguan
+-- =========================================================
+
+-- 1. Injeksi 2 Soal Contoh ke Bank Soal
+INSERT INTO public.question_bank (kitab, bab, sub_bab, konten_soal, tingkat_kesulitan)
+VALUES 
+(
+    'alfiyah', 
+    'Bab I''rob', 
+    'Tanda-tanda I''rob', 
+    'قَالَ مُحَمَّدٌ هُوَ ابنُ مَالِكِ ... اعرب هذه الجملة إعرابا تفصيليا مع ذكر القواعد المتعلقة بها.', 
+    'sedang'
+),
+(
+    'kailani', 
+    'Bab Tashrif', 
+    'Fi''il Tsulatsi Mujarrod', 
+    'التصريف هو تغيير الاصل الواحد الى امثلة مختلفة ... اذكر أمثلة لتصريف فعل (ضَرَبَ) من الماضي إلى الأمر.', 
+    'mudah'
+);
+
+-- =========================================================
+-- PANDUAN VERIFIKASI (CARA CEK KERJA ATAU TIDAK)
+-- =========================================================
+
+-- CIRI FITUR BEKERJA DENGAN BENAR:
+-- 1. Buka Menu "Bank & Buat Ulangan": Soal di atas muncul di tabel dengan teks Arab rata kanan (RTL).
+-- 2. Klik "Buat Ulangan": 
+--    - Di Step 2 (Pilih Soal), kedua soal tersebut muncul di panel kiri (Bank Soal).
+--    - Anda bisa memindahkan soal tersebut ke panel kanan (Soal Terpilih).
+-- 3. Simpan Ulangan: Data berhasil masuk ke tabel `weekly_tests`.
+-- 4. Finalisasi (Uji Trigger):
+--    - Setelah ulangan dibuat, ubah statusnya menjadi 'final' (via SQL atau UI jika sudah tersedia).
+--    - Cek kembali tabel "Bank Soal". Status soal tersebut harus berubah secara otomatis 
+--      menjadi "TERPAKAI" (Tag Oranye) berkat Trigger `on_test_finalized`.
+-- 5. Input Nilai:
+--    - Buka Menu "Arsip & Nilai". Klik tombol Edit (Icon Pensil).
+--    - Modal harus muncul menampilkan daftar santri kelas 2.
+--    - Nilai yang Anda input dan simpan harus muncul kembali saat modal dibuka lagi.
+
+-- CIRI FITUR TIDAK BEKERJA (ERROR):
+-- 1. Teks Arab muncul di sebelah kiri (LTR) atau berantakan -> Masalah di CSS `arabic.css`.
+-- 2. "Bank Soal" kosong setelah run SQL -> Cek apakah ada error RLS atau table belum dibuat.
+-- 3. Soal tidak muncul di Step 2 "Buat Ulangan" -> Masalah di fetch data `useSelect`.
+-- 4. Status soal tetap "BELUM TERPAKAI" padahal ulangan sudah 'final' -> Trigger SQL gagal.
+-- 5. Modal Nilai kosong -> Tidak ada santri dengan `kelas: '2'` di database Anda.

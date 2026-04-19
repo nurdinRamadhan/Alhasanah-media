@@ -1,14 +1,19 @@
 import React, { useState } from "react";
 import { logActivity } from "../../utility/logger";
 import { Create, useForm, useSelect } from "@refinedev/antd";
-import { Form, Input, Select, DatePicker, Card, Row, Col, InputNumber, Radio, Divider, Segmented } from "antd";
+import { Form, Input, Select, DatePicker, Card, Row, Col, InputNumber, Radio, Divider, Segmented, Typography } from "antd";
 import dayjs from "dayjs";
 import { ISantri, IProfile } from "../../types";
 import { useGetIdentity } from "@refinedev/core";
 import { DATA_SURAT } from "../../utility/quran-data";
+import { formatHijri } from "../../utility/dateHelper";
+
+const { Text } = Typography;
 
 export const MurojaahCreate = () => {
+    const [form] = Form.useForm();
     const { formProps, saveButtonProps } = useForm({
+        form,
         onMutationSuccess: (data) => {
             logActivity({
                 user,
@@ -21,6 +26,7 @@ export const MurojaahCreate = () => {
     });
     const { data: user } = useGetIdentity<IProfile>();
     const [inputType, setInputType] = useState<'SURAT' | 'HALAMAN'>('SURAT');
+    const selectedDate = Form.useWatch("tanggal", form);
 
     const { selectProps: santriSelectProps } = useSelect<ISantri>({
         resource: "santri",
@@ -53,7 +59,19 @@ export const MurojaahCreate = () => {
                                 <Select {...santriSelectProps} showSearch placeholder="Cari Santri..." />
                             </Form.Item>
 
-                            <Form.Item label="Waktu" name="tanggal" rules={[{ required: true }]} getValueProps={(v) => ({ value: v ? dayjs(v) : "" })}>
+                            <Form.Item 
+                                label="Waktu" 
+                                name="tanggal" 
+                                rules={[{ required: true }]} 
+                                getValueProps={(v) => ({ value: v ? dayjs(v) : "" })}
+                                help={
+                                    selectedDate && (
+                                        <Text type="success" style={{ fontSize: 11 }}>
+                                            Bertepatan dengan: <b>{formatHijri(selectedDate)}</b>
+                                        </Text>
+                                    )
+                                }
+                            >
                                 <DatePicker showTime format="DD MMM YYYY HH:mm" style={{ width: '100%' }} />
                             </Form.Item>
 

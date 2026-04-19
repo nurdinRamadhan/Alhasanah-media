@@ -1,0 +1,88 @@
+==========================================================================
+DOKUMENTASI SISTEM PENANGGALAN HIJRIAH - AL-HASANAH ADMIN
+==========================================================================
+
+1. PERMASALAHAN TEKNIS (The Discrepancy)
+----------------------------------------
+Sistem menggunakan library astronomi (hijri-converter) yang berbasis algoritma 
+Umm al-Qura (Standar Arab Saudi). Algoritma ini seringkali berselisih 1 hari 
+dengan ketetapan Kementerian Agama RI (KEMENAG) karena:
+- Perbedaan Kriteria: Kemenag menggunakan kriteria MABIMS (Tinggi Hilal 3°, 
+  Elongasi 6,4°), sedangkan Umm al-Qura berbasis konjungsi astronomis murni.
+- Perbedaan Lokasi: Titik referensi Mekkah vs Jakarta.
+bedah teknis terkait ketidaksesuaian tersebut:
+
+  1. Bedah Algoritma: Umm al-Qura vs MABIMS
+  Library hijri-converter yang kita gunakan (dan mayoritas plugin dayjs-hijri) mengimplementasikan algoritma Umm al-Qura yang menjadi
+  standar resmi Arab Saudi.
+   * Karakteristik Umm al-Qura: Berbasis pada kalkulasi astronomis konjungsi bulan sebelum matahari terbenam di koordinat Ka'bah,
+     Mekkah. 
+   * Karakteristik MABIMS (Indonesia): Menggunakan kriteria baru (sejak 2021) yaitu tinggi hilal minimal 3 derajat dan elongasi minimal
+     6,4 derajat. 
+   * Titik Perbedaan: Karena perbedaan koordinat geografis (Mekkah vs Jakarta) dan ambang batas visibilitas (imkanur rukyat), satu
+     tanggal Masehi yang sama seringkali menghasilkan selisih 1 hari. Algoritma matematis murni cenderung "lebih cepat" 1 hari karena
+     menganggap bulan baru dimulai segera setelah konjungsi terjadi secara astronomis, tanpa mempertimbangkan apakah hilal tersebut
+     bisa dilihat secara mata telanjang/teleskop di wilayah tertentu.
+
+  2. Analisis Lokalisasi: Batas Waktu Maghrib & Midnight
+  Ini adalah celah logika yang sering terlupakan dalam sistem IT:
+   * Runtime Shift: Objek Date di JavaScript (dan Dayjs) berbasis Midnight (00:00). Sedangkan hari Hijriyah berganti pada Maghrib
+     (Sunset).
+   * Discrepancy: Jika admin menginput data pada jam 19:00 WIB tanggal 15 April, secara Masehi masih tanggal 15, namun secara Hijriyah
+     sudah masuk tanggal 16 (hari berikutnya). 
+   * Timezone: Runtime di browser menggunakan zona waktu user (WIB/WITA/WIT). Jika server berada di UTC (seperti Supabase default), dan
+     kita melakukan konversi tanpa mengunci zona waktu ke Asia/Jakarta, maka risiko pergeseran 1 hari sangat besar pada rentang waktu
+     kritis (00:00 - 07:00 WIB).
+
+  3. Audit Struktur Data: Ant Design Pro & Dayjs Object
+  Ant Design Pro (melalui ProForm dan ProTable) memperlakukan tanggal sebagai objek dayjs yang membawa informasi lokal lengkap.
+   * Proses Konversi: Saat Anda memilih tanggal di DatePicker, AntD menyimpan timestamp atau string ISO. Library konverter kemudian
+     mengekstrak day, month, year dari objek tersebut.
+   * Potensi Offset: Jika DatePicker mengembalikan objek jam 00:00:00, library konverter akan menganggap itu adalah "hari tersebut".
+     Namun, jika sistem tidak memiliki parameter "Manual Offset", kita dipaksa mengikuti kalkulasi matematis library yang seringkali
+     tidak selaras dengan kalender cetak yang sudah beredar di Indonesia.
+
+  4. Akurasi Jangka Panjang: Fluktuasi Visibilitas Hilal
+  Ketidaksesuaian ini TIDAK bersifat konstan. 
+   * Sifat Fluktuatif: Terkadang hitungan algoritma Umm al-Qura sama dengan MABIMS, namun di bulan-bulan tertentu (terutama yang
+     memiliki tinggi hilal di bawah 3 derajat) akan terjadi selisih.
+   * Dampak Religius/Hukum: Untuk administrasi internal pesantren (seperti tanggal masuk santri), selisih 1 hari mungkin tidak fatal.
+     Namun, untuk Penentuan Awal Ramadhan, Idul Fitri, dan Idul Adha, sistem yang berbasis algoritma murni tidak boleh dijadikan acuan
+     tunggal karena hukum syar'i di Indonesia mewajibkan Sidang Isbat/Rukyatul Hilal.
+
+
+
+2. STRATEGI PENANGANAN (The 3-Pillar Solution)
+----------------------------------------------
+Untuk memastikan akurasi dan kepercayaan pengguna (Wali Santri & Admin), 
+sistem menerapkan tiga mekanisme:
+
+A. GLOBAL OFFSET ADJUSTMENT (Logical Layer)
+   Terdapat variabel 'HIJRI_OFFSET' di 'src/utility/dateHelper.ts'. 
+   Admin dapat mengubah nilai ini (+1, 0, -1) secara terpusat untuk 
+   menyesuaikan seluruh tampilan Hijriah di aplikasi dengan pengumuman 
+   pemerintah secara instan.
+
+B. TIMEZONE LOCKING (Asia/Jakarta)
+   Sistem mengunci perhitungan pada zona waktu Asia/Jakarta. Hal ini 
+   mencegah pergeseran tanggal akibat perbedaan runtime antara browser 
+   pengguna dan server (UTC), terutama pada jam-jam kritis pergantian hari.
+
+C. VISUAL DISCLAIMER (UX Layer)
+   Setiap komponen yang menampilkan tanggal Hijriah akan menyertakan 
+   keterangan (tooltip atau sub-text) yang menyatakan bahwa penanggalan 
+   Hijriah bersifat prediktif dan mungkin berbeda +/- 1 hari dari 
+   ketetapan resmi.
+
+3. PEMELIHARAAN (Maintenance)
+-----------------------------
+Jika terjadi perbedaan antara sistem dan kalender resmi:
+1. Buka file 'src/utility/dateHelper.ts'.
+2. Ubah nilai konstanta 'HIJRI_OFFSET' sesuai kebutuhan.
+3. Simpan, dan seluruh dashboard akan terupdate secara otomatis.
+
+--------------------------------------------------------------------------
+Senior Developer Note: 
+Penanggalan Hijriah adalah masalah observasional (rukyat), bukan sekadar 
+matematika. Sistem ini didesain fleksibel untuk mengikuti observasi riil.
+==========================================================================

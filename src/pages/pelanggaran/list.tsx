@@ -18,8 +18,8 @@ import { saveAs } from 'file-saver';
 import { supabaseClient } from "../../utility/supabaseClient";
 import { IPelanggaranSantri } from "../../types";
 import { useNavigation, useDelete } from "@refinedev/core";
+import { formatDualDate, formatHijri, formatMasehi } from "../../utility/dateHelper";
 import dayjs from "dayjs";
-import "dayjs/locale/id";
 
 const { Text, Paragraph } = Typography;
 
@@ -42,10 +42,11 @@ export const PelanggaranList = () => {
         const worksheet = workbook.addWorksheet('Data Pelanggaran');
 
         worksheet.columns = [
-            { header: 'Tanggal', key: 'tanggal', width: 15 },
+            { header: 'Tanggal Masehi', key: 'tanggal', width: 20 },
+            { header: 'Tanggal Hijriyah', key: 'hijriyah', width: 25 },
             { header: 'NIS', key: 'nis', width: 15 },
             { header: 'Nama Santri', key: 'nama', width: 30 },
-            { header: 'Kelas', key: 'kelas', width: 10 },
+            { header: 'Kelas', key: 'kelas', width: 15 },
             { header: 'Jenis', key: 'jenis', width: 15 },
             { header: 'Poin', key: 'poin', width: 10 },
             { header: 'Hukuman', key: 'hukuman', width: 30 },
@@ -60,7 +61,8 @@ export const PelanggaranList = () => {
         if (allData) {
             allData.forEach((item: any) => {
                 worksheet.addRow({
-                    tanggal: dayjs(item.tanggal).format('YYYY-MM-DD'),
+                    tanggal: formatMasehi(item.tanggal),
+                    hijriyah: formatHijri(item.tanggal),
                     nis: item.santri?.nis,
                     nama: item.santri?.nama,
                     kelas: `${item.santri?.kelas} - ${item.santri?.jurusan}`,
@@ -76,7 +78,8 @@ export const PelanggaranList = () => {
         worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEF4444' } };
 
         const buffer = await workbook.xlsx.writeBuffer();
-        saveAs(new Blob([buffer]), `Laporan_Pelanggaran_${dayjs().format('YYYY-MM-DD')}.xlsx`);
+        const fileName = `Laporan_Pelanggaran_${new Date().toISOString().split('T')[0]}.xlsx`;
+        saveAs(new Blob([buffer]), fileName);
         message.success("Data pelanggaran berhasil diunduh.");
     };
 
@@ -112,12 +115,12 @@ export const PelanggaranList = () => {
             title: "Tanggal",
             dataIndex: "tanggal",
             valueType: "date",
-            width: 110,
+            width: 140,
             fixed: "left", 
             render: (_, record) => (
                 <div className="flex flex-col">
-                    <Text strong>{dayjs(record.tanggal).format("DD MMM")}</Text>
-                    <Text type="secondary" style={{ fontSize: 11 }}>{dayjs(record.tanggal).format("YYYY")}</Text>
+                    <Text strong>{dayjs(record.tanggal).format("DD MMM YYYY")}</Text>
+                    <Text type="secondary" style={{ fontSize: 11, color: '#ef4444' }}>{formatHijri(record.tanggal)}</Text>
                 </div>
             ),
             sorter: true,
@@ -250,7 +253,7 @@ export const PelanggaranList = () => {
                     </div>
                     <div className="flex flex-col">
                         <Text strong className="text-base">Buku Kedisiplinan</Text>
-                        <Text type="secondary" className="text-xs">Monitoring pelanggaran & poin santri</Text>
+                        <Text type="secondary" className="text-xs">Monitoring pelanggaran per {formatHijri(new Date())}</Text>
                     </div>
                 </Space>
             }

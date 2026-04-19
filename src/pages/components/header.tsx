@@ -9,13 +9,15 @@ import {
   Dropdown,
   MenuProps,
   Button,
-  Switch
+  Switch,
+  Tooltip
 } from "antd";
 import React from "react";
-import { DownOutlined, LogoutOutlined, UserOutlined } from "@ant-design/icons";
+import { DownOutlined, LogoutOutlined, UserOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import { useLogout } from "@refinedev/core";
 import { useColorMode } from "../../contexts/color-mode"; // Import context theme
 import { IProfile } from "../../types";
+import { formatHijri, formatMasehi } from "../../utility/dateHelper";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -50,32 +52,47 @@ export const Header: React.FC<RefineThemedLayoutV2HeaderProps> = ({ sticky }) =>
 
   return (
     <AntdLayout.Header style={headerStyles}>
-      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', lineHeight: '1', minWidth: 0 }}>
         <Text strong style={{ 
           color: mode === "dark" ? "#ffb700" : token.colorTextHeading, 
-          fontSize: "16px", 
-          lineHeight: "1.2",
+          fontSize: "clamp(13px, 2vw, 16px)", 
+          lineHeight: "1.1",
           display: "block",
-          marginBottom: "4px",
-          letterSpacing: "0.02em"
+          letterSpacing: "-0.01em",
+          whiteSpace: "nowrap",
         }}>
-            Pondok Pesantren Al-Hasanah Cibeuti
+            Pondok Pesantren Al-Hasanah
         </Text>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ffb700', boxShadow: mode === 'dark' ? '0 0 8px #ffb700' : 'none' }}></div>
+        <div className="hidden sm:flex" style={{ alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+            <div style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: '#ffb700', opacity: 0.8 }}></div>
             <Text style={{ 
               color: token.colorTextSecondary, 
-              fontSize: "11px", 
+              fontSize: "10px", 
               fontWeight: 500,
               lineHeight: "1",
-              letterSpacing: "0.01em"
+              whiteSpace: "nowrap",
+              opacity: 0.8
             }}>
-                Jl. Raya Cibeuti No.13, Cibeuti, Kec. Kawalu, Tasikmalaya, Jawa Barat 46182
+                Kawalu, Tasikmalaya
             </Text>
         </div>
       </div>
 
-      <Space size="large">
+      <Space size={window.innerWidth < 640 ? "small" : "large"} align="center" style={{ flexShrink: 0 }}>
+        <div className="flex flex-col items-end justify-center border-r border-gray-200 dark:border-gray-800 pr-3 mr-1" style={{ height: '40px' }}>
+            <Tooltip title="Penanggalan Hijriah berdasarkan perhitungan sistem (Hisab), mungkin terdapat selisih +/- 1 hari dengan ketetapan resmi pemerintah/rukyat.">
+              <div style={{ cursor: 'help', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '2px' }}>
+                <Text strong style={{ fontSize: 12, color: mode === 'dark' ? '#ffb700' : '#059669', lineHeight: 1 }}>
+                    {formatHijri(new Date())}
+                </Text>
+                <InfoCircleOutlined className="hidden sm:inline" style={{ fontSize: '9px', color: mode === 'dark' ? '#ffb700' : '#059669', opacity: 0.7 }} />
+              </div>
+            </Tooltip>
+            <Text style={{ fontSize: 9, color: token.colorTextDescription, lineHeight: 1 }}>
+                {formatMasehi(new Date())}
+            </Text>
+        </div>
+
         <Switch
             checkedChildren="🌙"
             unCheckedChildren="☀️"

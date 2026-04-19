@@ -5,6 +5,7 @@ import { Tag, Typography, Avatar, Card, Space } from "antd";
 import { SafetyCertificateOutlined, UserOutlined, ClockCircleOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { IAuditLog } from "../../types";
+import { formatHijri } from "../../utility/dateHelper";
 
 const { Text } = Typography;
 
@@ -90,9 +91,12 @@ export const AuditLogList = () => {
                 columns={columns}
                 rowKey="id"
                 headerTitle={
-                    <Space>
-                        <SafetyCertificateOutlined className="text-indigo-600 text-xl"/>
-                        <span className="text-lg font-bold">Audit Trail & Keamanan</span>
+                    <Space direction="vertical" size={0}>
+                        <Space>
+                            <SafetyCertificateOutlined className="text-indigo-600 text-xl"/>
+                            <span className="text-lg font-bold">Audit Trail & Keamanan</span>
+                        </Space>
+                        <Text type="secondary" style={{ fontSize: 10 }}>Update: {formatHijri(new Date())}</Text>
                     </Space>
                 }
                 search={false}

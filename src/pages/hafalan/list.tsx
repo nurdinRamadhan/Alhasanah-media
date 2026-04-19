@@ -13,6 +13,7 @@ import {
 } from "@ant-design/icons";
 import { ISantri } from "../../types";
 import { useNavigation } from "@refinedev/core";
+import { formatHijri } from "../../utility/dateHelper";
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 
@@ -198,7 +199,9 @@ export const HafalanList = () => {
                     </div>
                     <div className="flex flex-col">
                         <Text strong className="text-base">Monitoring Tahfidz</Text>
-                        <Text type="secondary" className="text-xs">Data hafalan santri terbaru</Text>
+                        <Text type="secondary" className="text-xs">
+                            Data hafalan santri per {formatHijri(new Date())}
+                        </Text>
                     </div>
                 </Space>
             }

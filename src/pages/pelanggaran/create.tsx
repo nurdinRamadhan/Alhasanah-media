@@ -11,6 +11,7 @@ import {
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { useGetIdentity } from "@refinedev/core";
+import { formatHijri } from "../../utility/dateHelper";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -36,6 +37,7 @@ export const PelanggaranCreate = () => {
 
     // Watcher: Memantau perubahan jenis pelanggaran untuk auto-fill poin
     const jenisPelanggaran = Form.useWatch("jenis_pelanggaran", form);
+    const selectedDate = Form.useWatch("tanggal", form);
 
     useEffect(() => {
         // Logika "Smart Defaults": Mengisi poin otomatis berdasarkan kategori
@@ -107,6 +109,13 @@ export const PelanggaranCreate = () => {
                                 name="tanggal"
                                 rules={[{ required: true, message: "Tanggal wajib diisi" }]}
                                 getValueProps={(value) => ({ value: value ? dayjs(value) : "" })}
+                                help={
+                                    selectedDate && (
+                                        <Text type="success" style={{ fontSize: 12 }}>
+                                            Bertepatan dengan: <b>{formatHijri(selectedDate)}</b>
+                                        </Text>
+                                    )
+                                }
                             >
                                 <DatePicker 
                                     format="DD MMMM YYYY"

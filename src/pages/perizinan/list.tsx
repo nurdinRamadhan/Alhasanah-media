@@ -17,6 +17,7 @@ import {
 } from "@ant-design/icons";
 import { IPerizinanSantri, ISantri } from "../../types";
 import { useNavigation, useUpdate, useDelete , useGetIdentity} from "@refinedev/core";
+import { formatDualDate, formatHijri, formatMasehi } from "../../utility/dateHelper";
 import dayjs from "dayjs";
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
@@ -59,13 +60,15 @@ const { tableProps } = useTable<IPerizinanSantri>({
         const worksheet = workbook.addWorksheet('Rekap Perizinan');
 
         worksheet.columns = [
-            { header: 'Tanggal', key: 'tgl', width: 15 },
+            { header: 'Tanggal Masehi', key: 'tgl', width: 20 },
+            { header: 'Tanggal Hijriyah', key: 'tgl_h', width: 25 },
             { header: 'Nama Santri', key: 'nama', width: 25 },
             { header: 'Kelas', key: 'kelas', width: 15 },
             { header: 'Jenis', key: 'jenis', width: 15 },
             { header: 'Alasan', key: 'alasan', width: 30 },
             { header: 'Status', key: 'status', width: 15 },
-            { header: 'Tgl Kembali', key: 'kembali', width: 15 },
+            { header: 'Tgl Kembali Masehi', key: 'kembali', width: 20 },
+            { header: 'Tgl Kembali Hijriyah', key: 'kembali_h', width: 25 },
         ];
 
         const { data } = await supabaseClient
@@ -76,13 +79,15 @@ const { tableProps } = useTable<IPerizinanSantri>({
         if(data) {
             data.forEach((item: any) => {
                 worksheet.addRow({
-                    tgl: dayjs(item.created_at).format('YYYY-MM-DD'),
+                    tgl: formatMasehi(item.created_at),
+                    tgl_h: formatHijri(item.created_at),
                     nama: item.santri?.nama,
                     kelas: `${item.santri?.kelas} - ${item.santri?.jurusan}`,
                     jenis: item.jenis_izin,
                     alasan: item.keterangan,
                     status: item.status,
-                    kembali: dayjs(item.tanggal_kembali).format('YYYY-MM-DD')
+                    kembali: formatMasehi(item.tanggal_kembali),
+                    kembali_h: formatHijri(item.tanggal_kembali)
                 });
             });
         }
@@ -92,7 +97,8 @@ const { tableProps } = useTable<IPerizinanSantri>({
         worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
 
         const buffer = await workbook.xlsx.writeBuffer();
-        saveAs(new Blob([buffer]), `Rekap_Semua_Izin_${dayjs().format('YYYY-MM-DD')}.xlsx`);
+        const fileName = `Rekap_Semua_Izin_${new Date().toISOString().split('T')[0]}.xlsx`;
+        saveAs(new Blob([buffer]), fileName);
     };
 
     // --- 2. EXPORT PERSONAL (LAPORAN KHUSUS) ---
@@ -117,7 +123,7 @@ const { tableProps } = useTable<IPerizinanSantri>({
         const worksheet = workbook.addWorksheet(`Laporan - ${santri.nama}`);
 
         // --- Header Laporan Personal ---
-        worksheet.mergeCells('A1:E1');
+        worksheet.mergeCells('A1:G1');
         worksheet.getCell('A1').value = "LAPORAN RIWAYAT PERIZINAN SANTRI";
         worksheet.getCell('A1').font = { size: 16, bold: true };
         worksheet.getCell('A1').alignment = { horizontal: 'center' };
@@ -126,7 +132,7 @@ const { tableProps } = useTable<IPerizinanSantri>({
         worksheet.getCell('A4').value = "NIS"; worksheet.getCell('B4').value = `: ${santri.nis}`;
         worksheet.getCell('A5').value = "Kelas"; worksheet.getCell('B5').value = `: ${santri.kelas} (${santri.jurusan})`;
 
-        worksheet.getRow(7).values = ['Tanggal Pengajuan', 'Jenis Izin', 'Alasan / Keterangan', 'Rencana Kembali', 'Status Akhir'];
+        worksheet.getRow(7).values = ['Tanggal Pengajuan (M)', 'Tanggal Pengajuan (H)', 'Jenis Izin', 'Alasan / Keterangan', 'Rencana Kembali (M)', 'Rencana Kembali (H)', 'Status Akhir'];
         
         // Style Header Tabel
         const headerRow = worksheet.getRow(7);
@@ -138,10 +144,12 @@ const { tableProps } = useTable<IPerizinanSantri>({
             history.forEach((item: any, index) => {
                 const row = worksheet.getRow(8 + index);
                 row.values = [
-                    dayjs(item.created_at).format('DD MMM YYYY'),
+                    formatMasehi(item.created_at),
+                    formatHijri(item.created_at),
                     item.jenis_izin,
                     item.keterangan,
-                    dayjs(item.tanggal_kembali).format('DD MMM YYYY'),
+                    formatMasehi(item.tanggal_kembali),
+                    formatHijri(item.tanggal_kembali),
                     item.status
                 ];
             });
@@ -149,7 +157,7 @@ const { tableProps } = useTable<IPerizinanSantri>({
 
         // Auto Width Columns
         worksheet.columns.forEach(column => { column.width = 25; });
-        worksheet.getColumn(3).width = 40; // Kolom Alasan lebih lebar
+        worksheet.getColumn(4).width = 40; // Kolom Alasan lebih lebar
 
         const buffer = await workbook.xlsx.writeBuffer();
         saveAs(new Blob([buffer]), `Laporan_Izin_${santri.nama}.xlsx`);
@@ -181,8 +189,13 @@ const { tableProps } = useTable<IPerizinanSantri>({
         {
             title: "Tgl",
             dataIndex: "created_at",
-            width: 90,
-            render: (_, r) => dayjs(r.created_at).format("DD MMM"),
+            width: 140,
+            render: (_, r) => (
+                <div className="flex flex-col">
+                    <Text strong>{dayjs(r.created_at).format("DD MMM")}</Text>
+                    <Text type="secondary" style={{ fontSize: 10 }}>{formatHijri(r.created_at)}</Text>
+                </div>
+            ),
             sorter: true,
         },
         {
@@ -217,6 +230,7 @@ const { tableProps } = useTable<IPerizinanSantri>({
                         <span className="text-xs text-red-600 font-bold">
                             {dayjs(r.tanggal_kembali).format("DD MMM YYYY")}
                         </span>
+                        <span className="text-[10px] text-red-500 font-medium">{formatHijri(r.tanggal_kembali)}</span>
                     </div>
                 </div>
             )
@@ -310,7 +324,10 @@ const { tableProps } = useTable<IPerizinanSantri>({
                 headerTitle={
                     <Space>
                         <FileProtectOutlined className="text-blue-600 text-lg" />
-                        <Text strong>Monitoring Perizinan</Text>
+                        <div className="flex flex-col">
+                            <Text strong>Monitoring Perizinan</Text>
+                            <Text type="secondary" style={{ fontSize: 10 }}>Hari ini: {formatHijri(new Date())}</Text>
+                        </div>
                     </Space>
                 }
                 toolBarRender={() => [

@@ -14,6 +14,7 @@ import { QRCodeCanvas } from "qrcode.react";
 import dayjs from "dayjs";
 import "dayjs/locale/id"; 
 import { useReactToPrint } from "react-to-print";
+import { formatHijri, formatMasehi, formatDualDate } from "../../utility/dateHelper";
 
 const { Title, Text } = Typography;
 const { useToken } = theme;
@@ -63,7 +64,7 @@ export const SantriShow = () => {
                         <Text type="secondary" style={{ fontSize: 11 }}>NIK: {record.nik || '-'}</Text>
                     </Descriptions.Item>
                     <Descriptions.Item label="Tempat, Tanggal Lahir">
-                        {record.tempat_lahir}, {dayjs(record.tanggal_lahir).format("DD MMMM YYYY")}
+                        {record.tempat_lahir}, {formatDualDate(record.tanggal_lahir)}
                     </Descriptions.Item>
                     <Descriptions.Item label="Jenis Kelamin">
                         {record.jenis_kelamin === 'L' ? <Tag color="blue">Laki-laki</Tag> : <Tag color="magenta">Perempuan</Tag>}
@@ -96,7 +97,7 @@ export const SantriShow = () => {
                         <UserOutlined /> {record.pembimbing || "Belum ditentukan"}
                     </Descriptions.Item>
                     <Descriptions.Item label="Tanggal Masuk">
-                        {dayjs(record.created_at).format("DD MMMM YYYY")}
+                        {formatDualDate(record.created_at)}
                     </Descriptions.Item>
                     
                     {/* BAGIAN TAHFIDZ & KITAB */}
@@ -305,7 +306,7 @@ export const SantriShow = () => {
                                 <tbody>
                                     <tr><td width="130" style={{padding:'3px 0'}}>Nama Lengkap</td><td width="10">:</td><td style={{fontWeight:'bold'}}>{record.nama}</td></tr>
                                     <tr><td style={{padding:'3px 0'}}>NIK</td><td>:</td><td>{record.nik || '-'}</td></tr>
-                                    <tr><td style={{padding:'3px 0'}}>Tempat, Tgl Lahir</td><td>:</td><td>{record.tempat_lahir ? `${record.tempat_lahir}, ` : ''} {dayjs(record.tanggal_lahir).format('DD MMMM YYYY')}</td></tr>
+                                    <tr><td style={{padding:'3px 0'}}>Tempat, Tgl Lahir</td><td>:</td><td>{record.tempat_lahir ? `${record.tempat_lahir}, ` : ''} {formatMasehi(record.tanggal_lahir)} / {formatHijri(record.tanggal_lahir)}</td></tr>
                                     <tr><td style={{padding:'3px 0'}}>Jenis Kelamin</td><td>:</td><td>{record.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'}</td></tr>
                                     <tr><td style={{padding:'3px 0'}}>Anak Ke-</td><td>:</td><td>{record.anak_ke || '-'}</td></tr>
                                     <tr><td style={{padding:'3px 0', verticalAlign:'top'}}>Alamat</td><td style={{verticalAlign:'top'}}>:</td><td style={{lineHeight:'1.3'}}>{record.alamat_lengkap || '-'}</td></tr>
@@ -422,7 +423,8 @@ export const SantriShow = () => {
                         {/* Kanan: TTD */}
                         <div style={{ textAlign: 'center', width: '220px', marginRight: '10mm' }}>
                             <div style={{ fontSize: '10pt', marginBottom: '60px' }}>
-                                l. Raya Cibeuti RT 001 RW 006, Kec. Kawalu, Kota Tasikmalaya, Prov. Jawa Barat {dayjs().format('DD MMMM YYYY')} <br/>
+                                Tasikmalaya, {formatMasehi(new Date())} <br/>
+                                <b>{formatHijri(new Date())}</b> <br/>
                                 Pengasuh / Kepala Bagian,
                             </div>
                             <div style={{ fontWeight: 'bold', textDecoration: 'underline', fontSize: '10pt' }}>

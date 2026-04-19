@@ -29,7 +29,8 @@ export const accessControlProvider: AccessControlProvider = {
     if (role === "kesantrian") {
         const allowedKesantrian = [
             "kesantrian_menu", "pelanggaran_santri", "kesehatan_santri", "perizinan_santri", // Grup Kesantrian
-            "tahfidz_menu", "hafalan_tahfidz", "murojaah_tahfidz", // Grup Tahfidz
+            "tahfidz_menu", "hafalan_tahfidz", "murojaah_tahfidz", "hafalan_kitab", // Grup Tahfidz & Takhasus
+            "ulangan_menu", "weekly_tests", "ulangan_arsip", // Grup Ulangan Mingguan
             "santri", "diklat", "berita" // Menu Lainnya
         ];
         

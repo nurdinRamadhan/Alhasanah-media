@@ -33,13 +33,11 @@ body {
 /* Fix for Ant Design Layout background */
 .ant-layout {
     background: var(--bg-base) !important;
-    min-height: 100vh !important;
     width: 100%;
 }
 
 .ant-layout-content {
     background: var(--bg-base) !important;
-    min-height: calc(100vh - 72px) !important;
     padding: 24px !important;
 }
 

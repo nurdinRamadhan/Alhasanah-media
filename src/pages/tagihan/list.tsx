@@ -10,6 +10,7 @@ import {
 } from "@ant-design/icons";
 import { ITagihanSantri, ISantri } from "../../types";
 import { useNavigation, useDelete, useUpdate } from "@refinedev/core";
+import { formatDualDate, formatHijri, formatMasehi } from "../../utility/dateHelper";
 import dayjs from "dayjs";
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
@@ -221,9 +222,10 @@ export const TagihanList = () => {
                 
                 logs?.forEach(item => {
                     ws.addRow([
-                        dayjs(item.created_at).format('DD/MM/YYYY'), dayjs(item.tanggal_jatuh_tempo).format('DD/MM/YYYY'),
+                        formatMasehi(item.created_at), formatMasehi(item.tanggal_jatuh_tempo),
                         item.santri_nis, item.santri?.nama, `${item.santri?.kelas}-${item.santri?.jurusan}`,
-                        item.deskripsi_tagihan, item.nominal_tagihan, item.status
+                        item.deskripsi_tagihan, item.nominal_tagihan, item.status,
+                        formatHijri(item.created_at) // Kolom Tambahan di Excel
                     ]);
                 });
             } else {
@@ -235,11 +237,11 @@ export const TagihanList = () => {
                 ws.addRow(['KARTU PEMBAYARAN SANTRI']);
                 ws.addRow([`Nama: ${santri.nama} | Kelas: ${santri.kelas}`]);
                 ws.addRow([]);
-                ws.getRow(4).values = ['Tanggal', 'Deskripsi', 'Nominal', 'Status', 'Sisa'];
+                ws.getRow(4).values = ['Tanggal (M)', 'Tanggal (H)', 'Deskripsi', 'Nominal', 'Status', 'Sisa'];
                 ws.getRow(4).font = { bold: true };
                 logs?.forEach(item => {
                     ws.addRow([
-                        dayjs(item.created_at).format('DD/MM/YYYY'), item.deskripsi_tagihan, item.nominal_tagihan, item.status, item.sisa_tagihan
+                        formatMasehi(item.created_at), formatHijri(item.created_at), item.deskripsi_tagihan, item.nominal_tagihan, item.status, item.sisa_tagihan
                     ]);
                 });
             }
@@ -267,9 +269,14 @@ export const TagihanList = () => {
         {
             title: "Tanggal", 
             dataIndex: "created_at", 
-            width: 100,
+            width: 130,
             fixed: "left", // Tanggal selalu terlihat di kiri
-            render: (_, r) => dayjs(r.created_at).format("DD MMM")
+            render: (_, r) => (
+                <div className="flex flex-col">
+                    <Text strong>{dayjs(r.created_at).format("DD MMM YYYY")}</Text>
+                    <Text type="secondary" style={{ fontSize: 11 }}>{formatHijri(r.created_at)}</Text>
+                </div>
+            )
         },
         {
             title: "Santri", dataIndex: "santri_nis", width: 250,
@@ -424,7 +431,7 @@ export const TagihanList = () => {
                 columns={columns}
                 rowKey="id"
                 search={false} 
-                headerTitle={<Space><WalletOutlined className="text-emerald-600 text-xl" /><span className="text-lg font-bold text-gray-700">Data Tagihan</span></Space>}
+                headerTitle={<Space><WalletOutlined className="text-emerald-600 text-xl" /><div className="flex flex-col"><span className="text-lg font-bold text-gray-700">Data Tagihan</span><Text type="secondary" style={{ fontSize: 10 }}>Update: {formatHijri(new Date())}</Text></div></Space>}
                 toolBarRender={() => [
                     <Button key="bulk" icon={<UsergroupAddOutlined />} onClick={() => setIsBulkModalOpen(true)} className="text-purple-600 border-purple-600">Generate Massal</Button>,
                     <Button key="export" icon={<DownloadOutlined />} onClick={() => setIsExportModalOpen(true)}>Export</Button>
@@ -519,8 +526,9 @@ export const TagihanList = () => {
                                 </td>
                                 <td style={{width: '50%', verticalAlign: 'top', textAlign: 'right'}}>
                                     <div style={{fontSize: '10px', textTransform: 'uppercase', fontWeight: 'bold', color: '#666', marginBottom: '5px'}}>Tanggal Pembayaran:</div>
-                                    <div style={{fontSize: '14px', fontWeight: 'bold'}}>{dayjs().format('DD MMMM YYYY')}</div>
-                                    <div style={{fontSize: '12px', color: '#666'}}>{dayjs().format('HH:mm')} WIB</div>
+                                    <div style={{fontSize: '14px', fontWeight: 'bold'}}>{formatMasehi(new Date())}</div>
+                                    <div style={{fontSize: '12px', color: '#047857', fontWeight: 'bold'}}>{formatHijri(new Date())}</div>
+                                    <div style={{fontSize: '11px', color: '#666'}}>{dayjs().format('HH:mm')} WIB</div>
                                 </td>
                             </tr>
                         </tbody>

@@ -13,6 +13,7 @@ import {
 } from "@ant-design/icons";
 import { ISantri } from "../../types"; 
 import { useNavigation } from "@refinedev/core";
+import { formatHijri } from "../../utility/dateHelper";
 import ExcelJS from 'exceljs';
 // @ts-ignore
 import { saveAs } from 'file-saver';
@@ -170,11 +171,14 @@ export const SantriList = () => {
       columns={columns}
       rowKey="nis"
       headerTitle={
-        <Space>
-            <Typography.Title level={4} style={{ margin: 0, color: '#059669' }}>
-                Database Santri
-            </Typography.Title>
-            <Tag color="cyan">{tableQueryResult?.data?.total || 0} Total</Tag>
+        <Space direction="vertical" size={0}>
+            <Space>
+                <Typography.Title level={4} style={{ margin: 0, color: '#059669' }}>
+                    Database Santri
+                </Typography.Title>
+                <Tag color="cyan">{tableQueryResult?.data?.total || 0} Total</Tag>
+            </Space>
+            <Text type="secondary" style={{ fontSize: 10 }}>Update Data: {formatHijri(new Date())}</Text>
         </Space>
       }
       // Toolbar: Tempat tombol aksi utama

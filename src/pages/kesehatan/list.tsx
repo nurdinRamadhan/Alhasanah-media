@@ -15,6 +15,7 @@ import {
 } from "@ant-design/icons";
 import { IKesehatanSantri, ISantri } from "../../types";
 import { useNavigation, useDelete , useGetIdentity} from "@refinedev/core";
+import { formatDualDate, formatHijri, formatMasehi } from "../../utility/dateHelper";
 import dayjs from "dayjs";
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
@@ -51,7 +52,7 @@ const { tableProps } = useTable<IKesehatanSantri>({
         ],
     });
 
-    // --- FITUR EXPORT (Sama seperti sebelumnya) ---
+    // --- FITUR EXPORT ---
     const exportMedicalRecord = async () => {
         if(!selectedSantriNis) return;
         const { data: santri } = await supabaseClient.from('santri').select('*').eq('nis', selectedSantriNis).single();
@@ -61,7 +62,7 @@ const { tableProps } = useTable<IKesehatanSantri>({
         const worksheet = workbook.addWorksheet(`Medis - ${santri.nama}`);
         
         // Setup Header Excel
-        worksheet.mergeCells('A1:E1');
+        worksheet.mergeCells('A1:G1');
         worksheet.getCell('A1').value = "REKAM JEJAK KESEHATAN SANTRI";
         worksheet.getCell('A1').font = { size: 16, bold: true, color: { argb: 'FFDC2626' } };
         worksheet.getCell('A1').alignment = { horizontal: 'center' };
@@ -70,14 +71,21 @@ const { tableProps } = useTable<IKesehatanSantri>({
         worksheet.getCell('A4').value = "NIS"; worksheet.getCell('B4').value = `: ${santri.nis}`;
         worksheet.getCell('A5').value = "Kelas"; worksheet.getCell('B5').value = `: ${santri.kelas} (${santri.jurusan})`;
 
-        worksheet.getRow(7).values = ['Tanggal', 'Keluhan', 'Tindakan', 'Catatan', 'Petugas'];
+        worksheet.getRow(7).values = ['Tanggal (M)', 'Tanggal (H)', 'Keluhan', 'Tindakan', 'Catatan', 'Petugas'];
         const headerRow = worksheet.getRow(7);
         headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
         headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEF4444' } };
 
         if(history) {
             history.forEach((item: any) => {
-                worksheet.addRow([dayjs(item.tanggal).format('DD MMM YYYY'), item.keluhan, item.tindakan, item.catatan || '-', '-']);
+                worksheet.addRow([
+                    formatMasehi(item.tanggal), 
+                    formatHijri(item.tanggal), 
+                    item.keluhan, 
+                    item.tindakan, 
+                    item.catatan || '-', 
+                    '-'
+                ]);
             });
         }
         worksheet.columns.forEach(col => { col.width = 25; });
@@ -92,7 +100,8 @@ const { tableProps } = useTable<IKesehatanSantri>({
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Laporan UKS');
         worksheet.columns = [
-            { header: 'Tanggal', key: 'tgl', width: 15 },
+            { header: 'Tanggal Masehi', key: 'tgl', width: 20 },
+            { header: 'Tanggal Hijriyah', key: 'tgl_h', width: 25 },
             { header: 'Nama Santri', key: 'nama', width: 25 },
             { header: 'Keluhan', key: 'keluhan', width: 30 },
             { header: 'Tindakan', key: 'tindakan', width: 30 },
@@ -101,7 +110,8 @@ const { tableProps } = useTable<IKesehatanSantri>({
         const { data } = await supabaseClient.from('kesehatan_santri').select('*, santri(nama)').order('tanggal', { ascending: false });
         if(data) {
             data.forEach((item: any) => worksheet.addRow({
-                tgl: dayjs(item.tanggal).format('YYYY-MM-DD'),
+                tgl: formatMasehi(item.tanggal),
+                tgl_h: formatHijri(item.tanggal),
                 nama: item.santri?.nama,
                 keluhan: item.keluhan,
                 tindakan: item.tindakan,
@@ -111,7 +121,7 @@ const { tableProps } = useTable<IKesehatanSantri>({
         worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
         worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDC2626' } };
         const buffer = await workbook.xlsx.writeBuffer();
-        saveAs(new Blob([buffer]), `Laporan_UKS_All.xlsx`);
+        saveAs(new Blob([buffer]), `Laporan_UKS_All_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
     // --- DEFINISI KOLOM TABLE (REVISED) ---
@@ -127,12 +137,17 @@ const { tableProps } = useTable<IKesehatanSantri>({
             title: "Tanggal Periksa",
             dataIndex: "tanggal",
             valueType: "date",
-            width: 140,
+            width: 160,
             sorter: true,
             render: (_, r) => (
-                <div className="flex items-center gap-2 text-gray-600">
-                    <CalendarOutlined />
-                    <Text>{dayjs(r.tanggal).format("DD MMM YYYY")}</Text>
+                <div className="flex flex-col gap-0.5">
+                    <div className="flex items-center gap-2 text-gray-800 dark:text-gray-100 font-medium">
+                        <CalendarOutlined className="text-red-500" />
+                        <Text>{dayjs(r.tanggal).format("DD MMM YYYY")}</Text>
+                    </div>
+                    <Text type="secondary" style={{ fontSize: 11, paddingLeft: 22 }}>
+                        {formatHijri(r.tanggal)}
+                    </Text>
                 </div>
             ),
         },
@@ -259,7 +274,7 @@ const { tableProps } = useTable<IKesehatanSantri>({
                         </div>
                         <div className="flex flex-col">
                             <Title level={4} style={{ margin: 0 }}>Data Kesehatan (UKS)</Title>
-                            <Text type="secondary" style={{ fontSize: 12 }}>Monitoring & Rekam Medis Santri</Text>
+                            <Text type="secondary" style={{ fontSize: 12 }}>Monitoring per {formatHijri(new Date())}</Text>
                         </div>
                     </div>
                 }

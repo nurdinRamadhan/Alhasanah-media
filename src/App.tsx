@@ -32,6 +32,8 @@ import {
   SyncOutlined,
   RocketOutlined,
   SettingOutlined,
+  FormOutlined,
+  ProjectOutlined,
 } from "@ant-design/icons";
 
 // Providers
@@ -89,6 +91,10 @@ import { MurojaahList } from "./pages/murojaah/list";
 import { MurojaahCreate } from "./pages/murojaah/create";
 import { MurojaahShow } from "./pages/murojaah/show";
 
+import { HafalanKitabList } from "./pages/hafalan-kitab/list";
+import { HafalanKitabCreate } from "./pages/hafalan-kitab/create";
+import { HafalanKitabShow } from "./pages/hafalan-kitab/show";
+
 import { PengeluaranList } from "./pages/pengeluaran/list";
 import { ShoppingCartOutlined } from "@ant-design/icons";
 import { DiklatList } from "./pages/diklat/list";
@@ -103,6 +109,11 @@ import { ScanQR } from "./pages/scanQR/ScanQR";
 
 import { CreateAdminPage } from "./pages/admin-management/create";
 import { AdminList } from "./pages/admin-management/list";
+
+// --- ULANGAN MINGGUAN ---
+import { WeeklyTestList } from "./pages/ulangan/bank-soal/list";
+import { WeeklyTestCreate } from "./pages/ulangan/create";
+import { WeeklyTestArsip } from "./pages/ulangan/arsip/list";
 
 const AIConsultantWrapper = () => {
     const { data: user } = useGetIdentity<IUserIdentity>();
@@ -246,6 +257,13 @@ const InnerApp = () => {
                             // Murojaah juga masuk ke parent tahfidz_menu
                             meta: { label: "Murojaah (Ulang)", parent: "tahfidz_menu", icon: <SyncOutlined /> } 
                         },
+                        {
+                            name: "hafalan_kitab",
+                            list: "/hafalan-kitab",
+                            create: "/hafalan-kitab/create",
+                            show: "/hafalan-kitab/show/:id",
+                            meta: { label: "Hafalan Kitab", parent: "tahfidz_menu", icon: <BookOutlined /> }
+                        },
 
 
                         {
@@ -320,6 +338,23 @@ const InnerApp = () => {
                             edit: "/inventaris/edit/:id",
                             show: "/inventaris/show/:id",
                             meta: { label: "Inventaris Aset", icon: <BarcodeOutlined /> }
+                        },
+
+                        // 7. ULANGAN MINGGUAN
+                        {
+                            name: "ulangan_menu",
+                            meta: { label: "Ulangan Mingguan", icon: <FormOutlined /> }
+                        },
+                        {
+                            name: "weekly_tests",
+                            list: "/ulangan",
+                            create: "/ulangan/create",
+                            meta: { label: "Bank & Buat Ulangan", parent: "ulangan_menu", icon: <ProjectOutlined /> }
+                        },
+                        {
+                            name: "ulangan_arsip",
+                            list: "/ulangan/arsip",
+                            meta: { label: "Arsip & Nilai", parent: "ulangan_menu", icon: <FileProtectOutlined /> }
                         },
 
                         
@@ -442,6 +477,11 @@ const InnerApp = () => {
                                     <Route path="create" element={<MurojaahCreate />} />
                                     <Route path="show/:id" element={<MurojaahShow />} />
                                 </Route>
+                                <Route path="/hafalan-kitab">
+                                    <Route index element={<HafalanKitabList />} />
+                                    <Route path="create" element={<HafalanKitabCreate />} />
+                                    <Route path="show/:id" element={<HafalanKitabShow />} />
+                                </Route>
 
                                 {/* 4.5 Module Audit Log */}
                                 <Route path="/audit-logs">
@@ -485,6 +525,15 @@ const InnerApp = () => {
                                     <Route index element={<InventarisList />} />
                                     <Route path="create" element={<InventarisCreate />} />
                                     <Route path="show/:id" element={<InventarisShow />} />
+                                </Route>
+                                
+                                {/* 7. Module Ulangan */}
+                                <Route path="/ulangan">
+                                    <Route index element={<WeeklyTestList />} />
+                                    <Route path="create" element={<WeeklyTestCreate />} />
+                                </Route>
+                                <Route path="/ulangan/arsip">
+                                    <Route index element={<WeeklyTestArsip />} />
                                 </Route>
                                 
 

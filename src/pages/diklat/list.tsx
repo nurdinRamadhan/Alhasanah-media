@@ -22,6 +22,7 @@ import dayjs from 'dayjs';
 import { IPesertaDiklat, IProfile, IConfigDiklat, IMasterKitab } from "../../types";
 import { supabaseClient } from "../../utility/supabaseClient";
 import { useColorMode } from "../../contexts/color-mode";
+import { formatHijri, formatMasehi } from "../../utility/dateHelper";
 
 const { Text, Title } = Typography;
 const { useToken } = theme;
@@ -588,8 +589,9 @@ export const DiklatList = () => {
                                 <QRCode value={`DIKLAT:${printData?.qr_code_id}`} size={120} bordered={true} />
                             </div>
                             <div style={{ textAlign: 'center', width: '250px' }}>
-                                Tasikmalaya, {dayjs().format('DD MMMM YYYY')}<br/>
-                                Petugas Pendaftaran,<br/><br/><br/><br/><br/>
+                                Tasikmalaya, {formatMasehi(new Date())}<br/>
+                                <b>{formatHijri(new Date())}</b><br/>
+                                Petugas Pendaftaran,<br/><br/><br/><br/>
                                 ( <b>{printData?.dicatat_oleh || 'Bag. Administrasi'}</b> )
                             </div>
                         </div>

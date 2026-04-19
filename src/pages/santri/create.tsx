@@ -14,6 +14,7 @@ import dayjs from "dayjs";
 import { supabaseClient } from "../../utility/supabaseClient";
 import { logActivity } from "../../utility/logger";
 import { IUserIdentity } from "../../types";
+import { formatHijri } from "../../utility/dateHelper";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -31,6 +32,7 @@ export const SantriCreate = () => {
     const [fileList, setFileList] = useState<any[]>([]);
 
     const { formProps, form } = useForm();
+    const selectedBirthDate = Form.useWatch("tanggal_lahir", form);
 
     // --- LOGIKA UTAMA (MENGGUNAKAN EDGE FUNCTION ANDA) ---
     const customOnFinish = async (values: any) => {
@@ -293,7 +295,19 @@ export const SantriCreate = () => {
                                     <Form.Item label="Tempat Lahir" name="tempat_lahir"><Input /></Form.Item>
                                 </Col>
                                 <Col xs={24} md={8}>
-                                    <Form.Item label="Tanggal Lahir" name="tanggal_lahir"><DatePicker style={{ width: "100%" }} format="DD/MM/YYYY" /></Form.Item>
+                                    <Form.Item 
+                                        label="Tanggal Lahir" 
+                                        name="tanggal_lahir"
+                                        help={
+                                            selectedBirthDate && (
+                                                <Text type="success" style={{ fontSize: 11 }}>
+                                                    Hijriah: <b>{formatHijri(selectedBirthDate)}</b>
+                                                </Text>
+                                            )
+                                        }
+                                    >
+                                        <DatePicker style={{ width: "100%" }} format="DD/MM/YYYY" />
+                                    </Form.Item>
                                 </Col>
                                 <Col xs={12} md={4}>
                                      <Form.Item label="Gender" name="jenis_kelamin">

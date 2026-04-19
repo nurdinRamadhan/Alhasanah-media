@@ -16,6 +16,7 @@ import {
 import { IBerita } from "../../types";
 import { useNavigation, useDelete, useUpdate } from "@refinedev/core";
 import dayjs from "dayjs";
+import { formatHijri } from "../../utility/dateHelper";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -176,7 +177,7 @@ export const BeritaList = () => {
                     </div>
                     <div className="flex flex-col">
                         <span className="text-lg font-black text-gray-800 dark:text-white tracking-tight">Portal Informasi</span>
-                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Pusat manajemen konten & berita aplikasi mobile</span>
+                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Update per {formatHijri(new Date())}</span>
                     </div>
                 </div>
             }

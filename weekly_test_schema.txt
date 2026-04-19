@@ -1,0 +1,125 @@
+-- =========================================================
+-- REVISI SKRIP SQL: ULANGAN MINGGUAN (RBAC ALIGNED)
+-- Aligned with src/accessControlProvider.ts roles
+-- =========================================================
+
+-- 1. Tabel Bank Soal
+CREATE TABLE IF NOT EXISTS public.question_bank (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    kitab TEXT NOT NULL CHECK (kitab IN ('alfiyah', 'nadzmul_maqshud', 'kailani')),
+    bab TEXT NOT NULL,
+    sub_bab TEXT,
+    konten_soal TEXT NOT NULL,
+    tingkat_kesulitan TEXT CHECK (tingkat_kesulitan IN ('mudah', 'sedang', 'sulit')),
+    is_ever_used BOOLEAN DEFAULT false,
+    used_in_test_count INTEGER DEFAULT 0,
+    last_used_test_id UUID,
+    last_used_date DATE,
+    created_by UUID REFERENCES auth.users(id),
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 2. Tabel Ulangan Mingguan
+CREATE TABLE IF NOT EXISTS public.weekly_tests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    judul TEXT NOT NULL,
+    minggu_ke INTEGER NOT NULL,
+    tahun_ajaran TEXT NOT NULL,
+    tanggal_pelaksanaan DATE,
+    durasi_menit INTEGER DEFAULT 60,
+    mode_pengerjaan TEXT CHECK (mode_pengerjaan IN ('individu', 'kelompok', 'campuran')),
+    jumlah_kelompok INTEGER,
+    catatan_pengurus TEXT,
+    status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'final', 'selesai')),
+    pdf_url TEXT,
+    created_by UUID REFERENCES auth.users(id),
+    created_at TIMESTAMPTZ DEFAULT now(),
+    exported_at TIMESTAMPTZ
+);
+
+-- 3. Junction Table: Soal per Ulangan
+CREATE TABLE IF NOT EXISTS public.test_questions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    test_id UUID NOT NULL REFERENCES public.weekly_tests(id) ON DELETE CASCADE,
+    question_id UUID NOT NULL REFERENCES public.question_bank(id),
+    nomor_urut INTEGER NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(test_id, question_id)
+);
+
+-- 4. Tabel Hasil / Nilai
+CREATE TABLE IF NOT EXISTS public.test_submissions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    test_id UUID NOT NULL REFERENCES public.weekly_tests(id) ON DELETE CASCADE,
+    mode TEXT NOT NULL CHECK (mode IN ('individu', 'kelompok')),
+    santri_nis TEXT REFERENCES public.santri(nis),
+    nama_kelompok TEXT,
+    santri_nis_list TEXT[],
+    nilai NUMERIC(5,2) CHECK (nilai >= 0 AND nilai <= 100),
+    catatan_pengurus TEXT,
+    status_kehadiran TEXT DEFAULT 'hadir' CHECK (status_kehadiran IN ('hadir', 'izin', 'alfa')),
+    dinilai_oleh UUID REFERENCES auth.users(id),
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Relasi Balik
+ALTER TABLE public.question_bank 
+ADD CONSTRAINT fk_last_used_test FOREIGN KEY (last_used_test_id) REFERENCES public.weekly_tests(id);
+
+-- 5. Row Level Security (RLS) - RBAC Aligned
+ALTER TABLE public.question_bank ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.weekly_tests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.test_questions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.test_submissions ENABLE ROW LEVEL SECURITY;
+
+-- Policy BACA: super_admin, rois, dewan, kesantrian
+CREATE POLICY "Read access for authorized roles" ON public.question_bank FOR SELECT TO authenticated 
+USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND LOWER(role) IN ('super_admin', 'rois', 'dewan', 'kesantrian')));
+
+CREATE POLICY "Read access for authorized roles" ON public.weekly_tests FOR SELECT TO authenticated 
+USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND LOWER(role) IN ('super_admin', 'rois', 'dewan', 'kesantrian')));
+
+CREATE POLICY "Read access for authorized roles" ON public.test_questions FOR SELECT TO authenticated 
+USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND LOWER(role) IN ('super_admin', 'rois', 'dewan', 'kesantrian')));
+
+CREATE POLICY "Read access for authorized roles" ON public.test_submissions FOR SELECT TO authenticated 
+USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND LOWER(role) IN ('super_admin', 'rois', 'dewan', 'kesantrian')));
+
+-- Policy TULIS (Full Access): super_admin, rois, kesantrian (DEWAN is Read-Only)
+CREATE POLICY "Full access for management roles" ON public.question_bank FOR ALL TO authenticated 
+USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND LOWER(role) IN ('super_admin', 'rois', 'kesantrian')));
+
+CREATE POLICY "Full access for management roles" ON public.weekly_tests FOR ALL TO authenticated 
+USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND LOWER(role) IN ('super_admin', 'rois', 'kesantrian')));
+
+CREATE POLICY "Full access for management roles" ON public.test_questions FOR ALL TO authenticated 
+USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND LOWER(role) IN ('super_admin', 'rois', 'kesantrian')));
+
+CREATE POLICY "Full access for management roles" ON public.test_submissions FOR ALL TO authenticated 
+USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND LOWER(role) IN ('super_admin', 'rois', 'kesantrian')));
+
+-- 6. Trigger untuk Update Status Soal saat Ulangan Final
+CREATE OR REPLACE FUNCTION public.mark_questions_as_used()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.status = 'final' AND OLD.status = 'draft' THEN
+    UPDATE public.question_bank
+    SET
+      is_ever_used = true,
+      used_in_test_count = used_in_test_count + 1,
+      last_used_test_id = NEW.id,
+      last_used_date = NEW.tanggal_pelaksanaan,
+      updated_at = now()
+    WHERE id IN (
+      SELECT question_id FROM public.test_questions WHERE test_id = NEW.id
+    );
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER on_test_finalized
+  AFTER UPDATE ON public.weekly_tests
+  FOR EACH ROW EXECUTE FUNCTION public.mark_questions_as_used();

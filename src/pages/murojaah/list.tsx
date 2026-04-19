@@ -13,6 +13,7 @@ import {
 } from "@ant-design/icons";
 import { ISantri } from "../../types";
 import { useNavigation } from "@refinedev/core";
+import { formatHijri, formatMasehi } from "../../utility/dateHelper";
 import dayjs from "dayjs";
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
@@ -102,7 +103,8 @@ export const MurojaahList = () => {
                         : `Hal. ${item.halaman_awal} - ${item.halaman_akhir} (Juz ${item.juz})`;
 
                     ws.addRow({
-                        tgl: dayjs(item.tanggal).format('DD/MM/YYYY'),
+                        tgl: formatMasehi(item.tanggal),
+                        hijri: formatHijri(item.tanggal), // Kolom Hijriah baru
                         nis: item.santri_nis,
                         nama: item.santri?.nama,
                         kelas: item.santri?.kelas,
@@ -139,12 +141,12 @@ export const MurojaahList = () => {
                 ws.getCell('A5').value = "Periode:"; ws.getCell('B5').value = `${dateRange[0].format('DD MMM')} s/d ${dateRange[1].format('DD MMM YYYY')}`;
 
                 // Tabel
-                ws.getRow(7).values = ['Tanggal', 'Jenis', 'Juz', 'Cakupan Hafalan', 'Predikat', 'Paraf Musyrif'];
+                ws.getRow(7).values = ['Tanggal (M)', 'Tanggal (H)', 'Jenis', 'Juz', 'Cakupan Hafalan', 'Predikat', 'Paraf Musyrif'];
                 ws.getRow(7).font = { bold: true, color: { argb: 'FFFFFFFF' } };
                 ws.getRow(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF7E22CE' } };
 
                 ws.columns = [
-                    { width: 15 }, { width: 12 }, { width: 8 }, { width: 40 }, { width: 15 }, { width: 15 }
+                    { width: 18 }, { width: 22 }, { width: 12 }, { width: 8 }, { width: 40 }, { width: 15 }, { width: 15 }
                 ];
 
                 logs?.forEach(item => {
@@ -153,7 +155,8 @@ export const MurojaahList = () => {
                         : `Halaman ${item.halaman_awal} - ${item.halaman_akhir}`;
 
                     ws.addRow([
-                        dayjs(item.tanggal).format('DD MMM YYYY'),
+                        formatMasehi(item.tanggal),
+                        formatHijri(item.tanggal),
                         item.jenis_murojaah,
                         item.juz,
                         cakupan,
@@ -255,7 +258,7 @@ export const MurojaahList = () => {
                         </div>
                         <div className="flex flex-col">
                             <Text strong className="text-base">Murojaah (Pengulangan)</Text>
-                            <Text type="secondary" className="text-xs">Maintenance hafalan santri</Text>
+                            <Text type="secondary" className="text-xs">Update per {formatHijri(new Date())}</Text>
                         </div>
                     </Space>
                 }

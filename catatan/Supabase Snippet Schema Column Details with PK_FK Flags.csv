@@ -1,0 +1,319 @@
+table_schema,table_name,column_name,data_type,is_not_null,primary_key_name,is_primary_key,foreign_key_name,referenced_table_name,referenced_column_name,is_foreign_key
+public,audit_logs,id,bigint,true,audit_logs_pkey,true,null,null,null,false
+public,audit_logs,created_at,timestamp with time zone,false,null,false,null,null,null,false
+public,audit_logs,user_id,uuid,false,null,false,null,null,null,false
+public,audit_logs,user_name,text,false,null,false,null,null,null,false
+public,audit_logs,user_role,text,false,null,false,null,null,null,false
+public,audit_logs,action,text,true,null,false,null,null,null,false
+public,audit_logs,resource,text,true,null,false,null,null,null,false
+public,audit_logs,record_id,text,false,null,false,null,null,null,false
+public,audit_logs,details,jsonb,false,null,false,null,null,null,false
+public,audit_logs,meta_info,text,false,null,false,null,null,null,false
+public,berita,id,bigint,true,berita_pkey,true,null,null,null,false
+public,berita,created_at,timestamp with time zone,false,null,false,null,null,null,false
+public,berita,updated_at,timestamp with time zone,false,null,false,null,null,null,false
+public,berita,judul,text,true,null,false,null,null,null,false
+public,berita,slug,text,true,null,false,null,null,null,false
+public,berita,ringkasan,text,false,null,false,null,null,null,false
+public,berita,konten,text,false,null,false,null,null,null,false
+public,berita,kategori,text,true,null,false,null,null,null,false
+public,berita,status,text,true,null,false,null,null,null,false
+public,berita,thumbnail_url,text,false,null,false,null,null,null,false
+public,berita,penulis_id,uuid,false,null,false,null,null,null,false
+public,berita,is_featured,boolean,false,null,false,null,null,null,false
+public,berita,tanggal_publish,timestamp with time zone,false,null,false,null,null,null,false
+public,crypto_keystores,santri_nis,text,true,crypto_keystores_pkey,true,crypto_keystores_santri_nis_fkey,santri,santri_nis,true
+public,crypto_keystores,public_key,text,true,null,false,null,null,null,false
+public,crypto_keystores,encrypted_wallet_data,text,true,null,false,null,null,null,false
+public,crypto_keystores,encryption_salt,text,true,null,false,null,null,null,false
+public,crypto_keystores,encryption_iv,text,true,null,false,null,null,null,false
+public,crypto_keystores,failed_attempts,integer,false,null,false,null,null,null,false
+public,crypto_keystores,locked_until,timestamp with time zone,false,null,false,null,null,null,false
+public,crypto_keystores,created_at,timestamp with time zone,false,null,false,null,null,null,false
+public,crypto_keystores,updated_at,timestamp with time zone,false,null,false,null,null,null,false
+public,detail_transaksi,id,bigint,true,detail_transaksi_pkey,true,null,null,null,false
+public,detail_transaksi,created_at,timestamp with time zone,true,null,false,null,null,null,false
+public,detail_transaksi,transaksi_id,uuid,false,null,false,detail_transaksi_transaksi_id_fkey,transaksi_keuangan,transaksi_id,true
+public,detail_transaksi,tagihan_id,uuid,false,null,false,detail_transaksi_tagihan_id_fkey,tagihan_santri,tagihan_id,true
+public,detail_transaksi,nominal_dialokasikan,bigint,false,null,false,null,null,null,false
+public,dompet_santri,created_at,timestamp with time zone,true,null,false,null,null,null,false
+public,dompet_santri,santri_nis,text,true,dompet_santri_pkey,true,dompet_santri_santri_nis_fkey,santri,santri_nis,true
+public,dompet_santri,saldo,bigint,false,null,false,null,null,null,false
+public,geocode_cache,id,integer,true,geocode_cache_pkey,true,null,null,null,false
+public,geocode_cache,normalized_address,text,true,null,false,null,null,null,false
+public,geocode_cache,provider,text,true,null,false,null,null,null,false
+public,geocode_cache,lat,double precision,true,null,false,null,null,null,false
+public,geocode_cache,lon,double precision,true,null,false,null,null,null,false
+public,geocode_cache,raw,jsonb,false,null,false,null,null,null,false
+public,geocode_cache,created_at,timestamp with time zone,false,null,false,null,null,null,false
+public,geocode_jobs,id,integer,true,geocode_jobs_pkey,true,null,null,null,false
+public,geocode_jobs,nis,text,false,null,false,null,null,null,false
+public,geocode_jobs,address,text,true,null,false,null,null,null,false
+public,geocode_jobs,normalized_address,text,false,null,false,null,null,null,false
+public,geocode_jobs,provider_preference,text,false,null,false,null,null,null,false
+public,geocode_jobs,status,text,false,null,false,null,null,null,false
+public,geocode_jobs,attempts,integer,false,null,false,null,null,null,false
+public,geocode_jobs,last_error,text,false,null,false,null,null,null,false
+public,geocode_jobs,result_id,integer,false,null,false,geocode_jobs_result_id_fkey,geocode_cache,result_id,true
+public,geocode_jobs,created_at,timestamp with time zone,false,null,false,null,null,null,false
+public,geocode_jobs,updated_at,timestamp with time zone,false,null,false,null,null,null,false
+public,hafalan_tahfidz,id,bigint,true,hafalan_tahfidz_pkey,true,null,null,null,false
+public,hafalan_tahfidz,created_at,timestamp with time zone,true,null,false,null,null,null,false
+public,hafalan_tahfidz,santri_nis,text,false,null,false,hafalan_tahfidz_santri_nis_fkey,santri,santri_nis,true
+public,hafalan_tahfidz,tanggal,timestamp with time zone,false,null,false,null,null,null,false
+public,hafalan_tahfidz,surat,text,false,null,false,null,null,null,false
+public,hafalan_tahfidz,ayat_awal,integer,false,null,false,null,null,null,false
+public,hafalan_tahfidz,ayat_akhir,integer,false,null,false,null,null,null,false
+public,hafalan_tahfidz,status,text,false,null,false,null,null,null,false
+public,hafalan_tahfidz,catatan,text,false,null,false,null,null,null,false
+public,hafalan_tahfidz,dicatat_oleh_id,uuid,false,null,false,hafalan_tahfidz_dicatat_oleh_id_fkey,profiles,dicatat_oleh_id,true
+public,hafalan_tahfidz,total_hafalan,integer,false,null,false,null,null,null,false
+public,hafalan_tahfidz,hafalan_kitab,text,false,null,false,null,null,null,false
+public,hafalan_tahfidz,juz,integer,false,null,false,null,null,null,false
+public,hafalan_tahfidz,predikat,text,false,null,false,null,null,null,false
+public,info_rekening_santri,id,bigint,true,info_rekening_santri_pkey,true,null,null,null,false
+public,info_rekening_santri,created_at,timestamp with time zone,true,null,false,null,null,null,false
+public,info_rekening_santri,santri_nis,text,false,null,false,info_rekening_santri_santri_nis_fkey,santri,santri_nis,true
+public,info_rekening_santri,nama_bank,text,false,null,false,null,null,null,false
+public,info_rekening_santri,nomor_rekening,text,false,null,false,null,null,null,false
+public,info_rekening_santri,atas_nama,text,false,null,false,null,null,null,false
+public,instansi_info,id,bigint,true,instansi_info_pkey,true,null,null,null,false
+public,instansi_info,nama_instansi,text,false,null,false,null,null,null,false
+public,instansi_info,alamat,text,false,null,false,null,null,null,false
+public,instansi_info,logo_url,text,false,null,false,null,null,null,false
+public,instansi_info,kepala_pesantren,text,false,null,false,null,null,null,false
+public,instansi_info,tahun_ajaran_aktif,text,false,null,false,null,null,null,false
+public,instansi_info,mode_maintenance,boolean,false,null,false,null,null,null,false
+public,instansi_info,fitur_notif_wa,boolean,false,null,false,null,null,null,false
+public,instansi_info,updated_at,timestamp with time zone,false,null,false,null,null,null,false
+public,instansi_info,email,text,false,null,false,null,null,null,false
+public,instansi_info,no_telp,numeric,false,null,false,null,null,null,false
+public,inventaris,id,bigint,true,inventaris_pkey,true,null,null,null,false
+public,inventaris,created_at,timestamp with time zone,false,null,false,null,null,null,false
+public,inventaris,kode_barang,text,true,null,false,null,null,null,false
+public,inventaris,nama_barang,text,true,null,false,null,null,null,false
+public,inventaris,merk,text,false,null,false,null,null,null,false
+public,inventaris,spesifikasi,text,false,null,false,null,null,null,false
+public,inventaris,kategori_id,bigint,false,null,false,inventaris_kategori_id_fkey,kategori_barang,kategori_id,true
+public,inventaris,lokasi_id,bigint,false,null,false,inventaris_lokasi_id_fkey,lokasi_aset,lokasi_id,true
+public,inventaris,sumber_dana,text,true,null,false,null,null,null,false
+public,inventaris,tanggal_perolehan,date,true,null,false,null,null,null,false
+public,inventaris,harga_perolehan,numeric,true,null,false,null,null,null,false
+public,inventaris,nilai_residu,numeric,false,null,false,null,null,null,false
+public,inventaris,jumlah,integer,true,null,false,null,null,null,false
+public,inventaris,satuan,text,false,null,false,null,null,null,false
+public,inventaris,kondisi,text,true,null,false,null,null,null,false
+public,inventaris,foto_url,text,false,null,false,null,null,null,false
+public,inventaris,keterangan,text,false,null,false,null,null,null,false
+public,inventaris,dicatat_oleh_id,uuid,false,null,false,null,null,null,false
+public,kategori_barang,id,bigint,true,kategori_barang_pkey,true,null,null,null,false
+public,kategori_barang,nama_kategori,text,true,null,false,null,null,null,false
+public,kategori_barang,kode_prefix,text,true,null,false,null,null,null,false
+public,kecamatan_polygons,id,text,true,kecamatan_polygons_pkey,true,null,null,null,false
+public,kecamatan_polygons,nama,text,true,null,false,null,null,null,false
+public,kecamatan_polygons,kabupaten,text,false,null,false,null,null,null,false
+public,kecamatan_polygons,properties,jsonb,false,null,false,null,null,null,false
+public,kecamatan_polygons,geom,"geometry(MultiPolygon,4326)",true,null,false,null,null,null,false
+public,kecamatan_polygons,created_at,timestamp with time zone,false,null,false,null,null,null,false
+public,kesehatan_santri,id,bigint,true,kesehatan_santri_pkey,true,null,null,null,false
+public,kesehatan_santri,created_at,timestamp with time zone,true,null,false,null,null,null,false
+public,kesehatan_santri,santri_nis,text,false,null,false,kesehatan_santri_santri_nis_fkey,santri,santri_nis,true
+public,kesehatan_santri,tanggal,date,false,null,false,null,null,null,false
+public,kesehatan_santri,keluhan,text,false,null,false,null,null,null,false
+public,kesehatan_santri,tindakan,text,false,null,false,null,null,null,false
+public,kesehatan_santri,catatan,text,false,null,false,null,null,null,false
+public,kesehatan_santri,dicatat_oleh_id,text,false,null,false,null,null,null,false
+public,log_aktivitas,id,bigint,true,log_aktivitas_pkey,true,null,null,null,false
+public,log_aktivitas,user_id,uuid,false,null,false,null,null,null,false
+public,log_aktivitas,aktivitas,text,false,null,false,null,null,null,false
+public,log_aktivitas,detail,text,false,null,false,null,null,null,false
+public,log_aktivitas,created_at,timestamp with time zone,false,null,false,null,null,null,false
+public,lokasi_aset,id,bigint,true,lokasi_aset_pkey,true,null,null,null,false
+public,lokasi_aset,nama_lokasi,text,true,null,false,null,null,null,false
+public,lokasi_aset,penanggung_jawab,text,false,null,false,null,null,null,false
+public,mata_pelajaran,id,bigint,true,mata_pelajaran_pkey,true,null,null,null,false
+public,mata_pelajaran,nama_mapel,text,true,null,false,null,null,null,false
+public,mata_pelajaran,kategori,kategori_mapel_enum,true,null,false,null,null,null,false
+public,mata_pelajaran,kkm,integer,false,null,false,null,null,null,false
+public,mata_pelajaran,aktif,boolean,false,null,false,null,null,null,false
+public,midtrans_webhook_logs,id,uuid,true,midtrans_webhook_logs_pkey,true,null,null,null,false
+public,midtrans_webhook_logs,order_id,character varying(50),true,null,false,null,null,null,false
+public,midtrans_webhook_logs,payment_type,character varying(50),false,null,false,null,null,null,false
+public,midtrans_webhook_logs,transaction_status,character varying(50),false,null,false,null,null,null,false
+public,midtrans_webhook_logs,raw_response,jsonb,false,null,false,null,null,null,false
+public,midtrans_webhook_logs,created_at,timestamp with time zone,false,null,false,null,null,null,false
+public,murojaah_tahfidz,id,bigint,true,murojaah_tahfidz_pkey,true,null,null,null,false
+public,murojaah_tahfidz,created_at,timestamp with time zone,true,null,false,null,null,null,false
+public,murojaah_tahfidz,santri_nis,text,false,null,false,murojaah_tahfidz_santri_nis_fkey,santri,santri_nis,true
+public,murojaah_tahfidz,tanggal,timestamp with time zone,false,null,false,null,null,null,false
+public,murojaah_tahfidz,jenis_murojaah,text,false,null,false,null,null,null,false
+public,murojaah_tahfidz,juz,integer,false,null,false,null,null,null,false
+public,murojaah_tahfidz,surat,text,false,null,false,null,null,null,false
+public,murojaah_tahfidz,ayat_awal,integer,false,null,false,null,null,null,false
+public,murojaah_tahfidz,ayat_akhir,integer,false,null,false,null,null,null,false
+public,murojaah_tahfidz,halaman_awal,integer,false,null,false,null,null,null,false
+public,murojaah_tahfidz,halaman_akhir,integer,false,null,false,null,null,null,false
+public,murojaah_tahfidz,status,text,false,null,false,null,null,null,false
+public,murojaah_tahfidz,predikat,text,false,null,false,null,null,null,false
+public,murojaah_tahfidz,catatan,text,false,null,false,null,null,null,false
+public,murojaah_tahfidz,dicatat_oleh_id,uuid,false,null,false,murojaah_tahfidz_dicatat_oleh_id_fkey,profiles,dicatat_oleh_id,true
+public,nilai_santri,id,bigint,true,nilai_santri_pkey,true,null,null,null,false
+public,nilai_santri,created_at,timestamp with time zone,false,null,false,null,null,null,false
+public,nilai_santri,santri_nis,text,false,null,false,nilai_santri_santri_nis_fkey,santri,santri_nis,true
+public,nilai_santri,mapel_id,bigint,false,null,false,nilai_santri_mapel_id_fkey,mata_pelajaran,mapel_id,true
+public,nilai_santri,semester,text,true,null,false,null,null,null,false
+public,nilai_santri,tahun_ajaran,text,true,null,false,null,null,null,false
+public,nilai_santri,nilai_angka,integer,true,null,false,null,null,null,false
+public,nilai_santri,catatan_ustadz,text,false,null,false,null,null,null,false
+public,nilai_santri,dicatat_oleh,text,false,null,false,null,null,null,false
+public,pelanggaran_santri,id,bigint,true,pelanggaran_santri_pkey,true,null,null,null,false
+public,pelanggaran_santri,created_at,timestamp with time zone,true,null,false,null,null,null,false
+public,pelanggaran_santri,santri_nis,text,false,null,false,pelanggaran_santri_santri_nis_fkey,santri,santri_nis,true
+public,pelanggaran_santri,tanggal,date,false,null,false,null,null,null,false
+public,pelanggaran_santri,jenis_pelanggaran,text,false,null,false,null,null,null,false
+public,pelanggaran_santri,poin,integer,false,null,false,null,null,null,false
+public,pelanggaran_santri,hukuman,text,false,null,false,null,null,null,false
+public,pelanggaran_santri,catatan,text,false,null,false,null,null,null,false
+public,pelanggaran_santri,dicatat_oleh_id,text,false,null,false,null,null,null,false
+public,pengeluaran,id,bigint,true,pengeluaran_pkey,true,null,null,null,false
+public,pengeluaran,created_at,timestamp with time zone,false,null,false,null,null,null,false
+public,pengeluaran,judul,text,true,null,false,null,null,null,false
+public,pengeluaran,kategori,text,true,null,false,null,null,null,false
+public,pengeluaran,nominal,numeric,true,null,false,null,null,null,false
+public,pengeluaran,tanggal_pengeluaran,date,true,null,false,null,null,null,false
+public,pengeluaran,keterangan,text,false,null,false,null,null,null,false
+public,pengeluaran,bukti_url,text,false,null,false,null,null,null,false
+public,pengeluaran,dicatat_oleh_id,uuid,false,null,false,null,null,null,false
+public,pengeluaran,dicatat_oleh_nama,text,false,null,false,null,null,null,false
+public,perizinan_santri,id,bigint,true,perizinan_santri_pkey,true,null,null,null,false
+public,perizinan_santri,created_at,timestamp with time zone,true,null,false,null,null,null,false
+public,perizinan_santri,santri_nis,text,false,null,false,perizinan_santri_santri_nis_fkey,santri,santri_nis,true
+public,perizinan_santri,tanggal_kembali,date,false,null,false,null,null,null,false
+public,perizinan_santri,jenis_izin,text,false,null,false,null,null,null,false
+public,perizinan_santri,keterangan,text,false,null,false,null,null,null,false
+public,perizinan_santri,dicatat_oleh_id,text,false,null,false,null,null,null,false
+public,perizinan_santri,status,text,false,null,false,null,null,null,false
+public,perizinan_santri,tanggal,date,false,null,false,null,null,null,false
+public,peserta_diklat,id,bigint,true,peserta_diklat_pkey,true,null,null,null,false
+public,peserta_diklat,created_at,timestamp with time zone,false,null,false,null,null,null,false
+public,peserta_diklat,nama_lengkap,text,true,null,false,null,null,null,false
+public,peserta_diklat,tempat_lahir,text,false,null,false,null,null,null,false
+public,peserta_diklat,tanggal_lahir,date,false,null,false,null,null,null,false
+public,peserta_diklat,alamat_lengkap,text,false,null,false,null,null,null,false
+public,peserta_diklat,no_telepon,text,false,null,false,null,null,null,false
+public,peserta_diklat,pesantren_asal,text,false,null,false,null,null,null,false
+public,peserta_diklat,jenis_diklat,jenis_diklat_enum,true,null,false,null,null,null,false
+public,peserta_diklat,tahun_diklat,integer,true,null,false,null,null,null,false
+public,peserta_diklat,biaya_pendaftaran,numeric,false,null,false,null,null,null,false
+public,peserta_diklat,belanja_kitab_nominal,numeric,false,null,false,null,null,null,false
+public,peserta_diklat,rincian_belanja,text,false,null,false,null,null,null,false
+public,peserta_diklat,status_pembayaran,text,false,null,false,null,null,null,false
+public,peserta_diklat,qr_code_id,uuid,false,null,false,null,null,null,false
+public,peserta_diklat,dicatat_oleh,text,false,null,false,null,null,null,false
+public,peserta_diklat,alamat_pesantren,text,false,null,false,null,null,null,false
+public,peserta_diklat,nama_wali,text,false,null,false,null,null,null,false
+public,peserta_diklat,pekerjaan_wali,text,false,null,false,null,null,null,false
+public,peserta_diklat,biaya_listrik,numeric,false,null,false,null,null,null,false
+public,peserta_diklat,kos_makan,numeric,false,null,false,null,null,null,false
+public,peserta_diklat,tafaruqon,numeric,false,null,false,null,null,null,false
+public,peserta_diklat,uang_miftah,numeric,false,null,false,null,null,null,false
+public,profiles,id,uuid,true,profiles_pkey,true,null,null,null,false
+public,profiles,created_at,timestamp with time zone,true,null,false,null,null,null,false
+public,profiles,email,text,false,null,false,null,null,null,false
+public,profiles,role,text,false,null,false,null,null,null,false
+public,profiles,full_name,text,false,null,false,null,null,null,false
+public,profiles,is_active,boolean,false,null,false,null,null,null,false
+public,profiles,foto_url,text,false,null,false,null,null,null,false
+public,profiles,no_hp,text,false,null,false,null,null,null,false
+public,profiles,akses_gender,text,false,null,false,null,null,null,false
+public,profiles,akses_jurusan,text,false,null,false,null,null,null,false
+public,ref_jenis_pembayaran,id,bigint,true,ref_jenis_pembayaran_pkey,true,null,null,null,false
+public,ref_jenis_pembayaran,created_at,timestamp with time zone,true,null,false,null,null,null,false
+public,ref_jenis_pembayaran,nama_pembayaran,text,false,null,false,null,null,null,false
+public,ref_jenis_pembayaran,tipe,text,false,null,false,null,null,null,false
+public,ref_jenis_pembayaran,nominal_default,bigint,false,null,false,null,null,null,false
+public,ref_jenis_pembayaran,is_aktif,boolean,false,null,false,null,null,null,false
+public,santri,nis,text,true,santri_pkey,true,null,null,null,false
+public,santri,created_at,timestamp with time zone,true,null,false,null,null,null,false
+public,santri,nama,text,false,null,false,null,null,null,false
+public,santri,kelas,tipe_kelas,false,null,false,null,null,null,false
+public,santri,jurusan,tipe_jurusan,false,null,false,null,null,null,false
+public,santri,pembimbing,text,false,null,false,null,null,null,false
+public,santri,foto_url,text,false,null,false,null,null,null,false
+public,santri,status_spp,text,false,null,false,null,null,null,false
+public,santri,nik,text,false,null,false,null,null,null,false
+public,santri,tempat_lahir,text,false,null,false,null,null,null,false
+public,santri,tanggal_lahir,date,false,null,false,null,null,null,false
+public,santri,ayah,text,false,null,false,null,null,null,false
+public,santri,ibu,text,false,null,false,null,null,null,false
+public,santri,no_kontak_wali,text,false,null,false,null,null,null,false
+public,santri,alamat_lengkap,text,false,null,false,null,null,null,false
+public,santri,anak_ke,text,false,null,false,null,null,null,false
+public,santri,wali_id,uuid,false,null,false,santri_wali_id_fkey,profiles,wali_id,true
+public,santri,jenis_kelamin,tipe_gender,false,null,false,null,null,null,false
+public,santri,hafalan_kitab,text,false,null,false,null,null,null,false
+public,santri,total_hafalan,text,false,null,false,null,null,null,false
+public,santri,status_santri,status_santri,false,null,false,null,null,null,false
+public,santri,latitude,double precision,false,null,false,null,null,null,false
+public,santri,longitude,double precision,false,null,false,null,null,null,false
+public,santri,geom,"geometry(Point,4326)",false,null,false,null,null,null,false
+public,santri,kecamatan_id,text,false,null,false,null,null,null,false
+public,santri,geocode_status,text,false,null,false,null,null,null,false
+public,santri,geocode_provider,text,false,null,false,null,null,null,false
+public,santri,geocode_confidence,double precision,false,null,false,null,null,null,false
+public,santri,geocoded_at,timestamp with time zone,false,null,false,null,null,null,false
+public,santri,updated_at,timestamp with time zone,false,null,false,null,null,null,false
+public,spatial_ref_sys,srid,integer,true,spatial_ref_sys_pkey,true,null,null,null,false
+public,spatial_ref_sys,auth_name,character varying(256),false,null,false,null,null,null,false
+public,spatial_ref_sys,auth_srid,integer,false,null,false,null,null,null,false
+public,spatial_ref_sys,srtext,character varying(2048),false,null,false,null,null,null,false
+public,spatial_ref_sys,proj4text,character varying(2048),false,null,false,null,null,null,false
+public,struktur_organisasi,id,bigint,true,struktur_organisasi_pkey,true,null,null,null,false
+public,struktur_organisasi,parent_id,bigint,false,null,false,struktur_organisasi_parent_id_fkey,struktur_organisasi,parent_id,true
+public,struktur_organisasi,jabatan,text,true,null,false,null,null,null,false
+public,struktur_organisasi,nama_pejabat,text,true,null,false,null,null,null,false
+public,struktur_organisasi,nip_niy,text,false,null,false,null,null,null,false
+public,struktur_organisasi,foto_url,text,false,null,false,null,null,null,false
+public,struktur_organisasi,warna_kartu,text,false,null,false,null,null,null,false
+public,struktur_organisasi,urutan,integer,false,null,false,null,null,null,false
+public,struktur_organisasi,created_at,timestamp with time zone,false,null,false,null,null,null,false
+public,tagihan_santri,id,uuid,true,tagihan_santri_pkey,true,null,null,null,false
+public,tagihan_santri,created_at,timestamp with time zone,true,null,false,null,null,null,false
+public,tagihan_santri,santri_nis,text,false,null,false,tagihan_santri_santri_nis_fkey,santri,santri_nis,true
+public,tagihan_santri,jenis_pembayaran_id,bigint,false,null,false,tagihan_santri_jenis_pembayaran_id_fkey,ref_jenis_pembayaran,jenis_pembayaran_id,true
+public,tagihan_santri,deskripsi_tagihan,text,false,null,false,null,null,null,false
+public,tagihan_santri,nominal_tagihan,bigint,false,null,false,null,null,null,false
+public,tagihan_santri,sisa_tagihan,bigint,false,null,false,null,null,null,false
+public,tagihan_santri,tanggal_jatuh_tempo,date,false,null,false,null,null,null,false
+public,tagihan_santri,status,text,false,null,false,null,null,null,false
+public,tagihan_santri,updated_at,timestamp with time zone,false,null,false,null,null,null,false
+public,transaksi_dompet,id,bigint,true,transaksi_dompet_pkey,true,null,null,null,false
+public,transaksi_dompet,created_at,timestamp with time zone,true,null,false,null,null,null,false
+public,transaksi_dompet,santri_nis,text,false,null,false,transaksi_dompet_santri_nis_fkey,santri,santri_nis,true
+public,transaksi_dompet,jenis,text,false,null,false,null,null,null,false
+public,transaksi_dompet,nominal,bigint,false,null,false,null,null,null,false
+public,transaksi_dompet,keterangan,text,false,null,false,null,null,null,false
+public,transaksi_dompet,dicatat_oleh_id,uuid,false,null,false,transaksi_dompet_dicatat_oleh_id_fkey,profiles,dicatat_oleh_id,true
+public,transaksi_dompet,transaksi_keuangan_id,uuid,false,null,false,transaksi_dompet_transaksi_keuangan_id_fkey,transaksi_keuangan,transaksi_keuangan_id,true
+public,transaksi_dompet,kategori_transaksi,tipe_kategori_transaksi,false,null,false,null,null,null,false
+public,transaksi_dompet,jenis_transaksi,tipe_kategori_transaksi,false,null,false,null,null,null,false
+public,transaksi_keuangan,id,uuid,true,transaksi_keuangan_pkey,true,null,null,null,false
+public,transaksi_keuangan,created_at,timestamp with time zone,true,null,false,null,null,null,false
+public,transaksi_keuangan,wali_id,uuid,false,null,false,transaksi_keuangan_wali_id_fkey,profiles,wali_id,true
+public,transaksi_keuangan,jumlah,bigint,false,null,false,null,null,null,false
+public,transaksi_keuangan,tanggal_transaksi,timestamp without time zone,false,null,false,null,null,null,false
+public,transaksi_keuangan,status_transaksi,text,false,null,false,null,null,null,false
+public,transaksi_keuangan,metode_pembayaran,text,false,null,false,null,null,null,false
+public,transaksi_keuangan,midtrans_snap_token,text,false,null,false,null,null,null,false
+public,transaksi_keuangan,waktu_bayar_sukses,timestamp without time zone,false,null,false,null,null,null,false
+public,transaksi_keuangan,status,tipe_status_transaksi,false,null,false,null,null,null,false
+public,transaksi_keuangan,jenis_pembayaran,text,false,null,false,null,null,null,false
+public,transaksi_keuangan,jenis_transaksi,character varying(50),false,null,false,null,null,null,false
+public,transaksi_keuangan,kategori,text,false,null,false,null,null,null,false
+public,transaksi_keuangan,keterangan,text,false,null,false,null,null,null,false
+public,transaksi_keuangan,admin_pencatat_id,uuid,false,null,false,transaksi_keuangan_admin_pencatat_id_fkey,profiles,admin_pencatat_id,true
+public,transaksi_keuangan,midtrans_order_id,text,false,null,false,null,null,null,false
+public,transaksi_keuangan,santri_nis,text,false,null,false,transaksi_keuangan_santri_nis_fkey,santri,santri_nis,true
+public,wallet_nonces,santri_nis,text,true,wallet_nonces_pkey,true,wallet_nonces_santri_nis_fkey,santri,santri_nis,true
+public,wallet_nonces,last_nonce,bigint,false,null,false,null,null,null,false
+public,wallet_nonces,updated_at,timestamp with time zone,false,null,false,null,null,null,false

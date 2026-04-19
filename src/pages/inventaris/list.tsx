@@ -14,6 +14,7 @@ import {
 } from "@ant-design/icons";
 import { IInventaris, IKategoriBarang, ILokasiAset } from "../../types";
 import { useNavigation, useDelete } from "@refinedev/core";
+import { formatHijri, formatMasehi } from "../../utility/dateHelper";
 import dayjs from "dayjs";
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
@@ -49,7 +50,8 @@ export const InventarisList = () => {
             { header: 'Lokasi', key: 'lokasi', width: 20 },
             { header: 'Kondisi', key: 'kondisi', width: 15 },
             { header: 'Sumber Dana', key: 'sumber', width: 15 },
-            { header: 'Tgl Perolehan', key: 'tgl', width: 15 },
+            { header: 'Tgl Perolehan (M)', key: 'tgl', width: 18 },
+            { header: 'Tgl Perolehan (H)', key: 'tgl_h', width: 22 },
             { header: 'Harga (Rp)', key: 'harga', width: 15 },
         ];
 
@@ -61,7 +63,8 @@ export const InventarisList = () => {
                 lokasi: item.lokasi?.nama_lokasi,
                 kondisi: item.kondisi,
                 sumber: item.sumber_dana,
-                tgl: dayjs(item.tanggal_perolehan).format('DD/MM/YYYY'),
+                tgl: formatMasehi(item.tanggal_perolehan),
+                tgl_h: formatHijri(item.tanggal_perolehan),
                 harga: item.harga_perolehan
             });
         });
@@ -210,7 +213,7 @@ export const InventarisList = () => {
                         </div>
                         <div className="flex flex-col">
                             <Text strong className="text-base">Manajemen Aset</Text>
-                            <Text type="secondary" className="text-xs">Database inventaris pesantren</Text>
+                            <Text type="secondary" className="text-xs">Update per {formatHijri(new Date())}</Text>
                         </div>
                     </Space>
                 }
