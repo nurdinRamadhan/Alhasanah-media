@@ -20,7 +20,7 @@ export type TGenderScope = 'L' | 'P' | 'ALL';
 export type TJurusanScope = 'KITAB' | 'TAHFIDZ' | 'ALL';
 
 // Role sesuai request (huruf kecil)
-export type TRole = 'super_admin' | 'rois' | 'bendahara' | 'kesantrian' | 'dewan';
+export type TRole = 'super_admin' | 'rois' | 'bendahara' | 'kesantrian' | 'dewan' | 'alumni';
 
 // --- INTERFACES ---
 
@@ -34,6 +34,18 @@ export interface IProfile {
     no_hp?: string;
     akses_gender: TGenderScope;
     akses_jurusan: TJurusanScope;
+}
+
+export interface IAlumniData {
+    id: string; // UUID from profiles
+    full_name: string;
+    tahun_lulus: number;
+    no_wa: string;
+    profesi_sekarang: string;
+    instansi_kerja: string;
+    alamat_domisili: string;
+    created_at: string;
+    profiles?: IProfile; // Join to check is_active status
 }
 
 export interface IUserIdentity {

@@ -29,37 +29,129 @@ export const SantriList = () => {
 
   const { create, show, edit } = useNavigation();
 
-  // --- LOGIKA EXPORT EXCEL (Tetap Sama) ---
+  // --- LOGIKA EXPORT EXCEL (PROFESSIONAL VERSION) ---
   const exportToExcel = async () => {
+    // Ambil info instansi dari state atau query (karena ini hook, kita asumsikan data tersedia atau gunakan default)
+    // Di aplikasi nyata, Anda bisa memanggil useList untuk instansi_info di sini jika belum ada
+    const instansi = {
+        nama: "PONDOK PESANTREN AL-HASANAH",
+        alamat: "Jl. Raya Cibeuti No.13, Cibeuti, Kec. Kawalu, Tasikmalaya, Jawa Barat 46182",
+        kontak: "Telp: 0812-XXXX-XXXX | Email: info@alhasanah.com",
+    };
+
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Data Santri');
 
-    worksheet.columns = [
-      { header: 'NIS', key: 'nis', width: 15 },
-      { header: 'Nama Lengkap', key: 'nama', width: 30 },
-      { header: 'Gender', key: 'jenis_kelamin', width: 10 },
-      { header: 'Jurusan', key: 'jurusan', width: 15 },
-      { header: 'Kelas', key: 'kelas', width: 10 },
-      { header: 'Status', key: 'status_santri', width: 15 },
-    ];
+    // 1. HEADER - KOP SURAT
+    worksheet.mergeCells('A1:H1');
+    const titleCell = worksheet.getCell('A1');
+    titleCell.value = instansi.nama;
+    titleCell.font = { name: 'Arial', size: 16, bold: true, color: { argb: 'FF065F46' } };
+    titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
 
-    const data = tableQueryResult?.data?.data || [];
-    data.forEach((item) => {
-      worksheet.addRow({
-        nis: item.nis,
-        nama: item.nama,
-        jenis_kelamin: item.jenis_kelamin,
-        jurusan: item.jurusan,
-        kelas: item.kelas,
-        status_santri: item.status_santri,
-      });
+    worksheet.mergeCells('A2:H2');
+    const addrCell = worksheet.getCell('A2');
+    addrCell.value = instansi.alamat;
+    addrCell.font = { name: 'Arial', size: 10, italic: true };
+    addrCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+    worksheet.mergeCells('A3:H3');
+    const contactCell = worksheet.getCell('A3');
+    contactCell.value = instansi.kontak;
+    contactCell.font = { name: 'Arial', size: 9 };
+    contactCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+    worksheet.addRow([]); // Spacer
+
+    // 2. JUDUL LAPORAN
+    worksheet.mergeCells('A5:H5');
+    const reportTitle = worksheet.getCell('A5');
+    reportTitle.value = `DATABASE SANTRI PER TANGGAL: ${new Date().toLocaleDateString('id-ID')}`;
+    reportTitle.font = { name: 'Arial', size: 11, bold: true };
+    reportTitle.alignment = { vertical: 'middle', horizontal: 'left' };
+
+    worksheet.addRow([]); // Spacer
+
+    // 3. DEFINISI KOLOM TABLE
+    const headerRow = worksheet.addRow([
+        'NO', 
+        'NIS', 
+        'NAMA LENGKAP', 
+        'GENDER', 
+        'TEMPAT, TGL LAHIR', 
+        'JURUSAN', 
+        'KELAS', 
+        'STATUS'
+    ]);
+
+    // Styling Header Table
+    headerRow.eachCell((cell) => {
+        cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF059669' } // Emerald 600
+        };
+        cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.border = {
+            top: { style: 'thin' },
+            left: { style: 'thin' },
+            bottom: { style: 'thin' },
+            right: { style: 'thin' }
+        };
     });
 
-    worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF059669' } }; // Emerald
+    // 4. MENGISI DATA
+    const rawData = tableQueryResult?.data?.data || [];
+    rawData.forEach((item, index) => {
+        const row = worksheet.addRow([
+            index + 1,
+            item.nis,
+            item.nama.toUpperCase(),
+            item.jenis_kelamin === 'L' ? 'LAKI-LAKI' : 'PEREMPUAN',
+            `${item.tempat_lahir || '-'}, ${item.tanggal_lahir || '-'}`,
+            item.jurusan,
+            `KELAS ${item.kelas}`,
+            item.status_santri
+        ]);
 
+        // Zebra Stripes & Borders
+        row.eachCell((cell) => {
+            cell.alignment = { vertical: 'middle', horizontal: 'left' };
+            cell.border = {
+                top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                right: { style: 'thin', color: { argb: 'FFE5E7EB' } }
+            };
+            if (index % 2 !== 0) {
+                cell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FFF9FAFB' }
+                };
+            }
+        });
+        // Center Alignment for specific columns
+        row.getCell(1).alignment = { horizontal: 'center' };
+        row.getCell(4).alignment = { horizontal: 'center' };
+        row.getCell(7).alignment = { horizontal: 'center' };
+        row.getCell(8).alignment = { horizontal: 'center' };
+    });
+
+    // 5. FINALIZING: Auto-filter, Freeze Pane, Column Width
+    worksheet.autoFilter = 'A7:H7';
+    worksheet.views = [{ state: 'frozen', ySplit: 7 }];
+
+    const columnsWidth = [5, 15, 35, 15, 30, 15, 10, 15];
+    columnsWidth.forEach((w, i) => {
+        worksheet.getColumn(i + 1).width = w;
+    });
+
+    // Generate & Save
     const buffer = await workbook.xlsx.writeBuffer();
-    saveAs(new Blob([buffer]), `Data_Santri_${new Date().toISOString().split('T')[0]}.xlsx`);
+    const dateStr = new Date().toISOString().split('T')[0];
+    saveAs(new Blob([buffer]), `Data_Santri_Lengkap_${dateStr}.xlsx`);
   };
 
   // --- DEFINISI KOLOM (Lebih Informatif) ---

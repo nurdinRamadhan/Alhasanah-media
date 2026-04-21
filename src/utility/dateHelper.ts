@@ -28,7 +28,7 @@ export const HIJRI_MONTHS = [
     "Rabi'ul Awwal",
     "Rabi'ul Akhir",
     "Jumadil Ula",
-    "Jumadil Akhira",
+    "Jumadil Akhir",
     "Rajab",
     "Sha'ban",
     "Ramadhan",

@@ -30,41 +30,84 @@ export const HafalanList = () => {
 
     const { push } = useNavigation();
 
-    // --- FITUR EXPORT ---
+    // --- FITUR EXPORT (GOLD THEME) ---
     const exportProgres = async () => {
+        const instansi = {
+            nama: "PONDOK PESANTREN AL-HASANAH",
+            alamat: "Jl. Raya Cibeuti No.13, Cibeuti, Kec. Kawalu, Tasikmalaya, Jawa Barat 46182",
+            kontak: "Telp: 0812-XXXX-XXXX | Email: info@alhasanah.com",
+        };
+
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Progres Tahfidz');
 
-        worksheet.columns = [
-            { header: 'NIS', key: 'nis', width: 15 },
-            { header: 'Nama Santri', key: 'nama', width: 30 },
-            { header: 'Kelas', key: 'kelas', width: 10 },
-            { header: 'Jurusan', key: 'jurusan', width: 15 },
-            { header: 'Pembimbing', key: 'guru', width: 25 },
-            { header: 'Total Hafalan', key: 'total', width: 20 },
-            { header: 'Capaian Terakhir', key: 'capaian', width: 30 },
-        ];
+        // 1. HEADER - KOP SURAT
+        worksheet.mergeCells('A1:G1');
+        const titleCell = worksheet.getCell('A1');
+        titleCell.value = instansi.nama;
+        titleCell.font = { name: 'Arial', size: 16, bold: true, color: { argb: 'FFB45309' } }; // Amber 900
+        titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+        worksheet.mergeCells('A2:G2');
+        const addrCell = worksheet.getCell('A2');
+        addrCell.value = instansi.alamat;
+        addrCell.font = { name: 'Arial', size: 10, italic: true };
+        addrCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+        worksheet.mergeCells('A3:G3');
+        const contactCell = worksheet.getCell('A3');
+        contactCell.value = instansi.kontak;
+        contactCell.font = { name: 'Arial', size: 9 };
+        contactCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+        worksheet.addRow([]); // Spacer
+        worksheet.addRow([`LAPORAN CAPAIAN HAFALAN SANTRI - ${new Date().toLocaleDateString('id-ID')}`]).font = { bold: true };
+        worksheet.addRow([]); // Spacer
+
+        // 2. DEFINISI KOLOM
+        const headerRow = worksheet.addRow([
+            'NO',
+            'NIS', 
+            'NAMA SANTRI', 
+            'KELAS', 
+            'JURUSAN', 
+            'PEMBIMBING', 
+            'TOTAL JUZ',
+            'CAPAIAN TERAKHIR'
+        ]);
+
+        headerRow.eachCell((cell) => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF59E0B' } }; // Amber 500
+            cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+            cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+        });
 
         const data = tableQueryResult?.data?.data || [];
-        
-        data.forEach((item) => {
-            worksheet.addRow({
-                nis: item.nis,
-                nama: item.nama,
-                kelas: item.kelas,
-                jurusan: item.jurusan,
-                guru: item.pembimbing,
-                total: item.total_hafalan || '0',
-                capaian: item.hafalan_kitab || '-' 
+        data.forEach((item, index) => {
+            const row = worksheet.addRow([
+                index + 1,
+                item.nis,
+                item.nama.toUpperCase(),
+                item.kelas,
+                item.jurusan,
+                item.pembimbing || '-',
+                item.total_hafalan || '0',
+                item.hafalan_kitab || '-' 
+            ]);
+            row.eachCell((cell) => {
+                cell.border = { top: {style:'thin', color:{argb:'FFE5E7EB'}}, left: {style:'thin', color:{argb:'FFE5E7EB'}}, bottom: {style:'thin', color:{argb:'FFE5E7EB'}}, right: {style:'thin', color:{argb:'FFE5E7EB'}} };
+                if (index % 2 !== 0) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDF6E3' } }; // Light Gold Tint
             });
         });
 
-        // Styling Header Hijau Emerald
-        worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-        worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF059669' } };
+        worksheet.autoFilter = 'A7:H7';
+        worksheet.views = [{ state: 'frozen', ySplit: 7 }];
+        [5, 15, 35, 10, 15, 25, 12, 35].forEach((w, i) => { worksheet.getColumn(i+1).width = w; });
 
         const buffer = await workbook.xlsx.writeBuffer();
-        saveAs(new Blob([buffer]), `Monitoring_Tahfidz_${new Date().toISOString().split('T')[0]}.xlsx`);
+        const dateStr = new Date().toISOString().split('T')[0];
+        saveAs(new Blob([buffer]), `Laporan_Capaian_Hafalan_Santri_${dateStr}.xlsx`);
     };
 
     const columns: ProColumns<ISantri>[] = [

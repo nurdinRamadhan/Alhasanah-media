@@ -109,6 +109,7 @@ import { ScanQR } from "./pages/scanQR/ScanQR";
 
 import { CreateAdminPage } from "./pages/admin-management/create";
 import { AdminList } from "./pages/admin-management/list";
+import { AlumniList } from "./pages/alumni/list";
 
 // --- ULANGAN MINGGUAN ---
 import { WeeklyTestList } from "./pages/ulangan/bank-soal/list";
@@ -266,6 +267,11 @@ const InnerApp = () => {
                         },
 
 
+                        {
+                            name: "alumni_data",
+                            list: "/alumni",
+                            meta: { label: "Manajemen Alumni", icon: <GlobalOutlined /> }
+                        },
                         {
                             name: "audit_logs",
                             list: "/audit-logs",
@@ -481,6 +487,9 @@ const InnerApp = () => {
                                     <Route index element={<HafalanKitabList />} />
                                     <Route path="create" element={<HafalanKitabCreate />} />
                                     <Route path="show/:id" element={<HafalanKitabShow />} />
+                                </Route>
+                                <Route path="/alumni">
+                                    <Route index element={<AlumniList />} />
                                 </Route>
 
                                 {/* 4.5 Module Audit Log */}

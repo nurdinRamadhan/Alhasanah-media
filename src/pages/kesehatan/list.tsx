@@ -52,33 +52,47 @@ const { tableProps } = useTable<IKesehatanSantri>({
         ],
     });
 
-    // --- FITUR EXPORT ---
+    // --- FITUR EXPORT (GOLD THEME) ---
     const exportMedicalRecord = async () => {
         if(!selectedSantriNis) return;
+        const instansi = {
+            nama: "PONDOK PESANTREN AL-HASANAH",
+            alamat: "Jl. Raya Cibeuti No.13, Cibeuti, Kec. Kawalu, Tasikmalaya, Jawa Barat 46182",
+        };
+
         const { data: santri } = await supabaseClient.from('santri').select('*').eq('nis', selectedSantriNis).single();
         const { data: history } = await supabaseClient.from('kesehatan_santri').select('*').eq('santri_nis', selectedSantriNis).order('tanggal', { ascending: false });
 
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet(`Medis - ${santri.nama}`);
         
-        // Setup Header Excel
-        worksheet.mergeCells('A1:G1');
-        worksheet.getCell('A1').value = "REKAM JEJAK KESEHATAN SANTRI";
-        worksheet.getCell('A1').font = { size: 16, bold: true, color: { argb: 'FFDC2626' } };
+        // 1. HEADER - KOP SURAT
+        worksheet.mergeCells('A1:F1');
+        worksheet.getCell('A1').value = instansi.nama;
+        worksheet.getCell('A1').font = { size: 16, bold: true, color: { argb: 'FFB45309' } };
         worksheet.getCell('A1').alignment = { horizontal: 'center' };
 
-        worksheet.getCell('A3').value = "Nama"; worksheet.getCell('B3').value = `: ${santri.nama}`;
-        worksheet.getCell('A4').value = "NIS"; worksheet.getCell('B4').value = `: ${santri.nis}`;
-        worksheet.getCell('A5').value = "Kelas"; worksheet.getCell('B5').value = `: ${santri.kelas} (${santri.jurusan})`;
+        worksheet.mergeCells('A2:F2');
+        worksheet.getCell('A2').value = instansi.alamat;
+        worksheet.getCell('A2').alignment = { horizontal: 'center' };
 
-        worksheet.getRow(7).values = ['Tanggal (M)', 'Tanggal (H)', 'Keluhan', 'Tindakan', 'Catatan', 'Petugas'];
-        const headerRow = worksheet.getRow(7);
-        headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-        headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEF4444' } };
+        worksheet.addRow([]);
+        worksheet.addRow(["REKAM JEJAK KESEHATAN SANTRI (UKS)"]).font = { bold: true };
+        worksheet.addRow([`NAMA: ${santri.nama.toUpperCase()}`]);
+        worksheet.addRow([`NIS: ${santri.nis}`]);
+        worksheet.addRow([]);
+
+        // 2. HEADER TABEL
+        const headerRow = worksheet.addRow(['TANGGAL (M)', 'TANGGAL (H)', 'KELUHAN / DIAGNOSA', 'TINDAKAN / PENANGANAN', 'CATATAN', 'PETUGAS']);
+        headerRow.eachCell(cell => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF59E0B' } };
+            cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+            cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+        });
 
         if(history) {
-            history.forEach((item: any) => {
-                worksheet.addRow([
+            history.forEach((item: any, index) => {
+                const row = worksheet.addRow([
                     formatMasehi(item.tanggal), 
                     formatHijri(item.tanggal), 
                     item.keluhan, 
@@ -86,42 +100,90 @@ const { tableProps } = useTable<IKesehatanSantri>({
                     item.catatan || '-', 
                     '-'
                 ]);
+                row.eachCell(cell => {
+                    cell.border = { top: {style:'thin', color:{argb:'FFE5E7EB'}}, left: {style:'thin', color:{argb:'FFE5E7EB'}}, bottom: {style:'thin', color:{argb:'FFE5E7EB'}}, right: {style:'thin', color:{argb:'FFE5E7EB'}} };
+                    if (index % 2 !== 0) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDF6E3' } };
+                });
             });
         }
-        worksheet.columns.forEach(col => { col.width = 25; });
+        [20, 25, 30, 30, 35, 15].forEach((w, i) => { worksheet.getColumn(i+1).width = w; });
         
         const buffer = await workbook.xlsx.writeBuffer();
-        saveAs(new Blob([buffer]), `Rekam_Medis_${santri.nama}.xlsx`);
+        const dateStr = new Date().toISOString().split('T')[0];
+        saveAs(new Blob([buffer]), `Rekam_Medis_Santri_${santri.nama.replace(/\s+/g, '_')}_${dateStr}.xlsx`);
         setIsModalOpen(false);
         message.success("Rekam medis berhasil diunduh.");
     };
 
     const exportBulk = async () => {
+        const instansi = {
+            nama: "PONDOK PESANTREN AL-HASANAH",
+            alamat: "Jl. Raya Cibeuti No.13, Cibeuti, Kec. Kawalu, Tasikmalaya, Jawa Barat 46182",
+            kontak: "Telp: 0812-XXXX-XXXX | Email: info@alhasanah.com",
+        };
+
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Laporan UKS');
-        worksheet.columns = [
-            { header: 'Tanggal Masehi', key: 'tgl', width: 20 },
-            { header: 'Tanggal Hijriyah', key: 'tgl_h', width: 25 },
-            { header: 'Nama Santri', key: 'nama', width: 25 },
-            { header: 'Keluhan', key: 'keluhan', width: 30 },
-            { header: 'Tindakan', key: 'tindakan', width: 30 },
-            { header: 'Catatan', key: 'catatan', width: 30 },
-        ];
-        const { data } = await supabaseClient.from('kesehatan_santri').select('*, santri(nama)').order('tanggal', { ascending: false });
+
+        // HEADER KOP SURAT
+        worksheet.mergeCells('A1:G1');
+        worksheet.getCell('A1').value = instansi.nama;
+        worksheet.getCell('A1').font = { size: 16, bold: true, color: { argb: 'FFB45309' } };
+        worksheet.getCell('A1').alignment = { horizontal: 'center' };
+
+        worksheet.mergeCells('A2:G2');
+        worksheet.getCell('A2').value = instansi.alamat;
+        worksheet.getCell('A2').alignment = { horizontal: 'center' };
+
+        worksheet.addRow([]);
+        worksheet.addRow([`LAPORAN BULANAN UNIT KESEHATAN SANTRI - ${new Date().toLocaleDateString('id-ID')}`]).font = { bold: true };
+        worksheet.addRow([]);
+
+        const headerRow = worksheet.addRow([
+            'NO',
+            'TANGGAL (M)', 
+            'TANGGAL (H)', 
+            'NAMA SANTRI', 
+            'KELAS', 
+            'KELUHAN', 
+            'TINDAKAN', 
+            'CATATAN'
+        ]);
+
+        headerRow.eachCell((cell) => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF59E0B' } };
+            cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+            cell.alignment = { horizontal: 'center' };
+            cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+        });
+
+        const { data } = await supabaseClient.from('kesehatan_santri').select('*, santri(nama, kelas, jurusan)').order('tanggal', { ascending: false });
         if(data) {
-            data.forEach((item: any) => worksheet.addRow({
-                tgl: formatMasehi(item.tanggal),
-                tgl_h: formatHijri(item.tanggal),
-                nama: item.santri?.nama,
-                keluhan: item.keluhan,
-                tindakan: item.tindakan,
-                catatan: item.catatan
-            }));
+            data.forEach((item: any, index) => {
+                const row = worksheet.addRow([
+                    index + 1,
+                    formatMasehi(item.tanggal),
+                    formatHijri(item.tanggal),
+                    item.santri?.nama?.toUpperCase(),
+                    `${item.santri?.kelas} - ${item.santri?.jurusan}`,
+                    item.keluhan,
+                    item.tindakan,
+                    item.catatan || '-'
+                ]);
+                row.eachCell(cell => {
+                    cell.border = { top: {style:'thin', color:{argb:'FFE5E7EB'}}, left: {style:'thin', color:{argb:'FFE5E7EB'}}, bottom: {style:'thin', color:{argb:'FFE5E7EB'}}, right: {style:'thin', color:{argb:'FFE5E7EB'}} };
+                    if (index % 2 !== 0) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDF6E3' } };
+                });
+            });
         }
-        worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-        worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDC2626' } };
+
+        worksheet.autoFilter = 'A7:H7';
+        [5, 20, 25, 30, 15, 30, 30, 35].forEach((w, i) => { worksheet.getColumn(i+1).width = w; });
+
         const buffer = await workbook.xlsx.writeBuffer();
-        saveAs(new Blob([buffer]), `Laporan_UKS_All_${new Date().toISOString().split('T')[0]}.xlsx`);
+        const dateStr = new Date().toISOString().split('T')[0];
+        saveAs(new Blob([buffer]), `Laporan_Bulanan_UKS_Grup_${dateStr}.xlsx`);
+        message.success("Laporan bulanan UKS berhasil diunduh.");
     };
 
     // --- DEFINISI KOLOM TABLE (REVISED) ---

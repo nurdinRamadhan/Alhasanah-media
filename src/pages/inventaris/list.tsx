@@ -38,43 +38,123 @@ export const InventarisList = () => {
     const totalBarang = allData.reduce((acc, curr) => acc + curr.jumlah, 0);
     const totalRusak = allData.filter(i => i.kondisi.includes('RUSAK')).length;
 
-    // --- FITUR EXPORT LAPORAN ASET ---
+    // --- FITUR EXPORT EXCEL (PROFESSIONAL GOLD) ---
     const exportExcel = async () => {
+        const instansi = {
+            nama: "PONDOK PESANTREN AL-HASANAH",
+            alamat: "Jl. Raya Cibeuti No.13, Cibeuti, Kec. Kawalu, Tasikmalaya, Jawa Barat 46182",
+            kontak: "Telp: 0812-XXXX-XXXX | Email: info@alhasanah.com",
+        };
+
         const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('Data Aset');
+        const worksheet = workbook.addWorksheet('Data Inventaris');
 
-        worksheet.columns = [
-            { header: 'Kode Barang', key: 'kode', width: 15 },
-            { header: 'Nama Barang', key: 'nama', width: 25 },
-            { header: 'Kategori', key: 'kategori', width: 15 },
-            { header: 'Lokasi', key: 'lokasi', width: 20 },
-            { header: 'Kondisi', key: 'kondisi', width: 15 },
-            { header: 'Sumber Dana', key: 'sumber', width: 15 },
-            { header: 'Tgl Perolehan (M)', key: 'tgl', width: 18 },
-            { header: 'Tgl Perolehan (H)', key: 'tgl_h', width: 22 },
-            { header: 'Harga (Rp)', key: 'harga', width: 15 },
-        ];
+        // 1. HEADER KOP SURAT
+        worksheet.mergeCells('A1:I1');
+        worksheet.getCell('A1').value = instansi.nama;
+        worksheet.getCell('A1').font = { size: 16, bold: true, color: { argb: 'FFB45309' } };
+        worksheet.getCell('A1').alignment = { horizontal: 'center' };
 
-        allData.forEach((item) => {
-            worksheet.addRow({
-                kode: item.kode_barang,
-                nama: item.nama_barang,
-                kategori: item.kategori?.nama_kategori,
-                lokasi: item.lokasi?.nama_lokasi,
-                kondisi: item.kondisi,
-                sumber: item.sumber_dana,
-                tgl: formatMasehi(item.tanggal_perolehan),
-                tgl_h: formatHijri(item.tanggal_perolehan),
-                harga: item.harga_perolehan
+        worksheet.mergeCells('A2:I2');
+        worksheet.getCell('A2').value = instansi.alamat;
+        worksheet.getCell('A2').alignment = { horizontal: 'center' };
+
+        worksheet.addRow([]);
+        worksheet.addRow([`LAPORAN DATA INVENTARIS & ASET PESANTREN - ${dayjs().format('DD/MM/YYYY')}`]).font = { bold: true };
+        worksheet.addRow([`Ringkasan: Total Aset: ${totalBarang} Unit | Total Nilai: Rp ${totalNilaiAset.toLocaleString()}`]);
+        worksheet.addRow([]);
+
+        // 2. HEADER TABEL
+        const headerRow = worksheet.addRow(['KODE BARANG', 'NAMA BARANG', 'KATEGORI', 'LOKASI', 'KONDISI', 'SUMBER DANA', 'TGL PEROLEHAN (M)', 'TGL PEROLEHAN (H)', 'HARGA (Rp)']);
+        headerRow.eachCell(cell => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF59E0B' } };
+            cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+        });
+
+        allData.forEach((item, index) => {
+            const row = worksheet.addRow([
+                item.kode_barang,
+                item.nama_barang?.toUpperCase(),
+                item.kategori?.nama_kategori,
+                item.lokasi?.nama_lokasi,
+                item.kondisi.replace('_', ' '),
+                item.sumber_dana,
+                formatMasehi(item.tanggal_perolehan),
+                formatHijri(item.tanggal_perolehan),
+                Number(item.harga_perolehan)
+            ]);
+            row.eachCell(cell => {
+                cell.border = { top: {style:'thin', color:{argb:'FFE5E7EB'}}, left: {style:'thin', color:{argb:'FFE5E7EB'}}, bottom: {style:'thin', color:{argb:'FFE5E7EB'}}, right: {style:'thin', color:{argb:'FFE5E7EB'}} };
+                if (index % 2 !== 0) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDF6E3' } };
             });
         });
 
-        // Style Header
-        worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-        worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1D4ED8' } }; // Biru Corporate
+        worksheet.autoFilter = 'A7:I7';
+        worksheet.views = [{ state: 'frozen', ySplit: 7 }];
+        [15, 30, 20, 25, 15, 15, 18, 22, 18].forEach((w, i) => { 
+            worksheet.getColumn(i+1).width = w;
+            if(i === 8) worksheet.getColumn(i+1).numFmt = '#,##0';
+        });
 
         const buffer = await workbook.xlsx.writeBuffer();
-        saveAs(new Blob([buffer]), `Laporan_Aset_AlHasanah_${dayjs().format('YYYY-MM-DD')}.xlsx`);
+        saveAs(new Blob([buffer]), `Laporan_Aset_Lengkap_${dayjs().format('YYYYMMDD')}.xlsx`);
+        message.success("Laporan Excel berhasil diunduh");
+    };
+
+    // --- FITUR EXPORT PDF (LABEL & CATALOG) ---
+    const exportPdf = async () => {
+        const doc = new jsPDF({
+            orientation: 'p',
+            unit: 'mm',
+            format: 'a4'
+        });
+
+        // Kop Surat PDF
+        doc.setFillColor(245, 158, 11); // Amber 500
+        doc.rect(0, 0, 210, 35, 'F');
+        
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(20);
+        doc.setTextColor(255, 255, 255);
+        doc.text("PONDOK PESANTREN AL-HASANAH", 105, 15, { align: 'center' });
+        
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.text("DATA INVENTARIS DAN ASET RESMI LEMBAGA", 105, 22, { align: 'center' });
+        doc.text("Jl. Raya Cibeuti No.13, Kec. Kawalu, Tasikmalaya", 105, 27, { align: 'center' });
+
+        // Content
+        let y = 45;
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(12);
+        doc.text("DAFTAR KATALOG ASET", 15, y);
+        y += 10;
+
+        // Draw Table
+        const headers = [['KODE', 'NAMA BARANG', 'LOKASI', 'KONDISI', 'NILAI']];
+        const data = allData.map(i => [
+            i.kode_barang, 
+            i.nama_barang.toUpperCase(), 
+            i.lokasi?.nama_lokasi || '-', 
+            i.kondisi, 
+            `Rp ${Number(i.harga_perolehan).toLocaleString()}`
+        ]);
+
+        (doc as any).autoTable({
+            startY: y,
+            head: headers,
+            body: data,
+            theme: 'grid',
+            headStyles: { fillStyle: 'F', fillColor: [180, 83, 9], textColor: 255, fontStyle: 'bold' }, // Amber 900
+            styles: { fontSize: 8, cellPadding: 3 },
+            alternateRowStyles: { fillColor: [253, 246, 227] }
+        });
+
+        const dateStr = dayjs().format('DDMMYY');
+        doc.save(`Katalog_Aset_Pesantren_${dateStr}.pdf`);
+        message.success("Katalog PDF berhasil diunduh");
     };
 
     const columns: ProColumns<IInventaris>[] = [

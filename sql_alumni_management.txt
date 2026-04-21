@@ -1,0 +1,48 @@
+-- ==========================================================
+-- SQL SCHEMA FOR ALUMNI MANAGEMENT & VERIFICATION
+-- ==========================================================
+
+-- 1. Pastikan Enum Role memiliki tipe 'alumni'
+-- Jika Anda menggunakan constraint check pada tabel profiles, pastikan 'alumni' diizinkan.
+
+-- 2. Buat Tabel alumni_data (Data Tambahan Alumni)
+CREATE TABLE public.alumni_data (
+  id uuid primary key references public.profiles(id) on delete CASCADE,
+  full_name text not null,
+  tahun_lulus integer not null,
+  no_wa text,
+  profesi_sekarang text, -- Misal: Dosen, Pengusaha, TNI, dll
+  instansi_kerja text,
+  alamat_domisili text,
+  created_at timestamp with time zone default now(),
+  updated_at timestamp with time zone default now()
+);
+
+-- 3. Tambahkan trigger untuk sinkronisasi nama ke tabel profiles jika diperlukan
+-- Namun biasanya kita cukup join antara profiles dan alumni_data.
+
+-- 4. Enable Row Level Security
+ALTER TABLE public.alumni_data ENABLE ROW LEVEL SECURITY;
+
+-- 5. Create Policies (RLS)
+-- Alumni bisa melihat data sesama alumni untuk networking (silaturahmi)
+CREATE POLICY "Alumni can see each other" ON public.alumni_data
+  FOR SELECT USING (auth.role() = 'authenticated');
+
+-- Admin/Kesantrian bisa melakukan segalanya
+CREATE POLICY "Admins can manage all alumni data" ON public.alumni_data
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE profiles.id = auth.uid() 
+      AND profiles.role IN ('super_admin', 'kesantrian', 'rois')
+    )
+  );
+
+-- Alumni hanya bisa mengedit datanya sendiri
+CREATE POLICY "Users can update their own alumni data" ON public.alumni_data
+  FOR UPDATE USING (auth.uid() = id);
+
+-- 6. Indexing untuk kecepatan pencarian angkatan
+CREATE INDEX idx_alumni_tahun_lulus ON public.alumni_data(tahun_lulus);
+CREATE INDEX idx_alumni_nama ON public.alumni_data(full_name);

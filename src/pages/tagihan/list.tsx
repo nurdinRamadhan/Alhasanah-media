@@ -16,6 +16,7 @@ import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { supabaseClient } from "../../utility/supabaseClient";
 import { useReactToPrint } from 'react-to-print';
+import { jsPDF } from "jspdf";
 
 const { Text, Title } = Typography;
 const { RangePicker } = DatePicker;
@@ -195,63 +196,280 @@ export const TagihanList = () => {
         }
     };
 
-    // --- LOGIC 4: EXPORT EXCEL ---
+    // --- LOGIC 4: EXPORT EXCEL (PROFESSIONAL VERSION) ---
     const handleExport = async () => {
         if (!exportDateRange) { message.error("Pilih periode tanggal"); return; }
         setIsLoadingExport(true);
+        const instansi = {
+            nama: "PONDOK PESANTREN AL-HASANAH",
+            alamat: "Jl. Raya Cibeuti No.13, Cibeuti, Kec. Kawalu, Tasikmalaya, Jawa Barat 46182",
+            kontak: "Telp: 0812-XXXX-XXXX | Email: info@alhasanah.com",
+        };
+
         try {
             const startDate = exportDateRange[0].startOf('day').toISOString();
             const endDate = exportDateRange[1].endOf('day').toISOString();
-            const wb = new ExcelJS.Workbook();
+            const workbook = new ExcelJS.Workbook();
+            const dateStr = `${exportDateRange[0].format('DDMMYY')}_to_${exportDateRange[1].format('DDMMYY')}`;
 
             if (exportType === 'GLOBAL') {
-                const ws = wb.addWorksheet('Laporan Keuangan');
-                const { data: logs, error } = await supabaseClient
-                    .from('tagihan_santri')
-                    .select('*, santri(nama, nis, kelas, jurusan)')
-                    .gte('created_at', startDate).lte('created_at', endDate)
-                    .order('created_at', { ascending: false });
+                const worksheet = workbook.addWorksheet('Rekap Keuangan Global');
+                
+                // 1. HEADER KOP SURAT
+                worksheet.mergeCells('A1:I1');
+                const titleCell = worksheet.getCell('A1');
+                titleCell.value = instansi.nama;
+                titleCell.font = { size: 16, bold: true, color: { argb: 'FFB45309' } };
+                titleCell.alignment = { horizontal: 'center' };
 
+                worksheet.mergeCells('A2:I2');
+                const addrCell = worksheet.getCell('A2');
+                addrCell.value = instansi.alamat;
+                addrCell.font = { size: 10, italic: true };
+                addrCell.alignment = { horizontal: 'center' };
+
+                worksheet.addRow([]);
+                worksheet.addRow([`LAPORAN REKAPITULASI PEMBAYARAN SPP/TAGIHAN`]).font = { bold: true };
+                worksheet.addRow([`Periode: ${exportDateRange[0].format('DD MMMM YYYY')} s/d ${exportDateRange[1].format('DD MMMM YYYY')}`]);
+                if(filterKelas || filterJurusan) {
+                    worksheet.addRow([`Filter Terpasang: ${filterKelas ? 'Kelas '+filterKelas : ''} ${filterJurusan ? '| '+filterJurusan : ''}`]);
+                }
+                worksheet.addRow([]);
+
+                // 2. HEADER TABEL
+                const headerRow = worksheet.addRow(['TANGGAL (M)', 'TANGGAL (H)', 'NIS', 'NAMA SANTRI', 'KELAS', 'TAKHAUSUS', 'URAIAN TAGIHAN', 'NOMINAL', 'STATUS']);
+                headerRow.eachCell(cell => {
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF59E0B' } };
+                    cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+                    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+                    cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+                });
+
+                // Fetch Data with Filter logic
+                let query = supabaseClient
+                    .from('tagihan_santri')
+                    .select('*, santri!inner(nama, nis, kelas, jurusan)')
+                    .gte('created_at', startDate)
+                    .lte('created_at', endDate);
+                
+                if(filterKelas) query = query.eq('santri.kelas', filterKelas);
+                if(filterJurusan) query = query.eq('santri.jurusan', filterJurusan);
+
+                const { data: logs, error } = await query.order('created_at', { ascending: false });
                 if (error) throw error;
 
-                ws.addRow(['LAPORAN KEUANGAN PESANTREN']);
-                ws.addRow([`Periode: ${exportDateRange[0].format('DD MMM')} - ${exportDateRange[1].format('DD MMM YYYY')}`]);
-                ws.addRow([]);
-                ws.getRow(4).values = ['Tanggal', 'Jatuh Tempo', 'NIS', 'Nama Santri', 'Kelas', 'Deskripsi', 'Nominal', 'Status'];
-                ws.getRow(4).font = { bold: true };
-                
-                logs?.forEach(item => {
-                    ws.addRow([
-                        formatMasehi(item.created_at), formatMasehi(item.tanggal_jatuh_tempo),
-                        item.santri_nis, item.santri?.nama, `${item.santri?.kelas}-${item.santri?.jurusan}`,
-                        item.deskripsi_tagihan, item.nominal_tagihan, item.status,
-                        formatHijri(item.created_at) // Kolom Tambahan di Excel
+                let totalNominal = 0;
+                logs?.forEach((item, index) => {
+                    totalNominal += Number(item.nominal_tagihan);
+                    const row = worksheet.addRow([
+                        formatMasehi(item.created_at),
+                        formatHijri(item.created_at),
+                        item.santri?.nis,
+                        item.santri?.nama?.toUpperCase(),
+                        item.santri?.kelas,
+                        item.santri?.jurusan,
+                        item.deskripsi_tagihan,
+                        Number(item.nominal_tagihan),
+                        item.status
                     ]);
+                    row.eachCell(cell => {
+                        cell.border = { top: {style:'thin', color:{argb:'FFE5E7EB'}}, left: {style:'thin', color:{argb:'FFE5E7EB'}}, bottom: {style:'thin', color:{argb:'FFE5E7EB'}}, right: {style:'thin', color:{argb:'FFE5E7EB'}} };
+                        if (index % 2 !== 0) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDF6E3' } };
+                    });
                 });
-            } else {
-                if (!selectedSantriNIS) throw new Error("Pilih santri dulu");
-                const { data: santri } = await supabaseClient.from('santri').select('*').eq('nis', selectedSantriNIS).single();
-                const { data: logs } = await supabaseClient.from('tagihan_santri').select('*').eq('santri_nis', selectedSantriNIS).gte('created_at', startDate).lte('created_at', endDate);
 
-                const ws = wb.addWorksheet(`SPP - ${santri.nama}`);
-                ws.addRow(['KARTU PEMBAYARAN SANTRI']);
-                ws.addRow([`Nama: ${santri.nama} | Kelas: ${santri.kelas}`]);
-                ws.addRow([]);
-                ws.getRow(4).values = ['Tanggal (M)', 'Tanggal (H)', 'Deskripsi', 'Nominal', 'Status', 'Sisa'];
-                ws.getRow(4).font = { bold: true };
-                logs?.forEach(item => {
-                    ws.addRow([
-                        formatMasehi(item.created_at), formatHijri(item.created_at), item.deskripsi_tagihan, item.nominal_tagihan, item.status, item.sisa_tagihan
-                    ]);
+                // Total Row
+                const footerRow = worksheet.addRow(['', '', '', '', '', '', 'TOTAL KESELURUHAN', totalNominal, '']);
+                footerRow.font = { bold: true };
+                worksheet.getCell(`H${footerRow.number}`).numFmt = '#,##0';
+
+                worksheet.autoFilter = 'A7:I7';
+                worksheet.views = [{ state: 'frozen', ySplit: 7 }];
+                [15, 20, 12, 30, 10, 15, 30, 15, 12].forEach((w, i) => { worksheet.getColumn(i+1).width = w; });
+
+                const buffer = await workbook.xlsx.writeBuffer();
+                saveAs(new Blob([buffer]), `Rekap_Keuangan_Global_${dateStr}.xlsx`);
+
+            } else {
+                // PERSONAL / KARTU SYAHRIAH
+                if (!selectedSantriNIS) throw new Error("Pilih santri terlebih dahulu");
+                const { data: santri } = await supabaseClient.from('santri').select('*').eq('nis', selectedSantriNIS).single();
+                const { data: logs } = await supabaseClient
+                    .from('tagihan_santri')
+                    .select('*')
+                    .eq('santri_nis', selectedSantriNIS)
+                    .gte('created_at', startDate)
+                    .lte('created_at', endDate)
+                    .order('created_at', { ascending: true });
+
+                const worksheet = workbook.addWorksheet(`Kartu Syahriah - ${santri.nama}`);
+                
+                // HEADER
+                worksheet.mergeCells('A1:G1');
+                worksheet.getCell('A1').value = instansi.nama;
+                worksheet.getCell('A1').font = { size: 16, bold: true, color: { argb: 'FFB45309' } };
+                worksheet.getCell('A1').alignment = { horizontal: 'center' };
+
+                worksheet.addRow([]);
+                worksheet.addRow(['KARTU KONTROL PEMBAYARAN SYAHRIAH (KARTU SPP)']).font = { bold: true };
+                worksheet.addRow([`NAMA : ${santri.nama.toUpperCase()}`]);
+                worksheet.addRow([`NIS  : ${santri.nis}`]);
+                worksheet.addRow([`KELAS: ${santri.kelas} (${santri.jurusan})`]);
+                worksheet.addRow([]);
+
+                const headerRow = worksheet.addRow(['TANGGAL (M)', 'TANGGAL (H)', 'URAIAN / BULAN', 'NOMINAL', 'DIBAYAR', 'SISA', 'STATUS']);
+                headerRow.eachCell(cell => {
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF59E0B' } };
+                    cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+                    cell.alignment = { horizontal: 'center' };
+                    cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
                 });
+
+                logs?.forEach(item => {
+                    const dibayar = item.status === 'LUNAS' ? item.nominal_tagihan : (Number(item.nominal_tagihan) - Number(item.sisa_tagihan));
+                    worksheet.addRow([
+                        formatMasehi(item.created_at),
+                        formatHijri(item.created_at),
+                        item.deskripsi_tagihan,
+                        Number(item.nominal_tagihan),
+                        dibayar,
+                        Number(item.sisa_tagihan),
+                        item.status
+                    ]).eachCell(cell => {
+                        cell.border = { top: {style:'thin', color:{argb:'FFE5E7EB'}}, left: {style:'thin', color:{argb:'FFE5E7EB'}}, bottom: {style:'thin', color:{argb:'FFE5E7EB'}}, right: {style:'thin', color:{argb:'FFE5E7EB'}} };
+                    });
+                });
+
+                worksheet.columns.forEach(col => { col.width = 22; });
+                worksheet.getColumn(3).width = 35;
+                // Format Currency
+                [4,5,6].forEach(col => { worksheet.getColumn(col).numFmt = '#,##0'; });
+
+                const buffer = await workbook.xlsx.writeBuffer();
+                saveAs(new Blob([buffer]), `Kartu_Syahriah_${santri.nama.replace(/\s+/g, '_')}_${dayjs().format('YYYY')}.xlsx`);
             }
 
-            const buffer = await wb.xlsx.writeBuffer();
-            saveAs(new Blob([buffer]), `Laporan_Keuangan_${dayjs().format('YYYYMMDD')}.xlsx`);
-            message.success("Export Berhasil");
+            message.success("Laporan berhasil diunduh");
             setIsExportModalOpen(false);
-        } catch (err: any) { message.error("Gagal Export: " + err.message); } 
-        finally { setIsLoadingExport(false); }
+        } catch (err: any) { 
+            message.error("Gagal Export: " + err.message); 
+        } finally { 
+            setIsLoadingExport(false); 
+        }
+    };
+
+    // --- LOGIC 5: PDF RECEIPT GENERATOR (MOBILE FRIENDLY) ---
+    const downloadReceiptPdf = async (record: ITagihanSantri) => {
+        const doc = new jsPDF({
+            orientation: 'p',
+            unit: 'mm',
+            format: 'a5'
+        });
+
+        const gold = [180, 83, 9]; // #b45309
+        const emerald = [4, 120, 87]; // #047857
+
+        // 1. Header & Branding
+        doc.setFillColor(249, 250, 251); // Gray 50
+        doc.rect(0, 0, 148, 40, 'F');
+        
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(16);
+        doc.setTextColor(gold[0], gold[1], gold[2]);
+        doc.text("AL-HASANAH", 10, 15);
+        
+        doc.setFontSize(8);
+        doc.setTextColor(100);
+        doc.setFont("helvetica", "normal");
+        doc.text("Jl. Raya Cibeuti No.13, Cibeuti, Kec. Kawalu", 10, 22);
+        doc.text("Tasikmalaya, Jawa Barat 46182 | Telp: 0812-XXXX-XXXX", 10, 26);
+
+        doc.setFontSize(14);
+        doc.setTextColor(150);
+        doc.setFont("helvetica", "bold");
+        doc.text("BUKTI BAYAR", 110, 15, { align: 'right' });
+        
+        doc.setFontSize(9);
+        doc.setTextColor(0);
+        doc.text(`#INV-${record.id.substring(0,8).toUpperCase()}`, 110, 22, { align: 'right' });
+
+        // 2. Garis Pemisah
+        doc.setDrawColor(emerald[0], emerald[1], emerald[2]);
+        doc.setLineWidth(0.8);
+        doc.line(10, 35, 138, 35);
+
+        // 3. Info Santri
+        doc.setFontSize(8);
+        doc.setTextColor(100);
+        doc.text("DITERIMA DARI:", 10, 45);
+        
+        doc.setFontSize(11);
+        doc.setTextColor(0);
+        doc.setFont("helvetica", "bold");
+        doc.text(record.santri?.nama?.toUpperCase() || "-", 10, 50);
+        
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        doc.text(`NIS: ${record.santri?.nis || "-"}`, 10, 55);
+        doc.text(`Kelas: ${record.santri?.kelas || "-"} (${record.santri?.jurusan || "-"})`, 10, 60);
+
+        doc.setFontSize(8);
+        doc.setTextColor(100);
+        doc.text("TANGGAL BAYAR:", 138, 45, { align: 'right' });
+        doc.setFontSize(10);
+        doc.setTextColor(0);
+        doc.setFont("helvetica", "bold");
+        doc.text(formatMasehi(new Date()), 138, 50, { align: 'right' });
+        doc.text(formatHijri(new Date()), 138, 55, { align: 'right' });
+
+        // 4. Tabel Transaksi
+        doc.setFillColor(243, 244, 246);
+        doc.rect(10, 70, 128, 8, 'F');
+        doc.setFontSize(9);
+        doc.text("URAIAN PEMBAYARAN", 12, 75);
+        doc.text("NOMINAL", 136, 75, { align: 'right' });
+
+        doc.line(10, 78, 138, 78);
+        
+        doc.setFont("helvetica", "normal");
+        doc.text(record.deskripsi_tagihan, 12, 85);
+        doc.setFont("courier", "bold");
+        doc.text(`Rp ${new Intl.NumberFormat('id-ID').format(record.nominal_tagihan)}`, 136, 85, { align: 'right' });
+
+        doc.line(10, 92, 138, 92);
+
+        // 5. Total Section
+        doc.setFillColor(236, 253, 245); // Emerald 50
+        doc.rect(80, 95, 58, 15, 'F');
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(emerald[0], emerald[1], emerald[2]);
+        doc.text("TOTAL LUNAS", 85, 101);
+        doc.setFontSize(12);
+        doc.text(`Rp ${new Intl.NumberFormat('id-ID').format(record.nominal_tagihan)}`, 135, 101, { align: 'right' });
+
+        // 6. Signature & QR
+        const qrSize = 25;
+        // doc.addImage(...) -> Jika ingin pakai gambar, tapi kita bisa pakai placeholder atau library QR doc
+        doc.setFontSize(7);
+        doc.setTextColor(150);
+        doc.text("Scan untuk validasi digital", 15, 140);
+        
+        doc.setFontSize(9);
+        doc.setTextColor(100);
+        doc.text("Bendahara,", 110, 115);
+        doc.line(100, 135, 130, 135);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(0);
+        doc.text("Bag. Administrasi", 100, 139);
+
+        // 7. Footer Disclaimer
+        doc.setFontSize(7);
+        doc.setFont("helvetica", "italic");
+        doc.setTextColor(150);
+        doc.text("* Bukti bayar ini sah dan dihasilkan secara otomatis oleh Al-Hasanah Digital Ecosystem.", 74, 145, { align: 'center' });
+
+        doc.save(`Struk_Bayar_${record.santri?.nama?.replace(/\s+/g, '_')}_${dayjs().format('DDMMYY')}.pdf`);
     };
 
     const handlePrint = useReactToPrint({
@@ -486,7 +704,26 @@ export const TagihanList = () => {
             </Modal>
 
             {/* MODAL CETAK STRUK */}
-            <Modal title="Cetak Bukti Pembayaran" open={isReceiptOpen} onCancel={() => setIsReceiptOpen(false)} footer={[<Button key="close" onClick={() => setIsReceiptOpen(false)}>Tutup</Button>, <Button key="print" type="primary" icon={<PrinterOutlined />} onClick={handlePrint}>Cetak Sekarang</Button>]} width={650} centered>
+            <Modal 
+                title={<Space><PrinterOutlined /> Bukti Pembayaran Digital</Space>} 
+                open={isReceiptOpen} 
+                onCancel={() => setIsReceiptOpen(false)} 
+                footer={[
+                    <Button key="close" onClick={() => setIsReceiptOpen(false)}>Tutup</Button>, 
+                    <Button 
+                        key="download" 
+                        type="default" 
+                        icon={<DownloadOutlined />} 
+                        onClick={() => selectedTagihan && downloadReceiptPdf(selectedTagihan)}
+                        style={{ border: '1px solid #047857', color: '#047857' }}
+                    >
+                        Simpan PDF (Official)
+                    </Button>,
+                    <Button key="print" type="primary" icon={<PrinterOutlined />} onClick={handlePrint} className="bg-emerald-600">Print Desktop</Button>
+                ]} 
+                width={650} 
+                centered
+            >
                 <div className="bg-white p-8" ref={receiptRef}>
                     <style>{`@media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } .no-print { display: none; } }`}</style>
                     

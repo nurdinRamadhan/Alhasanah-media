@@ -182,44 +182,115 @@ export const PengeluaranList = () => {
         }
     };
 
-    // --- EXPORT TO EXCEL ---
+    // --- LOGIKA EXPORT EXCEL (PROFESSIONAL GOLD) ---
     const handleExportExcel = async () => {
+        const instansi = {
+            nama: "PONDOK PESANTREN AL-HASANAH",
+            alamat: "Jl. Raya Cibeuti No.13, Cibeuti, Kec. Kawalu, Tasikmalaya, Jawa Barat 46182",
+            kontak: "Telp: 0812-XXXX-XXXX | Email: info@alhasanah.com",
+        };
+
         const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('Laporan Pengeluaran');
+        const worksheet = workbook.addWorksheet('Laporan Kas Keluar');
 
-        // Header Style
-        worksheet.addRow(['LAPORAN PENGELUARAN PESANTREN']);
-        worksheet.addRow([`Periode: ${filterMonth.format('MMMM YYYY')}`]);
+        // 1. HEADER KOP SURAT
+        worksheet.mergeCells('A1:G1');
+        worksheet.getCell('A1').value = instansi.nama;
+        worksheet.getCell('A1').font = { size: 16, bold: true, color: { argb: 'FFB45309' } };
+        worksheet.getCell('A1').alignment = { horizontal: 'center' };
+
+        worksheet.mergeCells('A2:G2');
+        worksheet.getCell('A2').value = instansi.alamat;
+        worksheet.getCell('A2').alignment = { horizontal: 'center' };
+
         worksheet.addRow([]);
-        
-        const headerRow = worksheet.addRow(['Tanggal', 'Judul', 'Kategori', 'Nominal', 'Pencatat', 'Keterangan']);
-        headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-        headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF059669' } }; // Emerald Color
+        worksheet.addRow([`REKAPITULASI PENGELUARAN KAS PESANTREN - ${filterMonth.format('MMMM YYYY')}`]).font = { bold: true };
+        worksheet.addRow([`Total Pengeluaran: Rp ${totalBulanIni.toLocaleString()}`]);
+        worksheet.addRow([]);
 
-        let total = 0;
-        filteredData.forEach(item => {
-            worksheet.addRow([
+        // 2. HEADER TABEL
+        const headerRow = worksheet.addRow(['TANGGAL (M)', 'TANGGAL (H)', 'JUDUL PENGELUARAN', 'KATEGORI', 'NOMINAL (Rp)', 'PENCATAT', 'KETERANGAN']);
+        headerRow.eachCell(cell => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF59E0B' } };
+            cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+        });
+
+        filteredData.forEach((item, index) => {
+            const row = worksheet.addRow([
                 dayjs(item.tanggal_pengeluaran).format('DD/MM/YYYY'),
-                item.judul,
+                formatHijri(item.tanggal_pengeluaran),
+                item.judul?.toUpperCase(),
                 item.kategori,
-                item.nominal,
+                Number(item.nominal),
                 item.dicatat_oleh_nama,
                 item.keterangan || '-'
             ]);
-            total += Number(item.nominal);
+            row.eachCell(cell => {
+                cell.border = { top: {style:'thin', color:{argb:'FFE5E7EB'}}, left: {style:'thin', color:{argb:'FFE5E7EB'}}, bottom: {style:'thin', color:{argb:'FFE5E7EB'}}, right: {style:'thin', color:{argb:'FFE5E7EB'}} };
+                if (index % 2 !== 0) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDF6E3' } };
+            });
         });
 
-        // Footer Total
-        worksheet.addRow([]);
-        const totalRow = worksheet.addRow(['', '', 'TOTAL PENGELUARAN', total]);
-        totalRow.font = { bold: true, size: 12 };
-        totalRow.getCell(4).numFmt = '"Rp"#,##0.00';
-
-        // Auto width
-        worksheet.columns.forEach(column => { column.width = 20; });
+        // 3. FINALIZING
+        worksheet.autoFilter = 'A7:G7';
+        worksheet.views = [{ state: 'frozen', ySplit: 7 }];
+        [15, 22, 35, 18, 18, 20, 40].forEach((w, i) => { 
+            worksheet.getColumn(i+1).width = w;
+            if(i === 4) worksheet.getColumn(i+1).numFmt = '#,##0';
+        });
 
         const buffer = await workbook.xlsx.writeBuffer();
-        saveAs(new Blob([buffer]), `Pengeluaran_${filterMonth.format('YYYY-MM')}.xlsx`);
+        saveAs(new Blob([buffer]), `Laporan_Pengeluaran_${filterMonth.format('YYYY_MM')}.xlsx`);
+        message.success("Laporan Excel berhasil diunduh");
+    };
+
+    // --- LOGIKA EXPORT PDF (OFFICIAL VOUCHER) ---
+    const handleExportPdf = async () => {
+        const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+        
+        // Custom Header
+        doc.setFillColor(180, 83, 9); // Amber 900
+        doc.rect(0, 0, 210, 40, 'F');
+        
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(22);
+        doc.setTextColor(255, 255, 255);
+        doc.text("AL-HASANAH", 105, 18, { align: 'center' });
+        
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.text("BUKTI KAS KELUAR (OFFICIAL VOUCHER)", 105, 26, { align: 'center' });
+        doc.text(`Periode Laporan: ${filterMonth.format('MMMM YYYY')}`, 105, 31, { align: 'center' });
+
+        let y = 50;
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(14);
+        doc.text("RINGKASAN PENGELUARAN BULANAN", 15, y);
+        y += 10;
+
+        const headers = [['TANGGAL', 'JUDUL PENGELUARAN', 'KATEGORI', 'NOMINAL']];
+        const data = filteredData.map(i => [
+            dayjs(i.tanggal_pengeluaran).format('DD/MM/YY'),
+            i.judul,
+            i.kategori,
+            `Rp ${Number(i.nominal).toLocaleString()}`
+        ]);
+
+        (doc as any).autoTable({
+            startY: y,
+            head: headers,
+            body: data,
+            theme: 'striped',
+            headStyles: { fillColor: [245, 158, 11], textColor: 255, fontStyle: 'bold' },
+            styles: { fontSize: 9, cellPadding: 4 },
+            foot: [['', '', 'TOTAL KESELURUHAN', `Rp ${totalBulanIni.toLocaleString()}`]],
+            footStyles: { fillColor: [249, 250, 251], textColor: [180, 83, 9], fontStyle: 'bold', fontSize: 10 }
+        });
+
+        doc.save(`Voucher_Pengeluaran_${filterMonth.format('MMMM_YYYY')}.pdf`);
+        message.success("Katalog Pengeluaran PDF berhasil diunduh");
     };
 
     const columns: ProColumns<IPengeluaran>[] = [

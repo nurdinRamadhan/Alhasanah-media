@@ -36,22 +36,59 @@ export const PelanggaranList = () => {
     const { create, edit } = useNavigation(); 
     const { mutate: deleteMutate } = useDelete();
 
-    // --- LOGIKA EXPORT EXCEL ---
+    // --- LOGIKA EXPORT EXCEL (GOLD THEME) ---
     const exportToExcel = async () => {
+        const instansi = {
+            nama: "PONDOK PESANTREN AL-HASANAH",
+            alamat: "Jl. Raya Cibeuti No.13, Cibeuti, Kec. Kawalu, Tasikmalaya, Jawa Barat 46182",
+            kontak: "Telp: 0812-XXXX-XXXX | Email: info@alhasanah.com",
+        };
+
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Data Pelanggaran');
 
-        worksheet.columns = [
-            { header: 'Tanggal Masehi', key: 'tanggal', width: 20 },
-            { header: 'Tanggal Hijriyah', key: 'hijriyah', width: 25 },
-            { header: 'NIS', key: 'nis', width: 15 },
-            { header: 'Nama Santri', key: 'nama', width: 30 },
-            { header: 'Kelas', key: 'kelas', width: 15 },
-            { header: 'Jenis', key: 'jenis', width: 15 },
-            { header: 'Poin', key: 'poin', width: 10 },
-            { header: 'Hukuman', key: 'hukuman', width: 30 },
-            { header: 'Catatan', key: 'catatan', width: 40 },
-        ];
+        // 1. HEADER - KOP SURAT
+        worksheet.mergeCells('A1:I1');
+        const titleCell = worksheet.getCell('A1');
+        titleCell.value = instansi.nama;
+        titleCell.font = { name: 'Arial', size: 16, bold: true, color: { argb: 'FFB45309' } };
+        titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+        worksheet.mergeCells('A2:I2');
+        const addrCell = worksheet.getCell('A2');
+        addrCell.value = instansi.alamat;
+        addrCell.font = { name: 'Arial', size: 10, italic: true };
+        addrCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+        worksheet.mergeCells('A3:I3');
+        const contactCell = worksheet.getCell('A3');
+        contactCell.value = instansi.kontak;
+        contactCell.font = { name: 'Arial', size: 9 };
+        contactCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+        worksheet.addRow([]);
+        worksheet.addRow([`BUKU KEDISIPLINAN SANTRI - REKAP PELANGGARAN`]).font = { bold: true };
+        worksheet.addRow([]);
+
+        // 2. DEFINISI KOLOM
+        const headerRow = worksheet.addRow([
+            'TANGGAL (M)', 
+            'TANGGAL (H)', 
+            'NIS', 
+            'NAMA SANTRI', 
+            'KELAS', 
+            'KATEGORI', 
+            'POIN', 
+            'HUKUMAN', 
+            'CATATAN'
+        ]);
+
+        headerRow.eachCell((cell) => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF59E0B' } };
+            cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+            cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+        });
 
         const { data: allData } = await supabaseClient
             .from('pelanggaran_santri')
@@ -59,27 +96,32 @@ export const PelanggaranList = () => {
             .order('tanggal', { ascending: false });
 
         if (allData) {
-            allData.forEach((item: any) => {
-                worksheet.addRow({
-                    tanggal: formatMasehi(item.tanggal),
-                    hijriyah: formatHijri(item.tanggal),
-                    nis: item.santri?.nis,
-                    nama: item.santri?.nama,
-                    kelas: `${item.santri?.kelas} - ${item.santri?.jurusan}`,
-                    jenis: item.jenis_pelanggaran,
-                    poin: item.poin,
-                    hukuman: item.hukuman,
-                    catatan: item.catatan
+            allData.forEach((item: any, index) => {
+                const row = worksheet.addRow([
+                    formatMasehi(item.tanggal),
+                    formatHijri(item.tanggal),
+                    item.santri?.nis,
+                    item.santri?.nama?.toUpperCase(),
+                    `${item.santri?.kelas} - ${item.santri?.jurusan}`,
+                    item.jenis_pelanggaran,
+                    item.poin,
+                    item.hukuman,
+                    item.catatan
+                ]);
+                row.eachCell((cell) => {
+                    cell.border = { top: {style:'thin', color:{argb:'FFE5E7EB'}}, left: {style:'thin', color:{argb:'FFE5E7EB'}}, bottom: {style:'thin', color:{argb:'FFE5E7EB'}}, right: {style:'thin', color:{argb:'FFE5E7EB'}} };
+                    if (index % 2 !== 0) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDF6E3' } };
                 });
             });
         }
 
-        worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-        worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEF4444' } };
+        worksheet.autoFilter = 'A7:I7';
+        worksheet.views = [{ state: 'frozen', ySplit: 7 }];
+        [15, 20, 12, 30, 15, 12, 8, 25, 35].forEach((w, i) => { worksheet.getColumn(i+1).width = w; });
 
         const buffer = await workbook.xlsx.writeBuffer();
-        const fileName = `Laporan_Pelanggaran_${new Date().toISOString().split('T')[0]}.xlsx`;
-        saveAs(new Blob([buffer]), fileName);
+        const dateStr = new Date().toISOString().split('T')[0];
+        saveAs(new Blob([buffer]), `Rekap_Pelanggaran_Santri_Lengkap_${dateStr}.xlsx`);
         message.success("Data pelanggaran berhasil diunduh.");
     };
 

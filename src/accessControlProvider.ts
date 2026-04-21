@@ -31,7 +31,7 @@ export const accessControlProvider: AccessControlProvider = {
             "kesantrian_menu", "pelanggaran_santri", "kesehatan_santri", "perizinan_santri", // Grup Kesantrian
             "tahfidz_menu", "hafalan_tahfidz", "murojaah_tahfidz", "hafalan_kitab", // Grup Tahfidz & Takhasus
             "ulangan_menu", "weekly_tests", "ulangan_arsip", // Grup Ulangan Mingguan
-            "santri", "diklat", "berita" // Menu Lainnya
+            "santri", "diklat", "berita", "alumni_data" // Menu Lainnya
         ];
         
         if (allowedKesantrian.includes(resource || "")) {
