@@ -15,8 +15,8 @@ const { formProps, saveButtonProps, queryResult, form } = useForm({
                 user,
                 action: "UPDATE",
                 resource: "berita",
-                record_id: data.data.id.toString(),
-                details: data.data
+                record_id: data?.data?.id?.toString() || "-",
+                details: data?.data
             });
         }
     });

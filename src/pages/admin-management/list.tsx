@@ -120,7 +120,7 @@ export const AdminList = () => {
                 kesantrian: { text: 'Kesantrian', status: 'Success' },
                 dewan: { text: 'Dewan', status: 'Default' },
             },
-            render: (role, record) => {
+            render: (_, record) => {
                 const colors: Record<string, string> = {
                     super_admin: "volcano",
                     rois: "geekblue",

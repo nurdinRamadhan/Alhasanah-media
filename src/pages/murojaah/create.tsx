@@ -13,14 +13,13 @@ const { Text } = Typography;
 export const MurojaahCreate = () => {
     const [form] = Form.useForm();
     const { formProps, saveButtonProps } = useForm({
-        form,
         onMutationSuccess: (data) => {
             logActivity({
                 user,
                 action: "CREATE",
                 resource: "murojaah_santri",
-                record_id: data.data.id.toString(),
-                details: data.data
+                record_id: data?.data?.id?.toString() || "-",
+                details: data?.data
             });
         }
     });

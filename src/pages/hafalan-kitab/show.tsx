@@ -48,7 +48,7 @@ export const HafalanKitabShow = () => {
     }, [id]);
 
     const handlePrint = useReactToPrint({
-        content: () => printRef.current,
+        contentRef: printRef,
     });
 
     if (santriLoading || loadingRiwayat) return <div className="p-20 text-center"><Spin size="large" /></div>;

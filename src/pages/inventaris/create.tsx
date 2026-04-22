@@ -14,8 +14,8 @@ export const InventarisCreate = () => {
                 user,
                 action: "CREATE",
                 resource: "inventaris",
-                record_id: data.data.id.toString(),
-                details: data.data
+                record_id: data?.data?.id?.toString() || "-",
+                details: data?.data
             });
         }
     });

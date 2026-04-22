@@ -19,6 +19,9 @@ import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { supabaseClient } from "../../utility/supabaseClient";
 import { IPengeluaran, IProfile } from "../../types";
+import { formatHijri, formatMasehi } from "../../utility/dateHelper";
+import { jsPDF } from "jspdf";
+import "jspdf-autotable";
 
 const { Text, Title } = Typography;
 const { useToken } = theme;
@@ -423,6 +426,7 @@ export const PengeluaranList = () => {
                         />
                     </Space>
                     <Space>
+                        <Button icon={<FileTextOutlined />} onClick={handleExportPdf}>Voucher PDF</Button>
                         <Button icon={<ExportOutlined />} onClick={handleExportExcel}>Export Excel</Button>
                         <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenCreate} danger>Catat Pengeluaran</Button>
                     </Space>

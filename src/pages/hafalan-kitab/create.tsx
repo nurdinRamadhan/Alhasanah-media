@@ -13,7 +13,6 @@ const { Text, Title } = Typography;
 export const HafalanKitabCreate = () => {
     const [form] = Form.useForm();
     const { formProps, saveButtonProps } = useForm({
-        form,
         resource: "hafalan_kitab",
         redirect: "list"
     });

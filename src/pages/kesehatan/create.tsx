@@ -13,8 +13,8 @@ export const KesehatanCreate = () => {
                 user,
                 action: "CREATE",
                 resource: "kesehatan_santri",
-                record_id: data.data.id.toString(),
-                details: data.data
+                record_id: data?.data?.id?.toString() || "-",
+                details: data?.data
             });
         }
     });

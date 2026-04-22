@@ -14,8 +14,8 @@ export const BeritaCreate = () => {
                 user,
                 action: "CREATE",
                 resource: "berita",
-                record_id: data.data.id.toString(),
-                details: data.data
+                record_id: data?.data?.id?.toString() || "-",
+                details: data?.data
             });
         }
     });

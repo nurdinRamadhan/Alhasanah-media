@@ -62,7 +62,7 @@ export const AlumniList = () => {
             resource: "profiles",
             id,
             values: { is_active: false },
-            successNotification: { message: "Akun telah dinonaktifkan.", type: "warning" },
+            successNotification: { message: "Akun telah dinonaktifkan.", type: "success" },
         });
     };
 
@@ -116,13 +116,13 @@ export const AlumniList = () => {
         },
         {
             title: "Karir & Lokasi",
-            render: (_, r) => (
+            render: (_, record) => (
                 <div className="flex flex-col">
                     <Text strong className="text-xs uppercase text-gray-400">Profesi:</Text>
-                    <Text className="text-sm font-medium">{r.profesi_sekarang || '-'}</Text>
-                    <Text type="secondary" className="text-[11px] italic">{r.instansi_kerja || '-'}</Text>
+                    <Text className="text-sm font-medium">{record.profesi_sekarang || '-'}</Text>
+                    <Text type="secondary" className="text-[11px] italic">{record.instansi_kerja || '-'}</Text>
                     <div className="mt-2 text-[10px] text-gray-400">
-                        📍 {r.alamat_domisili || 'Lokasi tidak diisi'}
+                        📍 {record.alamat_domisili || 'Lokasi tidak diisi'}
                     </div>
                 </div>
             )
@@ -142,7 +142,7 @@ export const AlumniList = () => {
             title: "Verifikasi",
             dataIndex: ["profiles", "is_active"],
             width: 120,
-            render: (val, r) => (
+            render: (val) => (
                 val ? <Tag color="success" icon={<CheckCircleOutlined />}>Verified</Tag> 
                     : <Tag color="warning">Pending</Tag>
             )

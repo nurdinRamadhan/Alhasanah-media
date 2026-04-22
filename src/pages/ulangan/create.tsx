@@ -33,47 +33,35 @@ const { Title, Text } = Typography;
 export const WeeklyTestCreate: React.FC = () => {
     const [targetKeys, setTargetKeys] = useState<string[]>([]);
     const { mutate: createTestQuestions } = useCreateMany();
+const {
+    current,
+    gotoStep,
+    stepsProps,
+    formProps,
+    saveButtonProps,
+} = useStepsForm({
+    resource: "weekly_tests",
+    onMutationSuccess: (data: any) => {
+        const testId = data.data.id;
 
-    const {
-        current,
-        gotoStep,
-        stepsProps,
-        formProps,
-        saveButtonProps,
-    } = useStepsForm({
-        resource: "weekly_tests",
-        onFinish: async (values: any) => {
-            if (targetKeys.length === 0) {
-                message.error("Silakan pilih minimal satu soal!");
-                return;
+        // 2. Simpan relasi soal ke tabel test_questions
+        const testQuestions = targetKeys.map((qId, index) => ({
+            test_id: testId,
+            question_id: qId,
+            order_index: index
+        }));
+
+        createTestQuestions({
+            resource: "test_questions",
+            values: testQuestions,
+        }, {
+            onSuccess: () => {
+                message.success("Ulangan Mingguan Berhasil Dibuat!");
+                // Reset state atau redirect jika perlu
             }
-
-            // 1. Simpan data weekly_tests (dilakukan otomatis oleh Refine)
-            // Namun kita perlu menambahkan logika untuk tabel test_questions setelah sukses
-            return values;
-        },
-        mutationOptions: {
-            onSuccess: (data: any) => {
-                const testId = data.data.id;
-                
-                // 2. Simpan relasi soal ke tabel test_questions
-                const testQuestions = targetKeys.map((qId, index) => ({
-                    test_id: testId,
-                    question_id: qId,
-                    nomor_urut: index + 1
-                }));
-
-                createTestQuestions({
-                    resource: "test_questions",
-                    values: testQuestions
-                }, {
-                    onSuccess: () => {
-                        message.success("Ulangan dan daftar soal berhasil disimpan!");
-                    }
-                });
-            }
-        }
-    });
+        });
+    }
+});
 
     // Ambil data soal dari bank soal
     const { queryResult: questionQueryResult } = useSelect({
@@ -179,7 +167,7 @@ export const WeeklyTestCreate: React.FC = () => {
                             dataSource={dataSource}
                             titles={['Tersedia di Bank', 'Akan Diujikan']}
                             targetKeys={targetKeys}
-                            onChange={setTargetKeys}
+                            onChange={(nextKeys) => setTargetKeys(nextKeys as string[])}
                             render={(item) => (
                                 <div style={{ padding: '8px 0' }}>
                                     <Tag color="cyan">{item.kitab?.toUpperCase()}</Tag>

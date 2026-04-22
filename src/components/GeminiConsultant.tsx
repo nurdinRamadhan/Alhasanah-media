@@ -221,7 +221,7 @@ export const GeminiConsultant = () => {
 
             // ── PELANGGARAN ────────────────────────────────────
             case "PELANGGARAN": {
-                const all = dataSantri?.data ?? [];
+                const all = (dataSantri?.data as any) ?? [];
                 const sorted = [...all].sort(
                     (a: Santri, b: Santri) => (Number(b.poin) || 0) - (Number(a.poin) || 0)
                 );

@@ -163,7 +163,7 @@ const { tableProps } = useTable<IPerizinanSantri>({
         });
         
         if(history) {
-            history.forEach((item: any, index) => {
+            history.forEach((item: any) => {
                 worksheet.addRow([
                     formatMasehi(item.created_at),
                     formatHijri(item.created_at),
@@ -193,7 +193,8 @@ const { tableProps } = useTable<IPerizinanSantri>({
             id,
             values: { status: newStatus, ...extraData },
             successNotification: { message: `Status berhasil diubah menjadi ${newStatus}`, type: "success" },
-            onSuccess: (data) => {
+        }, {
+            onSuccess: () => {
                 logActivity({
                     user,
                     action: "UPDATE",
@@ -314,6 +315,7 @@ const { tableProps } = useTable<IPerizinanSantri>({
                                     if(confirm("Hapus data izin ini?")) deleteMutate({
                                     resource: "perizinan_santri",
                                     id: record.id,
+                                }, {
                                     onSuccess: () => {
                                         logActivity({
                                             user,

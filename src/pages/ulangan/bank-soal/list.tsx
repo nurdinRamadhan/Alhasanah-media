@@ -171,7 +171,7 @@ export const WeeklyTestList: React.FC = () => {
                 <Form
                     form={form}
                     layout="vertical"
-                    onFinish={(values) => {
+                    onFinish={() => {
                         // Logika create question_bank
                         setIsDrawerOpen(false);
                     }}

@@ -304,6 +304,7 @@ const { tableProps } = useTable<IKesehatanSantri>({
                                 if(confirm("Hapus data medis ini?")) deleteMutate({
                                     resource: "kesehatan_santri",
                                     id: record.id,
+                                }, {
                                     onSuccess: () => {
                                         logActivity({
                                             user,
