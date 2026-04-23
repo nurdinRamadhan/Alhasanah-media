@@ -23,6 +23,11 @@ html, body, #root {
   background-color: var(--bg-base) !important;
 }
 
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
 body {
   color: var(--text-base);
   transition: background-color 0.3s ease, color 0.3s ease;
@@ -34,11 +39,13 @@ body {
 .ant-layout {
     background: var(--bg-base) !important;
     width: 100%;
+    min-height: 100vh; /* Ensure layout fills the viewport */
 }
 
 .ant-layout-content {
     background: var(--bg-base) !important;
     padding: 24px !important;
+    min-height: 100%; /* Ensure content area stretches */
 }
 
 .dark .ant-layout-sider {

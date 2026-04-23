@@ -39,6 +39,7 @@ export const ColorModeContextProvider: React.FC<{ children: React.ReactNode }> =
             fontSize: 14,
             // DEEP DARK DRACULA / FUTURISTIC
             colorBgBase: mode === "dark" ? "#000000" : "#ffffff", 
+            colorBgLayout: mode === "dark" ? "#000000" : "#f4f7f5",
             colorBgContainer: mode === "dark" ? "#0a0a0a" : "#ffffff",
             colorTextBase: mode === "dark" ? "#e5e7eb" : "#1a1a1a",
             colorBorder: mode === "dark" ? "rgba(255, 183, 0, 0.15)" : "#e5e7eb",
