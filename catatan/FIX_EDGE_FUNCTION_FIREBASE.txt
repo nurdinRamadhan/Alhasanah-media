@@ -1,0 +1,92 @@
+// =========================================================
+// PERBAIKAN FINAL EDGE FUNCTION: push-notifications/index.ts
+// =========================================================
+// Masalah: Error PGRST200 (Relationship not found).
+// Solusi: Ambil data notifikasi dan token secara terpisah untuk menghindari kendala relasi Join.
+
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import admin from "npm:firebase-admin@11.10.1"
+
+const serviceAccount = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_KEY")!);
+
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
+}
+
+Deno.serve(async (req) => {
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  )
+
+  try {
+    // 1. Ambil 10 notifikasi tertunda (Hanya dari tabel notification_queue)
+    const { data: queue, error: fetchError } = await supabase
+      .from('notification_queue')
+      .select('*')
+      .eq('status', 'pending')
+      .limit(10);
+
+    if (fetchError) throw fetchError;
+    if (!queue || queue.length === 0) {
+      return new Response(JSON.stringify({ message: "No pending notifications" }), { status: 200 });
+    }
+
+    const results = [];
+
+    // 2. Proses setiap notifikasi
+    for (const item of queue) {
+      // Ambil token perangkat untuk user_id ini secara spesifik
+      const { data: devices } = await supabase
+        .from('user_devices')
+        .select('fcm_token')
+        .eq('user_id', item.user_id);
+
+      const tokens = devices?.map((d: any) => d.fcm_token) || [];
+      
+      if (tokens.length > 0) {
+        const message = {
+          notification: { title: item.title, body: item.body },
+          data: { 
+            type: String(item.data?.type || 'general'),
+            nis: String(item.data?.nis || ''),
+            id: String(item.data?.id || ''),
+          },
+          tokens: tokens,
+        };
+
+        try {
+          const response = await admin.messaging().sendMulticast(message);
+          
+          await supabase.from('notification_queue')
+            .update({ 
+                status: 'sent', 
+                sent_at: new Date().toISOString(),
+                error_message: response.failureCount > 0 ? `Failed ${response.failureCount} tokens` : null
+            })
+            .eq('id', item.id);
+            
+          results.push({ id: item.id, status: 'sent' });
+        } catch (e) {
+          await supabase.from('notification_queue')
+            .update({ status: 'failed', error_message: e.message })
+            .eq('id', item.id);
+          results.push({ id: item.id, status: 'error', message: e.message });
+        }
+      } else {
+        await supabase.from('notification_queue')
+          .update({ status: 'failed', error_message: "No registered tokens for user_id: " + item.user_id })
+          .eq('id', item.id);
+        results.push({ id: item.id, status: 'no_tokens' });
+      }
+    }
+
+    return new Response(JSON.stringify({ success: true, processed: results }), { status: 200 });
+
+  } catch (err) {
+    console.error("Global Error:", err);
+    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+  }
+})

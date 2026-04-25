@@ -1,0 +1,29 @@
+Lakukan langkah-langkah ini secara berurutan untuk memperbaiki status "pending":
+
+1. CEK WEBHOOK (Paling Penting):
+   Buka Dashboard Supabase -> Database -> Webhooks.
+   Pastikan ada Webhook yang memantau tabel "notification_queue" untuk aksi "INSERT".
+   Jika belum ada, buat baru:
+   - Name: "send_push_notification"
+   - Table: "notification_queue"
+   - Events: "INSERT"
+   - Type: "HTTP Request"
+   - Method: "POST"
+   - URL: URL Edge Function Anda (v1/push-notifications)
+   - Headers: 
+     - Authorization: Bearer [YOUR_SERVICE_ROLE_KEY]
+     - Content-Type: application/json
+
+2. CEK ENVIRONMENT VARIABLES:
+   Pastikan secret Firebase sudah masuk ke environment variable Supabase:
+   Jalankan: supabase secrets list
+   Harus ada: FIREBASE_SERVICE_ACCOUNT_KEY
+
+3. TEST FUNCTION MANUAL (Untuk Cek Log):
+   Gunakan cURL atau Postman untuk menembak function Anda secara langsung. 
+   Jika ditembak manual log tetap kosong, berarti masalah ada pada deployment function.
+
+4. LOGIKA UPDATE STATUS DI CODE FUNCTION:
+   Pastikan di dalam file 'supabase/functions/push-notifications/index.ts' 
+   terdapat kode: .update({ status: 'sent', sent_at: new Date() }).eq('id', item.id)
+   setelah 'admin.messaging().sendMulticast(message)'.

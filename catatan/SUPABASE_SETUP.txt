@@ -1,0 +1,194 @@
+-- =========================================================
+-- SQL SETUP UNTUK NOTIFIKASI PUSH (VERSI FINAL & MODULAR)
+-- Jalankan kode ini di SQL Editor Supabase Anda.
+-- =========================================================
+
+-- 1. TABEL TOKEN PERANGKAT
+-- Menyimpan token FCM untuk setiap user (Wali/Admin)
+CREATE TABLE IF NOT EXISTS public.user_devices (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    fcm_token TEXT NOT NULL,
+    device_type TEXT DEFAULT 'android',
+    last_seen TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(user_id, fcm_token)
+);
+
+-- 2. TABEL ANTREAN NOTIFIKASI
+-- Tempat penampungan semua notifikasi yang akan dikirim oleh Edge Function
+CREATE TABLE IF NOT EXISTS public.notification_queue (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    data JSONB DEFAULT '{}'::jsonb, -- Berisi {"type": "tagihan", "nis": "...", "id": "..."}
+    status TEXT DEFAULT 'pending',  -- pending, sent, failed
+    error_message TEXT,
+    source_table TEXT,              -- asal data: tagihan, pelanggaran, dll
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    sent_at TIMESTAMP WITH TIME ZONE
+);
+
+-- 3. FUNGSI SENTRAL UNTUK INSERT KE QUEUE
+-- Memudahkan trigger untuk memasukkan data notifikasi
+CREATE OR REPLACE FUNCTION public.create_notification_for_wali(
+    p_santri_nis TEXT,
+    p_title TEXT,
+    p_body TEXT,
+    p_data JSONB,
+    p_source TEXT
+) RETURNS VOID AS $$
+DECLARE
+    v_wali_id UUID;
+BEGIN
+    -- Ambil wali_id (UUID) dari tabel santri berdasarkan NIS
+    SELECT wali_id INTO v_wali_id FROM public.santri WHERE nis = p_santri_nis;
+    
+    -- Jika wali ditemukan, masukkan ke antrean
+    IF v_wali_id IS NOT NULL THEN
+        INSERT INTO public.notification_queue (user_id, title, body, data, source_table)
+        VALUES (v_wali_id, p_title, p_body, p_data, p_source);
+    END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 4. LOGIKA TRIGGER UNTUK OTOMATISASI
+
+-- A. Trigger Tagihan Baru
+CREATE OR REPLACE FUNCTION public.tr_notify_tagihan() RETURNS TRIGGER AS $$
+BEGIN
+    PERFORM public.create_notification_for_wali(
+        NEW.santri_nis,
+        'Tagihan Baru',
+        'Ada tagihan baru sebesar Rp ' || NEW.nominal_tagihan || ' untuk ' || NEW.deskripsi_tagihan,
+        jsonb_build_object('type', 'tagihan', 'nis', NEW.santri_nis, 'id', NEW.id),
+        'tagihan_santri'
+    );
+    RETURN NEW;
+END; $$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER on_new_tagihan 
+AFTER INSERT ON public.tagihan_santri 
+FOR EACH ROW EXECUTE FUNCTION public.tr_notify_tagihan();
+
+-- B. Trigger Pelanggaran Baru
+CREATE OR REPLACE FUNCTION public.tr_notify_pelanggaran() RETURNS TRIGGER AS $$
+BEGIN
+    PERFORM public.create_notification_for_wali(
+        NEW.santri_nis,
+        'Catatan Kedisiplinan',
+        'Tercatat pelanggaran: ' || NEW.jenis_pelanggaran || '. Poin: ' || NEW.poin,
+        jsonb_build_object('type', 'pelanggaran', 'nis', NEW.santri_nis, 'id', NEW.id),
+        'pelanggaran_santri'
+    );
+    RETURN NEW;
+END; $$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER on_new_pelanggaran 
+AFTER INSERT ON public.pelanggaran_santri 
+FOR EACH ROW EXECUTE FUNCTION public.tr_notify_pelanggaran();
+
+-- C. Trigger Perizinan (Saat Status Berubah)
+CREATE OR REPLACE FUNCTION public.tr_notify_perizinan() RETURNS TRIGGER AS $$
+BEGIN
+    IF (TG_OP = 'INSERT') OR (OLD.status IS DISTINCT FROM NEW.status) THEN
+        PERFORM public.create_notification_for_wali(
+            NEW.santri_nis,
+            'Update Perizinan',
+            'Izin ' || NEW.jenis_izin || ' sekarang berstatus: ' || NEW.status,
+            jsonb_build_object('type', 'perizinan', 'nis', NEW.santri_nis, 'id', NEW.id),
+            'perizinan_santri'
+        );
+    END IF;
+    RETURN NEW;
+END; $$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER on_perizinan_change 
+AFTER INSERT OR UPDATE ON public.perizinan_santri 
+FOR EACH ROW EXECUTE FUNCTION public.tr_notify_perizinan();
+
+-- D. Trigger Kesehatan Baru
+CREATE OR REPLACE FUNCTION public.tr_notify_kesehatan() RETURNS TRIGGER AS $$
+BEGIN
+    PERFORM public.create_notification_for_wali(
+        NEW.santri_nis,
+        'Laporan Kesehatan',
+        'Keluhan: ' || NEW.keluhan || '. Tindakan: ' || NEW.tindakan,
+        jsonb_build_object('type', 'kesehatan', 'nis', NEW.santri_nis, 'id', NEW.id),
+        'kesehatan_santri'
+    );
+    RETURN NEW;
+END; $$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER on_new_kesehatan 
+AFTER INSERT ON public.kesehatan_santri 
+FOR EACH ROW EXECUTE FUNCTION public.tr_notify_kesehatan();
+
+-- =========================================================
+-- LOGIKA EDGE FUNCTION (Pseudo-code untuk deployment)
+-- =========================================================
+/*
+// Lokasi: supabase/functions/push-notifications/index.ts
+
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import admin from "https://esm.sh/firebase-admin@11.4.1"
+
+const serviceAccount = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_KEY")!);
+
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
+}
+
+serve(async (req) => {
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  )
+
+  // 1. Ambil 10 notifikasi tertunda
+  const { data: queue } = await supabase
+    .from('notification_queue')
+    .select('*, user_devices(fcm_token)')
+    .eq('status', 'pending')
+    .limit(10);
+
+  if (!queue || queue.length === 0) {
+    return new Response(JSON.stringify({ message: "No pending notifications" }), { status: 200 });
+  }
+
+  for (const item of queue) {
+    const tokens = item.user_devices.map((d: any) => d.fcm_token);
+    
+    if (tokens.length > 0) {
+      // Siapkan payload FCM
+      // Penting: Semua data property HARUS String
+      const message = {
+        notification: { title: item.title, body: item.body },
+        data: { 
+          type: String(item.data.type || 'general'),
+          nis: String(item.data.nis || ''),
+          id: String(item.data.id || ''),
+          title: item.title,
+          body: item.body
+        },
+        tokens: tokens,
+      };
+
+      try {
+        await admin.messaging().sendMulticast(message);
+        await supabase.from('notification_queue').update({ status: 'sent', sent_at: new Date() }).eq('id', item.id);
+      } catch (e) {
+        console.error("FCM Error:", e);
+        await supabase.from('notification_queue').update({ status: 'failed', error_message: e.message }).eq('id', item.id);
+      }
+    } else {
+      await supabase.from('notification_queue').update({ status: 'failed', error_message: "No registered tokens for user" }).eq('id', item.id);
+    }
+  }
+
+  return new Response(JSON.stringify({ success: true }), { status: 200 })
+})
+*/

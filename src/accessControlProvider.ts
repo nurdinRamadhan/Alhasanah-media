@@ -19,8 +19,14 @@ export const accessControlProvider: AccessControlProvider = {
     // 1. SUPER ADMIN, ROIS, & DEWAN (Bebas Akses Semua Sidebar)
     if (["super_admin", "rois", "dewan"].includes(role)) {
         // Dewan hanya Read-Only (Tidak bisa Create/Edit/Delete)
-        if (role === "dewan" && ["create", "edit", "delete"].includes(action || "")) {
-            return { can: false, reason: "Dewan hanya memiliki akses pemantauan (Read-Only)." };
+        // KECUALI untuk notification_queue (Bisa Create)
+        if (role === "dewan") {
+            if (resource === "notification_queue" && action === "create") {
+                return { can: true };
+            }
+            if (["create", "edit", "delete"].includes(action || "")) {
+                return { can: false, reason: "Dewan hanya memiliki akses pemantauan (Read-Only)." };
+            }
         }
         return { can: true };
     }

@@ -1,0 +1,49 @@
+=========================================================
+STRATEGI 1: PERBAIKAN RELASI DATABASE (SOLISI ELEGAN)
+=========================================================
+Error PGRST200 terjadi karena Supabase tidak tahu bahwa 'notification_queue' dan 'user_devices' terhubung melalui 'user_id'. 
+
+Jalankan SQL ini di Supabase Editor agar query JOIN (select dengan bintang) bisa bekerja kembali:
+
+-- Menambahkan Foreign Key eksplisit agar PostgREST mengenali relasi
+ALTER TABLE public.notification_queue 
+ADD CONSTRAINT fk_user_notif 
+FOREIGN KEY (user_id) REFERENCES auth.users(id);
+
+ALTER TABLE public.user_devices 
+ADD CONSTRAINT fk_user_device 
+FOREIGN KEY (user_id) REFERENCES auth.users(id);
+
+-- Setelah menjalankan ini, Anda bisa kembali menggunakan:
+-- .select('*, user_devices(fcm_token)')
+-- Ini jauh lebih cepat daripada query berkali-kali di dalam loop (N+1 problem).
+
+=========================================================
+STRATEGI 2: MENGHILANGKAN KEKHAWATIRAN DI KOTLIN
+=========================================================
+Jika status di database sudah 'sent' tapi HP tidak bunyi, periksa 3 poin kritis ini di kode Kotlin Anda:
+
+1. Perbedaan Payload (Notification vs Data):
+   - Kode Edge Function kita mengirim 'notification' (title & body) DAN 'data'.
+   - Masalah: Di Android, jika aplikasi di BACKGROUND, payload 'notification' akan ditangani sistem (tray), tapi payload 'data' HANYA masuk ke intent jika tray diklik.
+   - Solusi: Jika ingin 'data' selalu diproses, kirim HANYA payload 'data' saja dari server, lalu buat notifikasi manual di Kotlin menggunakan NotificationCompat.Builder.
+
+2. Manifest Service:
+   Pastikan Service FCM Anda terdaftar di AndroidManifest.xml di dalam tag <application>:
+   <service
+       android:name=".MyFirebaseMessagingService"
+       android:exported="false">
+       <intent-filter>
+           <action android:name="com.google.firebase.MESSAGING_EVENT" />
+       </intent-filter>
+   </service>
+
+3. Token Lifecycle:
+   Pastikan Anda memperbarui token di tabel 'user_devices' setiap kali onNewToken() dipanggil di Kotlin. Jika token yang tersimpan di DB adalah token lama dari installasi sebelumnya, Firebase akan sukses mengirim tapi tidak akan pernah sampai ke HP (Token Expired).
+
+=========================================================
+REKOMENDASI LANGKAH BERIKUTNYA
+=========================================================
+1. Jalankan SQL Foreign Key di atas.
+2. Gunakan kembali kode index.ts yang melakukan JOIN (lebih bersih).
+3. Jika status sudah 'sent', gunakan prompt yang saya berikan sebelumnya untuk memanggil Gemini sesi Kotlin.

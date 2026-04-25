@@ -361,6 +361,20 @@ export interface IAuditLog {
     details: Record<string, unknown>;
 }
 
+export interface IPrestasiSantri {
+    id: number;
+    created_at: string;
+    santri_nis: string;
+    santri?: ISantri;
+    kategori: 'TAHFIDZ' | 'KITAB' | 'UMUM' | 'KHATAM';
+    judul_prestasi: string;
+    keterangan: string;
+    tanggal_prestasi: string;
+    sertifikat_url?: string;
+    poin_prestasi: number;
+    dicatat_oleh_id: string;
+}
+
 export interface IMataPelajaran {
     id: number;
     nama_mapel: string;

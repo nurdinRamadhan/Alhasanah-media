@@ -1,0 +1,55 @@
+-- =========================================================
+-- SQL FIX UNTUK ROW LEVEL SECURITY (RLS) NOTIFIKASI
+-- Jalankan kode ini di SQL Editor Supabase Anda.
+-- =========================================================
+
+-- 1. AKTIFKAN RLS PADA TABEL TERKAIT
+ALTER TABLE public.notification_queue ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_devices ENABLE ROW LEVEL SECURITY;
+
+-- 2. FUNGSI PEMBANTU UNTUK CEK ROLE ADMIN
+-- Fungsi ini memudahkan pengecekan role user yang sedang login di level database
+CREATE OR REPLACE FUNCTION public.is_admin_in_roles(allowed_roles text[])
+RETURNS boolean AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() 
+    AND LOWER(role) = ANY(allowed_roles)
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 3. POLICY UNTUK notification_queue
+-- Mengizinkan Rois, Dewan, dan Super Admin melihat antrean notifikasi
+DROP POLICY IF EXISTS "Admins can view notification queue" ON public.notification_queue;
+CREATE POLICY "Admins can view notification queue" ON public.notification_queue
+FOR SELECT TO authenticated
+USING (public.is_admin_in_roles(ARRAY['super_admin', 'rois', 'dewan', 'kesantrian', 'bendahara']));
+
+-- Mengizinkan Rois, Dewan, dan Super Admin mengirim (insert) notifikasi
+DROP POLICY IF EXISTS "Admins can insert to notification queue" ON public.notification_queue;
+CREATE POLICY "Admins can insert to notification queue" ON public.notification_queue
+FOR INSERT TO authenticated
+WITH CHECK (public.is_admin_in_roles(ARRAY['super_admin', 'rois', 'dewan']));
+
+
+-- 4. POLICY UNTUK user_devices
+-- Mengizinkan admin melihat token (diperlukan jika ada logic pengecekan di client)
+DROP POLICY IF EXISTS "Admins can view user devices" ON public.user_devices;
+CREATE POLICY "Admins can view user devices" ON public.user_devices
+FOR SELECT TO authenticated
+USING (public.is_admin_in_roles(ARRAY['super_admin', 'rois', 'dewan', 'kesantrian', 'bendahara']));
+
+
+-- 5. PASTIKAN TABEL SANTRI BISA DIBACA OLEH ADMIN
+-- (Jika Anda mengalami error saat loading dropdown Santri)
+DROP POLICY IF EXISTS "Admins can view santri for notifications" ON public.santri;
+CREATE POLICY "Admins can view santri for notifications" ON public.santri
+FOR SELECT TO authenticated
+USING (public.is_admin_in_roles(ARRAY['super_admin', 'rois', 'dewan', 'kesantrian', 'bendahara']));
+
+-- 6. BERIKAN AKSES SCHEMA KEPADA AUTHENTICATED ROLE (Jika belum)
+GRANT USAGE ON SCHEMA public TO authenticated;
+GRANT ALL ON public.notification_queue TO authenticated;
+GRANT ALL ON public.user_devices TO authenticated;

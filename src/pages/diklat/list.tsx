@@ -664,14 +664,14 @@ export const DiklatList = () => {
                         position: 'relative'
                     }}>
                         {/* HEADER WITH LOGO */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '20px', borderBottom: '3px solid #111827', paddingBottom: '20px', marginBottom: '30px' }}>
-                             <img src="/logo.png" alt="Logo" style={{ width: '80px', height: '80px', objectFit: 'contain' }} />
-                             <div style={{ flex: 1 }}>
-                                 <div style={{ fontSize: '24px', fontWeight: 900, color: '#b45309', lineHeight: 1.1 }}>PONDOK PESANTREN AL-HASANAH</div>
-                                 <div style={{ fontSize: '13px', fontWeight: 700, color: '#4b5563', marginTop: '4px' }}>CIBEUTI - KAWALU - KOTA TASIKMALAYA - JAWA BARAT</div>
-                                 <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>Jl. Raya Cibeuti No.13, Kec. Kawalu, Tasikmalaya, Jawa Barat 46182 | Telp: 0812-XXXX-XXXX</div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '3px solid #111827', paddingBottom: '20px', marginBottom: '30px', position: 'relative', minHeight: '100px' }}>
+                             <img src="/logo.png" alt="Logo" style={{ width: '80px', height: '80px', objectFit: 'contain', position: 'absolute', left: 0 }} />
+                             <div style={{ textAlign: 'center', width: '100%', padding: '0 120px' }}>
+                                 <div style={{ fontSize: '20px', fontWeight: 900, color: '#b45309', lineHeight: 1.1, whiteSpace: 'nowrap' }}>PONDOK PESANTREN AL-HASANAH</div>
+                                 <div style={{ fontSize: '12px', fontWeight: 700, color: '#4b5563', marginTop: '4px' }}>CIBEUTI - KAWALU - KOTA TASIKMALAYA - JAWA BARAT</div>
+                                 <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '2px' }}>Jl. Raya Cibeuti No.13, Kec. Kawalu, Tasikmalaya, Jawa Barat 46182 | Telp: 0812-XXXX-XXXX</div>
                              </div>
-                             <div style={{ textAlign: 'right' }}>
+                             <div style={{ textAlign: 'right', position: 'absolute', right: 0 }}>
                                  <div style={{ fontSize: '10px', color: '#9ca3af', fontWeight: 800 }}>NOMOR DOKUMEN</div>
                                  <div style={{ fontSize: '15px', fontWeight: 800, fontFamily: 'monospace' }}>#DIK-{printData?.qr_code_id?.slice(0,8).toUpperCase()}</div>
                              </div>
@@ -761,7 +761,9 @@ export const DiklatList = () => {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: '30px', paddingBottom: '70px' }}>
                             <div style={{ textAlign: 'center' }}>
                                 <div style={{ fontSize: '11px', fontWeight: 700, marginBottom: '8px', color: '#4b5563' }}>VALIDASI SISTEM</div>
-                                <QRCode value={`VERIFIED_DIKLAT_${printData?.qr_code_id}`} size={95} bordered={false} />
+                                <div style={{ backgroundColor: 'white', padding: '8px', borderRadius: '8px', display: 'inline-block', border: '1px solid #f3f4f6' }}>
+                                    <QRCode value={`VERIFIED_DIKLAT_${printData?.qr_code_id}`} size={95} bordered={false} bgColor="#ffffff" color="#000000" />
+                                </div>
                                 <div style={{ fontSize: '9px', color: '#9ca3af', marginTop: '6px', fontWeight: 800, letterSpacing: '0.5px' }}>SCAN UNTUK VERIFIKASI</div>
                             </div>
                             

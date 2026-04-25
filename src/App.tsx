@@ -19,6 +19,7 @@ import { supabaseClient } from "./utility/supabaseClient";
 
 // --- IMPORT ICON ---
 import { 
+  BellOutlined,
   WarningOutlined, 
   FileProtectOutlined, 
   MedicineBoxOutlined, 
@@ -115,6 +116,8 @@ import { AlumniList } from "./pages/alumni/list";
 import { WeeklyTestList } from "./pages/ulangan/bank-soal/list";
 import { WeeklyTestCreate } from "./pages/ulangan/create";
 import { WeeklyTestArsip } from "./pages/ulangan/arsip/list";
+import { NotificationList } from "./pages/notifications/list";
+import { NotificationCreate } from "./pages/notifications/create";
 
 const AIConsultantWrapper = () => {
     const { data: user } = useGetIdentity<IUserIdentity>();
@@ -361,8 +364,13 @@ const InnerApp = () => {
                         list: "/ulangan/arsip",
                         meta: { label: "Arsip & Nilai", parent: "ulangan_menu", icon: <FileProtectOutlined /> }
                     },
-
                     
+                    {
+                        name: "notification_queue",
+                        list: "/notifications",
+                        create: "/notifications/create",
+                        meta: { label: "Notifikasi Push", icon: <BellOutlined /> }
+                    },
                     
                 ]}
                 options={{
@@ -496,11 +504,10 @@ const InnerApp = () => {
                                 <Route index element={<AuditLogList />} />
                             </Route>
 
-                            {/* 4.5 Module Akademik */
+                            {/* 4.5 Module Akademik */}
                             <Route path="/akademik">
                                 <Route index element={<AkademikPage />} />
-                            </Route>}
-
+                            </Route>
 
 
                             {/* 5. Module Keuangan */}
@@ -544,13 +551,16 @@ const InnerApp = () => {
                                 <Route index element={<WeeklyTestArsip />} />
                             </Route>
                             
+                            <Route path="/notifications">
+                                <Route index element={<NotificationList />} />
+                                <Route path="create" element={<NotificationCreate />} />
+                            </Route>
+
+                    
 
                             <Route path="*" element={<ErrorComponent />} />
                         </Route>
                     </Routes>
-                
-                    
-
                             <UnsavedChangesNotifier />
                             <DocumentTitleHandler />
                         </Refine>
