@@ -228,7 +228,7 @@ export const DiklatList = () => {
 
             // Auto filter dan Freeze Pane
             worksheet.autoFilter = 'A6:J6';
-            worksheet.views = [{ state: 'frozen', xSplit: 0, ySplit: 6, activePane: 'bottomLeft' }];
+            worksheet.views = [{ state: 'frozen', xSplit: 0, ySplit: 6 }];
 
             const buffer = await workbook.xlsx.writeBuffer();
             const dateStr = new Date().toISOString().split('T')[0];
