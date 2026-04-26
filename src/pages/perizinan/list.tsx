@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { logActivity } from "../../utility/logger";
 import { useTable, useSelect } from "@refinedev/antd";
 import { ProTable, ProColumns } from "@ant-design/pro-components";
-import { Tag, Space, Button, Typography, Tooltip, message, Select, Modal, Card } from "antd";
+import { Tag, Space, Button, Typography, Tooltip, message, Select, Modal, Card, Avatar } from "antd";
 import { 
     PlusOutlined, 
     CheckCircleOutlined, 
@@ -15,7 +15,7 @@ import {
     UserOutlined,
     FileExcelOutlined
 } from "@ant-design/icons";
-import { IPerizinanSantri, ISantri } from "../../types";
+import { IPerizinanSantri, ISantri, IUserIdentity } from "../../types";
 import { useNavigation, useUpdate, useDelete , useGetIdentity} from "@refinedev/core";
 import { formatDualDate, formatHijri, formatMasehi } from "../../utility/dateHelper";
 import dayjs from "dayjs";
@@ -26,7 +26,7 @@ import { supabaseClient } from "../../utility/supabaseClient";
 const { Text } = Typography;
 
 export const PerizinanList = () => {
-        const { data: user } = useGetIdentity();
+        const { data: user } = useGetIdentity<IUserIdentity>();
 const { tableProps } = useTable<IPerizinanSantri>({
         resource: "perizinan_santri",
         syncWithLocation: true,
@@ -208,33 +208,47 @@ const { tableProps } = useTable<IPerizinanSantri>({
 
     const columns: ProColumns<IPerizinanSantri>[] = [
         {
-            title: "Tgl",
+            title: "Tgl Pengajuan",
             dataIndex: "created_at",
-            width: 140,
+            width: 150,
             render: (_, r) => (
-                <div className="flex flex-col">
-                    <Text strong>{dayjs(r.created_at).format("DD MMM")}</Text>
-                    <Text type="secondary" style={{ fontSize: 10 }}>{formatHijri(r.created_at)}</Text>
-                </div>
+                <Space direction="vertical" size={0} style={{ lineHeight: '1.2' }}>
+                    <Text strong style={{ fontSize: 13 }}>
+                        {dayjs(r.created_at).format("DD MMM YYYY")}
+                    </Text>
+                    <Text type="secondary" style={{ fontSize: 11, color: '#059669' }}>
+                        {formatHijri(r.created_at)}
+                    </Text>
+                </Space>
             ),
             sorter: true,
         },
         {
             title: "Santri",
             dataIndex: "santri_nis",
-            width: 220,
+            width: 250,
             render: (_, record) => (
-                <div className="flex items-center gap-2">
-                    {record.santri?.foto_url ? (
-                        <img src={record.santri.foto_url} className="w-8 h-8 rounded-full border border-gray-200"/>
-                    ) : (
-                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 border"><UserOutlined/></div>
-                    )}
-                    <div className="flex flex-col leading-tight">
-                        <Text strong className="text-sm">{record.santri?.nama}</Text>
-                        <Text type="secondary" className="text-xs">{record.santri?.kelas}-{record.santri?.jurusan}</Text>
+                <Space size={12}>
+                    <Avatar 
+                        src={record.santri?.foto_url} 
+                        size={42} 
+                        icon={<UserOutlined />}
+                        className="border border-gray-100 shadow-sm bg-gray-50 text-gray-400"
+                    />
+                    <div className="flex flex-col">
+                        <Text strong className="text-sm leading-none mb-1">
+                            {record.santri?.nama?.toUpperCase()}
+                        </Text>
+                        <div className="flex items-center gap-1.5">
+                            <Tag bordered={false} color="blue" className="text-[10px] m-0 px-1 py-0">
+                                {record.santri?.kelas}-{record.santri?.jurusan}
+                            </Tag>
+                            <Text type="secondary" style={{ fontSize: 10 }} className="font-mono">
+                                {record.santri?.nis}
+                            </Text>
+                        </div>
                     </div>
-                </div>
+                </Space>
             ),
         },
         {

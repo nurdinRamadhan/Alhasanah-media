@@ -487,28 +487,37 @@ export const TagihanList = () => {
         {
             title: "Tanggal", 
             dataIndex: "created_at", 
-            width: 130,
-            fixed: "left", // Tanggal selalu terlihat di kiri
+            width: 140,
+            fixed: "left",
             render: (_, r) => (
-                <div className="flex flex-col">
-                    <Text strong>{dayjs(r.created_at).format("DD MMM YYYY")}</Text>
-                    <Text type="secondary" style={{ fontSize: 11 }}>{formatHijri(r.created_at)}</Text>
-                </div>
+                <Space direction="vertical" size={0} style={{ lineHeight: '1.2' }}>
+                    <Text strong style={{ fontSize: 13 }}>
+                        {dayjs(r.created_at).format("DD MMM YYYY")}
+                    </Text>
+                    <Text type="secondary" style={{ fontSize: 11, color: '#059669' }}>
+                        {formatHijri(r.created_at)}
+                    </Text>
+                </Space>
             )
         },
         {
             title: "Santri", dataIndex: "santri_nis", width: 250,
             render: (_, record) => (
-                <div className="flex items-center gap-3">
-                    <Avatar shape="square" src={record.santri?.foto_url} icon={<UsergroupAddOutlined />} className="bg-emerald-50 text-emerald-600 rounded-lg" />
+                <Space size={12}>
+                    <Avatar 
+                        src={record.santri?.foto_url} 
+                        size={42} 
+                        icon={<UsergroupAddOutlined />} 
+                        className="border border-gray-100 shadow-sm bg-gray-50 text-emerald-600" 
+                    />
                     <div className="flex flex-col leading-tight">
-                        <Text strong className="text-gray-800">{record.santri?.nama}</Text>
+                        <Text strong className="text-[14px] text-gray-800">{record.santri?.nama}</Text>
                         <Space size={4} className="mt-1">
                             <Tag bordered={false} className="m-0 text-[10px] bg-gray-100">Kelas {record.santri?.kelas}</Tag>
                             <Tag bordered={false} color="cyan" className="m-0 text-[10px]">{record.santri?.jurusan}</Tag>
                         </Space>
                     </div>
-                </div>
+                </Space>
             ),
         },
         {

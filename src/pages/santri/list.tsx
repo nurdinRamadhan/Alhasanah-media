@@ -166,6 +166,7 @@ export const SantriList = () => {
           <Avatar 
             shape="circle" 
             size={44}
+            src={record.foto_url} // TAMBAHKAN INI
             style={{ 
                 backgroundColor: record.jenis_kelamin === 'L' ? '#e0f2fe' : '#fce7f3',
                 color: record.jenis_kelamin === 'L' ? '#0284c7' : '#db2777',

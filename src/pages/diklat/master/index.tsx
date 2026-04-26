@@ -44,6 +44,10 @@ export const MasterDataPage = () => {
     const { tableProps: configProps, tableQueryResult: configResult } = useTable<IConfigDiklat>({
         resource: "config_diklat",
         syncWithLocation: false,
+        pagination: { mode: "off" }, // Matikan paginasi untuk master data agar muncul semua
+        meta: { 
+            select: "*" // Pastikan mengambil semua kolom secara eksplisit
+        },
         sorters: { initial: [{ field: "created_at", order: "desc" }] }
     });
 
@@ -70,27 +74,36 @@ export const MasterDataPage = () => {
     }, []);
 
     const handleToggleActive = async (id: number, currentStatus: boolean) => {
+        const nextStatus = !currentStatus;
         const hide = message.loading("Memperbarui status...", 0);
+        
         try {
-            if (!currentStatus) {
-                // Jika ingin mengaktifkan satu, matikan yang lain di database
-                await supabaseClient
+            // 1. Jika kita mengaktifkan (nextStatus = true), matikan yang lain dulu
+            if (nextStatus === true) {
+                const { error: deactivateError } = await supabaseClient
                     .from("config_diklat")
                     .update({ is_active: false })
                     .neq("id", id);
+                
+                if (deactivateError) throw deactivateError;
             }
 
-            await updateMutate({
-                resource: "config_diklat",
-                id: id.toString(),
-                values: { is_active: !currentStatus }
-            });
+            // 2. Update baris yang dipilih menggunakan ID asli (integer)
+            const { error: updateError } = await supabaseClient
+                .from("config_diklat")
+                .update({ is_active: nextStatus })
+                .eq("id", id);
+
+            if (updateError) throw updateError;
             
-            message.success("Status konfigurasi diperbarui");
+            message.success(`Konfigurasi tahun ${nextStatus ? 'diaktifkan' : 'dinonaktifkan'}`);
+            
+            // 3. Refresh data tabel
             await configResult.refetch();
         } catch (e: unknown) {
-            const err = e as Error;
-            message.error("Gagal: " + err.message);
+            const err = e as any;
+            console.error("Update Status Error:", err);
+            message.error("Gagal memperbarui database: " + (err.message || "Terjadi kesalahan"));
         } finally {
             hide();
         }

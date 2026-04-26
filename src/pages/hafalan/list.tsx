@@ -190,14 +190,14 @@ export const HafalanList = () => {
                     </div>
 
                     {/* Baris 2: Posisi Terakhir (Surat/Ayat) */}
-                    <div className="flex items-start gap-2">
+                    <div className="flex items-start gap-2 mt-1">
                         <BookOutlined className="mt-1 text-gray-400" />
-                        <div className="flex flex-col">
-                            <span className="text-[10px] text-gray-400 uppercase tracking-wide">Terakhir</span>
-                            <Text strong className="text-[13px] text-gray-700 dark:text-gray-300 leading-tight">
-                                {record.hafalan_kitab || "-"}
+                        <Space direction="vertical" size={0}>
+                            <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Capaian Terakhir:</span>
+                            <Text strong className="text-[13px] text-emerald-700 dark:text-emerald-400 leading-normal block">
+                                {record.hafalan_kitab || "Belum ada setoran"}
                             </Text>
-                        </div>
+                        </Space>
                     </div>
                 </div>
             )

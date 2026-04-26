@@ -253,18 +253,21 @@ const { tableProps } = useTable<IKesehatanSantri>({
         {
             title: "Diagnosa & Keluhan",
             dataIndex: "keluhan",
-            width: 200,
+            width: 250,
             render: (_, r) => (
-                <div className="flex flex-col">
-                    <Text strong className="text-red-600">
+                <Space direction="vertical" size={4} className="py-1">
+                    <Text strong className="text-red-600 leading-tight block">
                         {r.keluhan}
                     </Text>
                     {r.catatan && (
-                        <Text type="secondary" className="text-xs italic mt-1" ellipsis={{ tooltip: r.catatan }}>
-                            Note: "{r.catatan}"
-                        </Text>
+                        <div className="flex flex-col border-l-2 border-gray-200 pl-2 mt-1">
+                            <span className="text-[10px] uppercase text-gray-400 font-bold tracking-wider">Catatan:</span>
+                            <Text type="secondary" className="text-xs italic leading-snug">
+                                {r.catatan}
+                            </Text>
+                        </div>
                     )}
-                </div>
+                </Space>
             )
         },
         {

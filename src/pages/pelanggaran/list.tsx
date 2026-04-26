@@ -160,10 +160,14 @@ export const PelanggaranList = () => {
             width: 140,
             fixed: "left", 
             render: (_, record) => (
-                <div className="flex flex-col">
-                    <Text strong>{dayjs(record.tanggal).format("DD MMM YYYY")}</Text>
-                    <Text type="secondary" style={{ fontSize: 11, color: '#ef4444' }}>{formatHijri(record.tanggal)}</Text>
-                </div>
+                <Space direction="vertical" size={0} style={{ lineHeight: '1.2' }}>
+                    <Text strong style={{ fontSize: 13 }}>
+                        {dayjs(record.tanggal).format("DD MMM YYYY")}
+                    </Text>
+                    <Text type="secondary" style={{ fontSize: 11, color: '#f59e0b' }}>
+                        {formatHijri(record.tanggal)}
+                    </Text>
+                </Space>
             ),
             sorter: true,
         },
