@@ -1,143 +1,622 @@
-/* src/index.css */
+/* ================================================================
+   PESANTREN ADMIN SYSTEM — PREMIUM UI v2.0
+   Design System: Luxury Gold × Dark Obsidian
+   Font: Syne (Display) + DM Sans (Body) + DM Mono (Numbers)
+   ================================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
+/* ================================================================
+   DESIGN TOKENS — LIGHT MODE
+   ================================================================ */
 :root {
-  --bg-base: #f4f7f5;
-  --text-base: #1a1a1a;
-  --primary: #065f46;
-  --accent: #fbbf24;
+  /* ── Brand Gold ── */
+  --gold-50:      #FFFBF0;
+  --gold-100:     #FEF3C7;
+  --gold-200:     #FDE68A;
+  --gold-300:     #FCD34D;
+  --gold-400:     #FBBF24;
+  --gold-primary: #C9A84C;
+  --gold-bright:  #FFB700;
+  --gold-light:   #FDE68A;
+  --gold-dark:    #8B6914;
+  --gold-deep:    #5C430A;
+  --gold-glow:    rgba(201, 168, 76, 0.25);
+  --gold-glow-lg: rgba(201, 168, 76, 0.18);
+
+  /* ── Surfaces ── */
+  --surface-base:     #F7F4EE;
+  --surface-card:     #FFFFFF;
+  --surface-elevated: #FFFFFF;
+  --surface-sunken:   #F0EDE5;
+  --surface-overlay:  rgba(255, 255, 255, 0.92);
+
+  /* ── Text ── */
+  --text-primary:   #0A0805;
+  --text-secondary: #6B5F50;
+  --text-tertiary:  #9E9080;
+  --text-disabled:  #C4B89E;
+
+  /* ── Borders ── */
+  --border-subtle:    rgba(201, 168, 76, 0.10);
+  --border-default:   rgba(201, 168, 76, 0.20);
+  --border-prominent: rgba(201, 168, 76, 0.40);
+  --border-focus:     rgba(201, 168, 76, 0.60);
+
+  /* ── Semantic ── */
+  --success:       #059669;
+  --success-muted: rgba(5, 150, 105, 0.10);
+  --danger:        #DC2626;
+  --danger-muted:  rgba(220, 38, 38, 0.10);
+  --info:          #2563EB;
+  --info-muted:    rgba(37, 99, 235, 0.10);
+  --purple:        #7C3AED;
+
+  /* ── Shadows ── */
+  --shadow-xs:   0 1px 2px rgba(0,0,0,0.04);
+  --shadow-sm:   0 2px 8px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:   0 4px 16px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.04);
+  --shadow-lg:   0 8px 32px rgba(0,0,0,0.08), 0 4px 8px rgba(0,0,0,0.04);
+  --shadow-xl:   0 20px 60px rgba(0,0,0,0.10);
+  --shadow-gold: 0 4px 20px rgba(201,168,76,0.18), 0 0 0 1px rgba(201,168,76,0.12);
+  --shadow-gold-lg: 0 8px 40px rgba(201,168,76,0.22), 0 0 0 1px rgba(201,168,76,0.16);
+
+  /* ── Typography ── */
+  --font-display: 'Syne', sans-serif;
+  --font-body:    'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono:    'DM Mono', 'Fira Code', monospace;
+
+  /* ── Radius ── */
+  --r-sm:  8px;
+  --r-md:  12px;
+  --r-lg:  18px;
+  --r-xl:  24px;
+  --r-2xl: 32px;
+
+  /* ── Transitions ── */
+  --ease-out:   cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --t-fast:  150ms var(--ease-in-out);
+  --t-base:  250ms var(--ease-in-out);
+  --t-slow:  400ms var(--ease-out);
 }
 
+/* ================================================================
+   DESIGN TOKENS — DARK MODE
+   ================================================================ */
 .dark {
-  --bg-base: #000000;
-  --text-base: #e5e7eb;
-  --primary: #059669;
-  --accent: #ffb700;
+  --surface-base:     #08070D;
+  --surface-card:     #0F0F1A;
+  --surface-elevated: #141424;
+  --surface-sunken:   #060610;
+  --surface-overlay:  rgba(15, 15, 26, 0.96);
+
+  --text-primary:   #F0EDE5;
+  --text-secondary: #9E9080;
+  --text-tertiary:  #5C5248;
+  --text-disabled:  #3A342E;
+
+  --border-subtle:    rgba(201, 168, 76, 0.07);
+  --border-default:   rgba(201, 168, 76, 0.14);
+  --border-prominent: rgba(201, 168, 76, 0.30);
+  --border-focus:     rgba(201, 168, 76, 0.55);
+
+  --shadow-xs:   0 1px 2px rgba(0,0,0,0.30);
+  --shadow-sm:   0 2px 8px rgba(0,0,0,0.40);
+  --shadow-md:   0 4px 16px rgba(0,0,0,0.50);
+  --shadow-lg:   0 8px 32px rgba(0,0,0,0.60);
+  --shadow-xl:   0 20px 60px rgba(0,0,0,0.70);
+  --shadow-gold: 0 4px 20px rgba(201,168,76,0.12), 0 0 0 1px rgba(201,168,76,0.08);
+  --shadow-gold-lg: 0 8px 40px rgba(201,168,76,0.16), 0 0 0 1px rgba(201,168,76,0.12);
 }
+
+/* ================================================================
+   BASE RESET & GLOBAL TYPOGRAPHY
+   ================================================================ */
+*, *::before, *::after { box-sizing: border-box; }
 
 html, body, #root {
   height: 100%;
   min-height: 100vh;
   margin: 0 !important;
   padding: 0 !important;
-  background-color: var(--bg-base) !important;
+  background-color: var(--surface-base) !important;
 }
 
-#root {
-  display: flex;
-  flex-direction: column;
-}
+#root { display: flex; flex-direction: column; }
 
 body {
-  color: var(--text-base);
-  transition: background-color 0.3s ease, color 0.3s ease;
-  font-family: 'Inter', -apple-system, sans-serif;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.6;
+  font-feature-settings: 'cv11', 'ss01', 'liga' 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   overflow-x: hidden;
+  transition: background-color var(--t-slow), color var(--t-slow);
 }
 
-/* Fix for Ant Design Layout background */
+/* Display headings use Syne */
+h1, h2, h3, h4, h5, h6,
+.ant-typography h1, .ant-typography h2,
+.ant-typography h3, .ant-typography h4 {
+  font-family: var(--font-display) !important;
+  letter-spacing: -0.02em;
+}
+
+/* Numbers use DM Mono */
+.number-mono {
+  font-family: var(--font-mono) !important;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ================================================================
+   ANT DESIGN LAYOUT
+   ================================================================ */
 .ant-layout {
-    background: var(--bg-base) !important;
-    width: 100%;
-    min-height: 100vh; /* Ensure layout fills the viewport */
+  background: var(--surface-base) !important;
+  font-family: var(--font-body) !important;
+  width: 100%;
+  min-height: 100vh;
 }
 
 .ant-layout-content {
-    background: var(--bg-base) !important;
-    padding: 24px !important;
-    min-height: 100%; /* Ensure content area stretches */
-}
-
-.dark .ant-layout-sider {
-    background: #000000 !important;
-    border-right: 1px solid rgba(255, 183, 0, 0.1) !important;
-}
-
-.dark .ant-layout-header {
-    background: #000000 !important;
+  background: var(--surface-base) !important;
+  padding: 28px !important;
+  min-height: 100%;
 }
 
 @media (max-width: 640px) {
-  .ant-layout-content {
-    padding: 12px !important;
-  }
+  .ant-layout-content { padding: 14px !important; }
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
+/* ================================================================
+   PREMIUM SIDEBAR
+   ================================================================ */
+.ant-layout-sider {
+  transition: all var(--t-base) !important;
+  border-right: 1px solid var(--border-subtle) !important;
 }
 
-::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 10px;
+.dark .ant-layout-sider {
+  background: #09090F !important;
+  border-right: 1px solid rgba(201,168,76,0.07) !important;
+  box-shadow: 4px 0 48px rgba(0,0,0,0.55) !important;
 }
 
-.dark ::-webkit-scrollbar-thumb {
-    background: #334155;
+/* Sider top logo area */
+.ant-layout-sider .ant-pro-sider-logo,
+.ant-pro-sider-logo {
+  border-bottom: 1px solid var(--border-subtle) !important;
+  padding: 20px 16px !important;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: var(--accent);
+/* ================================================================
+   PREMIUM HEADER
+   ================================================================ */
+.ant-layout-header {
+  backdrop-filter: blur(16px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 100 !important;
 }
 
-/* Sidebar Menu Refinement */
+.dark .ant-layout-header {
+  background: rgba(9,9,15,0.94) !important;
+  border-bottom: 1px solid rgba(201,168,76,0.07) !important;
+  box-shadow: 0 1px 0 rgba(201,168,76,0.05) !important;
+}
+
+/* ================================================================
+   PREMIUM SIDEBAR MENU
+   ================================================================ */
 .ant-menu {
-    background: transparent !important;
+  background: transparent !important;
+  border-inline-end: none !important;
+  font-family: var(--font-body) !important;
 }
 
-.ant-menu-item {
-  border-radius: 4px !important;
-  transition: all 0.2s ease !important;
+/* Group headers */
+.ant-menu-item-group-title {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.14em !important;
+  text-transform: uppercase !important;
+  color: var(--text-tertiary) !important;
+  padding: 16px 20px 4px !important;
+  font-family: var(--font-display) !important;
 }
 
+.ant-menu-item,
+.ant-menu-submenu-title {
+  border-radius: var(--r-md) !important;
+  margin: 3px 10px !important;
+  font-weight: 500 !important;
+  transition: all var(--t-fast) !important;
+  font-family: var(--font-body) !important;
+}
+
+/* Hover state */
+.ant-menu-item:not(.ant-menu-item-selected):hover,
+.ant-menu-submenu-title:hover {
+  background: var(--border-subtle) !important;
+  color: var(--gold-primary) !important;
+}
+
+.dark .ant-menu-item:not(.ant-menu-item-selected):hover,
+.dark .ant-menu-submenu-title:hover {
+  background: rgba(201,168,76,0.06) !important;
+  color: var(--gold-bright) !important;
+}
+
+/* Selected state — premium gold pill */
 .ant-menu-item-selected {
-  background-color: var(--accent) !important;
+  background: linear-gradient(135deg, var(--gold-primary) 0%, var(--gold-bright) 100%) !important;
   color: #000000 !important;
-  font-weight: 800 !important;
-  box-shadow: 0 4px 15px rgba(255, 183, 0, 0.3) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 4px 20px rgba(201,168,76,0.38), 0 2px 6px rgba(0,0,0,0.1) !important;
 }
 
-.ant-menu-item-selected .ant-menu-item-icon {
+.ant-menu-item-selected .ant-menu-item-icon,
+.ant-menu-item-selected .anticon,
+.ant-menu-item-selected * {
   color: #000000 !important;
 }
 
-.dark .ant-menu-item:not(.ant-menu-item-selected):hover {
-    background-color: rgba(255, 183, 0, 0.05) !important;
-    color: var(--accent) !important;
+/* ================================================================
+   ANT CARD
+   ================================================================ */
+.ant-card {
+  background: var(--surface-card) !important;
+  border-color: var(--border-subtle) !important;
+  font-family: var(--font-body) !important;
+  transition: box-shadow var(--t-base), border-color var(--t-base), transform var(--t-base) !important;
 }
 
-/* AI Pulse Gold */
-.ai-pulse::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  box-shadow: 0 0 0 0 rgba(255, 183, 0, 0.5);
-  animation: pulse 2s infinite;
+.dark .ant-card {
+  background: var(--surface-card) !important;
+  border-color: var(--border-subtle) !important;
 }
 
-@keyframes pulse {
-  0% { box-shadow: 0 0 0 0 rgba(255, 183, 0, 0.5); }
-  70% { box-shadow: 0 0 0 12px rgba(255, 183, 0, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(255, 183, 0, 0); }
+.ant-card-head {
+  font-family: var(--font-display) !important;
+  border-bottom-color: var(--border-subtle) !important;
+  min-height: auto !important;
 }
 
-/* Table Glass Deep Dark */
-.dark .ant-table {
-  background: #050505 !important;
+.dark .ant-card-head {
+  border-bottom-color: rgba(201,168,76,0.07) !important;
+}
+
+/* Premium card hover */
+.premium-card:hover {
+  box-shadow: var(--shadow-gold-lg) !important;
+  border-color: var(--border-default) !important;
+  transform: translateY(-2px) !important;
+}
+
+/* ================================================================
+   ANT TABLE — PREMIUM STYLE
+   ================================================================ */
+.ant-table {
+  background: transparent !important;
+  font-family: var(--font-body) !important;
+}
+
+.ant-table-thead > tr > th {
+  background: var(--surface-sunken) !important;
+  font-weight: 700 !important;
+  font-size: 11px !important;
+  letter-spacing: 0.07em !important;
+  text-transform: uppercase !important;
+  font-family: var(--font-display) !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+  padding: 12px 16px !important;
 }
 
 .dark .ant-table-thead > tr > th {
-  background: #0a0a0a !important;
-  color: #ffb700 !important;
-  border-bottom: 1px solid rgba(255, 183, 0, 0.15) !important;
+  background: rgba(201,168,76,0.04) !important;
+  color: var(--gold-bright) !important;
+  border-bottom: 1px solid rgba(201,168,76,0.12) !important;
 }
 
 .dark .ant-table-tbody > tr > td {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03) !important;
+  border-bottom: 1px solid rgba(255,255,255,0.03) !important;
+  color: var(--text-primary) !important;
 }
 
 .dark .ant-table-tbody > tr:hover > td {
-    background: rgba(255, 183, 0, 0.02) !important;
+  background: rgba(201,168,76,0.03) !important;
+}
+
+/* ================================================================
+   ANT STATISTIC
+   ================================================================ */
+.ant-statistic-title {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  font-family: var(--font-display) !important;
+}
+
+.ant-statistic-content-value {
+  font-family: var(--font-display) !important;
+  letter-spacing: -0.03em !important;
+}
+
+/* ================================================================
+   ANT INPUT & SELECT
+   ================================================================ */
+.dark .ant-input,
+.dark .ant-input-affix-wrapper {
+  background: rgba(255,255,255,0.04) !important;
+  border-color: var(--border-default) !important;
+  color: var(--text-primary) !important;
+  font-family: var(--font-body) !important;
+}
+
+.dark .ant-select-selector {
+  background: rgba(255,255,255,0.04) !important;
+  border-color: var(--border-default) !important;
+  color: var(--text-primary) !important;
+}
+
+.dark .ant-select-arrow { color: var(--text-tertiary) !important; }
+
+/* ================================================================
+   ANT BUTTON
+   ================================================================ */
+.ant-btn-primary {
+  background: linear-gradient(135deg, var(--gold-primary), var(--gold-bright)) !important;
+  border-color: transparent !important;
+  color: #000000 !important;
+  font-weight: 700 !important;
+  font-family: var(--font-body) !important;
+  box-shadow: 0 4px 16px rgba(201,168,76,0.32) !important;
+  transition: all var(--t-fast) !important;
+}
+
+.ant-btn-primary:hover {
+  background: linear-gradient(135deg, var(--gold-bright), var(--gold-primary)) !important;
+  box-shadow: 0 6px 24px rgba(201,168,76,0.44) !important;
+  transform: translateY(-1px);
+}
+
+/* ================================================================
+   ANT DIVIDER
+   ================================================================ */
+.dark .ant-divider {
+  border-color: rgba(201,168,76,0.08) !important;
+}
+
+/* ================================================================
+   ANT MODAL / DRAWER
+   ================================================================ */
+.dark .ant-modal-content {
+  background: var(--surface-elevated) !important;
+  border: 1px solid var(--border-subtle) !important;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.75) !important;
+}
+
+.dark .ant-modal-header {
+  background: transparent !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+}
+
+.dark .ant-modal-title { color: var(--text-primary) !important; }
+
+.dark .ant-drawer-content {
+  background: var(--surface-card) !important;
+  border-left: 1px solid var(--border-subtle) !important;
+}
+
+/* ================================================================
+   ANT SKELETON DARK
+   ================================================================ */
+.dark .ant-skeleton-paragraph > li,
+.dark .ant-skeleton-title,
+.dark .ant-skeleton-element .ant-skeleton-button,
+.dark .ant-skeleton-element .ant-skeleton-input,
+.dark .ant-skeleton-element .ant-skeleton-avatar,
+.dark .ant-skeleton-element .ant-skeleton-image {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.04) 25%,
+    rgba(201,168,76,0.06) 50%,
+    rgba(255,255,255,0.04) 75%
+  ) !important;
+  background-size: 400% 100% !important;
+  animation: skeletonShimmer 1.6s ease infinite !important;
+}
+
+/* ================================================================
+   ANT TAG & BADGE
+   ================================================================ */
+.dark .ant-tag {
+  border-color: var(--border-subtle) !important;
+  background: rgba(255,255,255,0.04) !important;
+  color: var(--text-secondary) !important;
+}
+
+/* ================================================================
+   ANT TOOLTIP & POPOVER
+   ================================================================ */
+.dark .ant-tooltip-inner {
+  background: var(--surface-elevated) !important;
+  border: 1px solid var(--border-subtle) !important;
+}
+
+/* ================================================================
+   RECHARTS OVERRIDES
+   ================================================================ */
+.recharts-tooltip-wrapper { outline: none !important; }
+
+.recharts-legend-item-text {
+  font-family: var(--font-body) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
+/* ================================================================
+   CUSTOM SCROLLBAR — PREMIUM GOLD
+   ================================================================ */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(201,168,76,0.18);
+  border-radius: 10px;
+  transition: background var(--t-fast);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--gold-primary); }
+.dark ::-webkit-scrollbar-thumb { background: rgba(201,168,76,0.12); }
+.dark ::-webkit-scrollbar-thumb:hover { background: var(--gold-bright); }
+
+/* ================================================================
+   ANIMATIONS & KEYFRAMES
+   ================================================================ */
+
+/* Gold shimmer scan */
+@keyframes goldShimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+/* Skeleton dark mode */
+@keyframes skeletonShimmer {
+  0%   { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
+/* Pulse ring */
+@keyframes pulseRing {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(201,168,76,0.40); }
+  50%       { box-shadow: 0 0 0 8px rgba(201,168,76,0); }
+}
+
+/* Dot pulse */
+@keyframes dotPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.55; transform: scale(0.7); }
+}
+
+/* Float up/down */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-5px); }
+}
+
+/* Scan line sweep */
+@keyframes scanLine {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+/* Border rotate glow */
+@keyframes borderGlow {
+  0%, 100% { opacity: 0.4; }
+  50%       { opacity: 1; }
+}
+
+/* ================================================================
+   UTILITY CLASSES
+   ================================================================ */
+
+/* Gold shimmer animated text */
+.text-gold-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--gold-deep)  0%,
+    var(--gold-bright) 35%,
+    var(--gold-primary) 55%,
+    var(--gold-deep) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: goldShimmer 4s linear infinite;
+}
+
+/* Live dot indicator */
+.live-dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--gold-bright);
+  animation: dotPulse 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.live-dot.green   { background: var(--success); }
+.live-dot.red     { background: var(--danger); }
+.live-dot.default { background: var(--gold-bright); }
+
+/* Gold pulse card glow */
+.gold-pulse { animation: pulseRing 2.5s ease-in-out infinite; }
+
+/* Premium card interaction */
+.premium-card {
+  transition:
+    transform var(--t-base),
+    box-shadow var(--t-base),
+    border-color var(--t-base) !important;
+}
+
+/* Islamic geometric diagonal grid background */
+.geo-bg {
+  background-image:
+    repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 28px,
+      rgba(201,168,76,0.025) 28px,
+      rgba(201,168,76,0.025) 29px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 28px,
+      rgba(201,168,76,0.025) 28px,
+      rgba(201,168,76,0.025) 29px
+    );
+}
+
+/* Scan line effect on a card top */
+.scan-line {
+  position: relative;
+  overflow: hidden;
+}
+.scan-line::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold-bright), transparent);
+  animation: scanLine 3s linear infinite;
+}
+
+/* Gold top border line */
+.gold-top-line::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, var(--gold-primary) 30%, var(--gold-bright) 70%, transparent 100%);
+  border-radius: 2px 2px 0 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* KPI metric number */
+.kpi-value {
+  font-family: var(--font-display) !important;
+  letter-spacing: -0.04em !important;
+  line-height: 1 !important;
+  font-feature-settings: 'tnum';
 }

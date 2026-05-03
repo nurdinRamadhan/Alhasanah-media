@@ -75,10 +75,30 @@ const { formProps, saveButtonProps, queryResult, form } = useForm({
                     </Col>
                     <Col xs={24} md={8}>
                         <Card title="Media" bordered={false} className="shadow-sm">
-                            <Form.Item label="Thumbnail">
+                            <Form.Item label="Gambar Utama (Thumbnail)">
                                 <Upload customRequest={handleUpload} showUploadList={false} accept="image/*">
-                                    <div className="w-full h-40 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 bg-gray-50">
-                                        {imageUrl ? <img src={imageUrl} className="w-full h-full object-cover rounded-lg" /> : (uploading ? "Uploading..." : <PictureOutlined className="text-2xl"/>)}
+                                    <div className="w-full h-48 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 bg-gray-50 transition-all overflow-hidden relative">
+                                        {imageUrl ? (
+                                            <img 
+                                                src={imageUrl} 
+                                                alt="Thumbnail"
+                                                className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 hover:scale-105" 
+                                            />
+                                        ) : (
+                                            <div className="text-center text-gray-400 p-4">
+                                                {uploading ? (
+                                                    <div className="flex flex-col items-center gap-2">
+                                                        <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                                        <span>Mengunggah...</span>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <PictureOutlined className="text-3xl mb-2 text-gray-300"/>
+                                                        <div className="text-xs font-medium">Klik untuk Ubah Gambar</div>
+                                                    </>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </Upload>
                             </Form.Item>

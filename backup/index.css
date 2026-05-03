@@ -1,0 +1,143 @@
+/* src/index.css */
+@import "tailwindcss";
+
+:root {
+  --bg-base: #f4f7f5;
+  --text-base: #1a1a1a;
+  --primary: #065f46;
+  --accent: #fbbf24;
+}
+
+.dark {
+  --bg-base: #000000;
+  --text-base: #e5e7eb;
+  --primary: #059669;
+  --accent: #ffb700;
+}
+
+html, body, #root {
+  height: 100%;
+  min-height: 100vh;
+  margin: 0 !important;
+  padding: 0 !important;
+  background-color: var(--bg-base) !important;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+body {
+  color: var(--text-base);
+  transition: background-color 0.3s ease, color 0.3s ease;
+  font-family: 'Inter', -apple-system, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Fix for Ant Design Layout background */
+.ant-layout {
+    background: var(--bg-base) !important;
+    width: 100%;
+    min-height: 100vh; /* Ensure layout fills the viewport */
+}
+
+.ant-layout-content {
+    background: var(--bg-base) !important;
+    padding: 24px !important;
+    min-height: 100%; /* Ensure content area stretches */
+}
+
+.dark .ant-layout-sider {
+    background: #000000 !important;
+    border-right: 1px solid rgba(255, 183, 0, 0.1) !important;
+}
+
+.dark .ant-layout-header {
+    background: #000000 !important;
+}
+
+@media (max-width: 640px) {
+  .ant-layout-content {
+    padding: 12px !important;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+    background: #334155;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* Sidebar Menu Refinement */
+.ant-menu {
+    background: transparent !important;
+}
+
+.ant-menu-item {
+  border-radius: 4px !important;
+  transition: all 0.2s ease !important;
+}
+
+.ant-menu-item-selected {
+  background-color: var(--accent) !important;
+  color: #000000 !important;
+  font-weight: 800 !important;
+  box-shadow: 0 4px 15px rgba(255, 183, 0, 0.3) !important;
+}
+
+.ant-menu-item-selected .ant-menu-item-icon {
+  color: #000000 !important;
+}
+
+.dark .ant-menu-item:not(.ant-menu-item-selected):hover {
+    background-color: rgba(255, 183, 0, 0.05) !important;
+    color: var(--accent) !important;
+}
+
+/* AI Pulse Gold */
+.ai-pulse::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 0 rgba(255, 183, 0, 0.5);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(255, 183, 0, 0.5); }
+  70% { box-shadow: 0 0 0 12px rgba(255, 183, 0, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 183, 0, 0); }
+}
+
+/* Table Glass Deep Dark */
+.dark .ant-table {
+  background: #050505 !important;
+}
+
+.dark .ant-table-thead > tr > th {
+  background: #0a0a0a !important;
+  color: #ffb700 !important;
+  border-bottom: 1px solid rgba(255, 183, 0, 0.15) !important;
+}
+
+.dark .ant-table-tbody > tr > td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03) !important;
+}
+
+.dark .ant-table-tbody > tr:hover > td {
+    background: rgba(255, 183, 0, 0.02) !important;
+}
