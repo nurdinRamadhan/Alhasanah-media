@@ -150,7 +150,7 @@ const KPICard: React.FC<KPICardProps> = ({
                 style={{
                     borderRadius: 20,
                     border: `1px solid ${isDark ? "rgba(201,168,76,0.10)" : "rgba(201,168,76,0.15)"}`,
-                    background: isDark ? "var(--surface-card)" : "#fff",
+                    background: tk.colorBgContainer,
                     boxShadow: isDark
                         ? "0 4px 24px rgba(0,0,0,0.45)"
                         : "0 2px 16px rgba(0,0,0,0.05), 0 0 0 1px rgba(201,168,76,0.08)",
@@ -347,7 +347,7 @@ export const DashboardPage = () => {
     const cardStyle = (extra?: React.CSSProperties): React.CSSProperties => ({
         borderRadius: 20,
         border: `1px solid ${isDark ? "rgba(201,168,76,0.10)" : "rgba(201,168,76,0.14)"}`,
-        background: isDark ? "var(--surface-card)" : "#fff",
+        background: token.colorBgContainer,
         boxShadow: isDark
             ? "0 4px 24px rgba(0,0,0,0.42)"
             : "0 2px 16px rgba(0,0,0,0.05)",

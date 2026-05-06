@@ -54,6 +54,7 @@ const { formProps, saveButtonProps, queryResult, form } = useForm({
 
     return (
         <Edit saveButtonProps={saveButtonProps} title="Edit Berita">
+            
             <Form 
                 {...formProps} 
                 layout="vertical"
@@ -76,13 +77,44 @@ const { formProps, saveButtonProps, queryResult, form } = useForm({
                     <Col xs={24} md={8}>
                         <Card title="Media" bordered={false} className="shadow-sm">
                             <Form.Item label="Gambar Utama (Thumbnail)">
-                                <Upload customRequest={handleUpload} showUploadList={false} accept="image/*">
-                                    <div className="w-full h-48 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 bg-gray-50 transition-all overflow-hidden relative">
+                                <Upload 
+                                    customRequest={handleUpload} 
+                                    showUploadList={false} 
+                                    accept="image/*"
+                                    style={{ display: 'block', width: '100%' }}
+                                >
+                                    <div 
+                                        style={{ 
+                                            width: '100%', 
+                                            minWidth: '100%',
+                                            height: '200px', 
+                                            overflow: 'hidden', 
+                                            position: 'relative',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            cursor: 'pointer',
+                                            borderRadius: '12px',
+                                            border: '2px dashed #d9d9d9',
+                                            backgroundColor: '#fafafa',
+                                            transition: 'all 0.3s'
+                                        }}
+                                        className="hover:border-blue-500"
+                                    >
                                         {imageUrl ? (
                                             <img 
                                                 src={imageUrl} 
                                                 alt="Thumbnail"
-                                                className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 hover:scale-105" 
+                                                style={{
+                                                    position: 'absolute',
+                                                    top: 0,
+                                                    left: 0,
+                                                    width: '100%',
+                                                    height: '100%',
+                                                    objectFit: 'cover'
+                                                }}
+                                                className="transition-transform duration-300 hover:scale-105" 
                                             />
                                         ) : (
                                             <div className="text-center text-gray-400 p-4">

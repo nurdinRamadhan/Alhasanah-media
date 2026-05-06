@@ -139,12 +139,26 @@ body {
   transition: background-color var(--t-slow), color var(--t-slow);
 }
 
-/* Display headings use Syne */
-h1, h2, h3, h4, h5, h6,
-.ant-typography h1, .ant-typography h2,
-.ant-typography h3, .ant-typography h4 {
+/* ── FIX BUG HEADER SHIFT: Heading override di-scope ke konten halaman saja.
+   Sebelumnya: h1,h2,h3,h4,h5,h6 terlalu broad → mengenai ProLayout sider
+   title & header title → font metrics Syne berbeda dari default sehingga
+   kerning dan layout bergeser. letter-spacing juga dihapus dari scope global
+   karena menyebabkan teks bergeser di komponen ProLayout.                   */
+.ant-layout-content h1,
+.ant-layout-content h2,
+.ant-layout-content h3,
+.ant-layout-content h4,
+.ant-layout-content h5,
+.ant-layout-content h6,
+.ant-modal h1,
+.ant-modal h2,
+.ant-modal h3,
+.ant-modal h4,
+.ant-typography h1,
+.ant-typography h2,
+.ant-typography h3,
+.ant-typography h4 {
   font-family: var(--font-display) !important;
-  letter-spacing: -0.02em;
 }
 
 /* Numbers use DM Mono */
@@ -187,11 +201,29 @@ h1, h2, h3, h4, h5, h6,
   box-shadow: 4px 0 48px rgba(0,0,0,0.55) !important;
 }
 
-/* Sider top logo area */
+/* Ensure the sider content wrapper also has no padding that affects the logo */
+.ant-layout-sider-children {
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 0 !important; /* Fix for shifted logo area */
+}
+
+/* Sider top logo area — Simplified for custom Title component */
 .ant-layout-sider .ant-pro-sider-logo,
-.ant-pro-sider-logo {
+.ant-pro-sider-logo,
+.ant-pro-sider-header,
+.ant-pro-sider-logo-container {
   border-bottom: 1px solid var(--border-subtle) !important;
-  padding: 20px 16px !important;
+  padding: 0 !important;
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  overflow: hidden !important;
+  background: transparent !important; /* Let Title component handle background */
 }
 
 /* ================================================================
@@ -203,7 +235,8 @@ h1, h2, h3, h4, h5, h6,
   border-bottom: 1px solid var(--border-subtle) !important;
   position: sticky !important;
   top: 0 !important;
-  z-index: 100 !important;
+  z-index: 999 !important;
+  transition: all var(--t-base) !important;
 }
 
 .dark .ant-layout-header {
@@ -269,7 +302,7 @@ h1, h2, h3, h4, h5, h6,
 }
 
 /* ================================================================
-   ANT CARD
+   ANT CARD — FIX DARK MODE TOGGLE BUG
    ================================================================ */
 .ant-card {
   background: var(--surface-card) !important;
@@ -278,9 +311,25 @@ h1, h2, h3, h4, h5, h6,
   transition: box-shadow var(--t-base), border-color var(--t-base), transform var(--t-base) !important;
 }
 
-.dark .ant-card {
+/* FIX: Bug utama dashboard putih setelah toggle dark→light→dark.
+   Ant Design 5 (CSS-in-JS) menginjeksi background card via generated class.
+   Ketika toggle ulang ke dark mode, ada race condition antara update
+   ConfigProvider token dan CSS class .dark — hasilnya card sementara
+   atau permanen mengambil nilai dari `:root` (putih).
+   Solusi: paksa override dengan double specificity + !important.           */
+.dark .ant-card,
+html.dark .ant-card,
+body.dark .ant-card {
   background: var(--surface-card) !important;
   border-color: var(--border-subtle) !important;
+  color: var(--text-primary) !important;
+}
+
+.dark .ant-card-body,
+html.dark .ant-card-body,
+body.dark .ant-card-body {
+  background: transparent !important;
+  color: var(--text-primary) !important;
 }
 
 .ant-card-head {
@@ -290,7 +339,9 @@ h1, h2, h3, h4, h5, h6,
 }
 
 .dark .ant-card-head {
+  background: transparent !important;
   border-bottom-color: rgba(201,168,76,0.07) !important;
+  color: var(--text-primary) !important;
 }
 
 /* Premium card hover */
@@ -298,6 +349,130 @@ h1, h2, h3, h4, h5, h6,
   box-shadow: var(--shadow-gold-lg) !important;
   border-color: var(--border-default) !important;
   transform: translateY(-2px) !important;
+}
+
+/* ================================================================
+   PRO COMPONENTS DARK MODE — FIX TOGGLE BUG
+   Bug: ProTable toolbar, ProCard, ProLayout content area tidak
+   memiliki dark override sehingga menggunakan default putih.
+   ================================================================ */
+.dark .ant-pro-card,
+.dark [class*='ant-pro-card'] {
+  background: var(--surface-card) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+.dark .ant-pro-card-body {
+  background: transparent !important;
+}
+
+.dark .ant-pro-table-list-toolbar,
+.dark .ant-pro-table-list-toolbar-container {
+  background: var(--surface-card) !important;
+  border-bottom-color: rgba(201,168,76,0.08) !important;
+}
+
+.dark .ant-pro-table-list-toolbar-title {
+  color: var(--text-primary) !important;
+}
+
+/* ProLayout content wrapper dark */
+.dark .ant-pro-layout-content,
+.dark .ant-pro-layout .ant-layout {
+  background: var(--surface-base) !important;
+}
+
+/* Pagination dark */
+.dark .ant-pagination-item {
+  background: rgba(255,255,255,0.04) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+.dark .ant-pagination-item a {
+  color: var(--text-secondary) !important;
+}
+
+.dark .ant-pagination-item-active {
+  background: rgba(201,168,76,0.15) !important;
+  border-color: rgba(201,168,76,0.40) !important;
+}
+
+.dark .ant-pagination-item-active a {
+  color: var(--gold-bright) !important;
+}
+
+.dark .ant-pagination-prev button,
+.dark .ant-pagination-next button {
+  background: rgba(255,255,255,0.04) !important;
+  border-color: var(--border-subtle) !important;
+  color: var(--text-secondary) !important;
+}
+
+/* ================================================================
+   RECHARTS DARK MODE — FIX CHART PUTIH SETELAH TOGGLE
+   Recharts render SVG — tidak inherit CSS variables maupun
+   Ant Design tokens. Harus di-override manual per element.
+   ================================================================ */
+
+/* Wrapper containers */
+.dark .recharts-wrapper {
+  background: transparent !important;
+}
+
+/* Cartesian grid lines */
+.dark .recharts-cartesian-grid line,
+.dark .recharts-cartesian-grid-horizontal line,
+.dark .recharts-cartesian-grid-vertical line {
+  stroke: rgba(255,255,255,0.05) !important;
+}
+
+/* Axis lines dan ticks */
+.dark .recharts-xAxis .recharts-cartesian-axis-line,
+.dark .recharts-yAxis .recharts-cartesian-axis-line {
+  stroke: rgba(255,255,255,0.08) !important;
+}
+
+.dark .recharts-xAxis .recharts-cartesian-axis-tick-line,
+.dark .recharts-yAxis .recharts-cartesian-axis-tick-line {
+  stroke: rgba(255,255,255,0.08) !important;
+}
+
+/* Axis tick text */
+.dark .recharts-xAxis .recharts-cartesian-axis-tick text,
+.dark .recharts-yAxis .recharts-cartesian-axis-tick text {
+  fill: var(--text-tertiary) !important;
+}
+
+/* Legend */
+.dark .recharts-legend-item-text {
+  color: var(--text-secondary) !important;
+  fill: var(--text-secondary) !important;
+}
+
+/* Tooltip */
+.dark .recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: var(--surface-elevated) !important;
+  border: 1px solid var(--border-default) !important;
+  border-radius: 10px !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+.dark .recharts-default-tooltip .recharts-tooltip-label {
+  color: var(--text-primary) !important;
+}
+
+.dark .recharts-default-tooltip .recharts-tooltip-item {
+  color: var(--text-secondary) !important;
+}
+
+/* ResponsiveContainer background fix */
+.dark .recharts-responsive-container {
+  background: transparent !important;
+}
+
+/* Area/Bar chart reference lines */
+.dark .recharts-reference-line line {
+  stroke: rgba(201,168,76,0.20) !important;
 }
 
 /* ================================================================
@@ -335,7 +510,7 @@ h1, h2, h3, h4, h5, h6,
 }
 
 /* ================================================================
-   ANT STATISTIC
+   ANT STATISTIC — DARK MODE
    ================================================================ */
 .ant-statistic-title {
   font-size: 11px !important;
@@ -348,6 +523,82 @@ h1, h2, h3, h4, h5, h6,
 .ant-statistic-content-value {
   font-family: var(--font-display) !important;
   letter-spacing: -0.03em !important;
+}
+
+.dark .ant-statistic-title {
+  color: var(--text-tertiary) !important;
+}
+
+.dark .ant-statistic-content {
+  color: var(--text-primary) !important;
+}
+
+/* ================================================================
+   ANT POPCONFIRM / POPOVER DARK MODE
+   ================================================================ */
+.dark .ant-popover-inner {
+  background: var(--surface-elevated) !important;
+  border: 1px solid var(--border-subtle) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+.dark .ant-popover-title {
+  color: var(--text-primary) !important;
+  border-bottom-color: var(--border-subtle) !important;
+}
+
+.dark .ant-popover-inner-content,
+.dark .ant-popconfirm-description {
+  color: var(--text-secondary) !important;
+}
+
+.dark .ant-popover-arrow::before,
+.dark .ant-popover-arrow::after {
+  background: var(--surface-elevated) !important;
+}
+
+/* ================================================================
+   ANT FORM DARK MODE
+   ================================================================ */
+.dark .ant-form-item-label > label {
+  color: var(--text-secondary) !important;
+}
+
+.dark .ant-form-item-explain-error {
+  color: var(--danger) !important;
+}
+
+/* DatePicker dark */
+.dark .ant-picker {
+  background: rgba(255,255,255,0.04) !important;
+  border-color: var(--border-default) !important;
+  color: var(--text-primary) !important;
+}
+
+.dark .ant-picker-input > input {
+  color: var(--text-primary) !important;
+}
+
+.dark .ant-picker-suffix {
+  color: var(--text-tertiary) !important;
+}
+
+/* InputNumber dark */
+.dark .ant-input-number {
+  background: rgba(255,255,255,0.04) !important;
+  border-color: var(--border-default) !important;
+  color: var(--text-primary) !important;
+}
+
+.dark .ant-input-number-input {
+  color: var(--text-primary) !important;
+  background: transparent !important;
+}
+
+.dark .ant-input-number-group-addon {
+  background: rgba(255,255,255,0.06) !important;
+  border-color: var(--border-default) !important;
+  color: var(--text-secondary) !important;
 }
 
 /* ================================================================
@@ -499,10 +750,23 @@ h1, h2, h3, h4, h5, h6,
   50%       { box-shadow: 0 0 0 8px rgba(201,168,76,0); }
 }
 
-/* Dot pulse */
+/* Dot pulse — Enhanced for visibility */
 @keyframes dotPulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%       { opacity: 0.55; transform: scale(0.7); }
+  0% {
+    transform: scale(0.8);
+    opacity: 0.6;
+    box-shadow: 0 0 0 0 rgba(255, 183, 0, 0.7);
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+    box-shadow: 0 0 10px 2px rgba(255, 183, 0, 0.5);
+  }
+  100% {
+    transform: scale(0.8);
+    opacity: 0.6;
+    box-shadow: 0 0 0 0 rgba(255, 183, 0, 0);
+  }
 }
 
 /* Float up/down */
@@ -546,11 +810,14 @@ h1, h2, h3, h4, h5, h6,
 /* Live dot indicator */
 .live-dot {
   display: inline-block;
-  width: 6px; height: 6px;
+  width: 7px; height: 7px;
   border-radius: 50%;
   background: var(--gold-bright);
   animation: dotPulse 2s ease-in-out infinite;
   flex-shrink: 0;
+  margin-right: 2px;
+  position: relative;
+  z-index: 2;
 }
 
 .live-dot.green   { background: var(--success); }
@@ -620,3 +887,37 @@ h1, h2, h3, h4, h5, h6,
   line-height: 1 !important;
   font-feature-settings: 'tnum';
 }
+
+/* ================================================================
+   CATATAN FIX TAMBAHAN — WAJIB DI REACT (bukan CSS)
+   ================================================================
+   Selain fix CSS di atas, ada 1 fix wajib di sisi React untuk
+   mengatasi white card bug secara tuntas:
+
+   Di file App.tsx atau _app.tsx, tambahkan `key={mode}` pada
+   ConfigProvider agar seluruh component tree di-remount saat
+   mode berubah, memaksa semua useToken() hooks mengambil nilai baru:
+
+   ─── SEBELUM (bug) ───────────────────────────────────────────
+   <ConfigProvider theme={{ algorithm: mode === 'dark'
+     ? theme.darkAlgorithm
+     : theme.defaultAlgorithm }}>
+     <App />
+   </ConfigProvider>
+
+   ─── SESUDAH (fix) ───────────────────────────────────────────
+   <ConfigProvider
+     key={mode}                    ← tambahkan ini
+     theme={{ algorithm: mode === 'dark'
+       ? theme.darkAlgorithm
+       : theme.defaultAlgorithm }}>
+     <App />
+   </ConfigProvider>
+
+   Penjelasan: Ant Design 5 CSS-in-JS menggunakan React context untuk
+   propagasi token. Tanpa key, context update mungkin tidak memicu
+   re-render pada komponen yang memo-ized atau deeply nested, sehingga
+   token lama (putih) tetap digunakan meski mode sudah berubah.
+   key={mode} memaksa full remount — sedikit lebih lambat tapi
+   menjamin semua token ter-refresh dengan benar.
+   ================================================================ */

@@ -28,7 +28,7 @@ export const KesehatanCreate = () => {
     });
 
     return (
-        <Create saveButtonProps={saveButtonProps} title="Catat Kunjungan UKS / Sakit">
+        <Create saveButtonProps={saveButtonProps} title="Catat Tindakan Kesehatan">
             <Form 
                 {...formProps} 
                 layout="vertical"

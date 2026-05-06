@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useForm } from "@refinedev/antd";
 import { useList, useUpdate, useCreate, useDelete } from "@refinedev/core";
 import {
@@ -640,13 +640,26 @@ export const InstansiPage = () => {
   // ══════════════════════════════════════════════════════════
   // RENDER
   // ══════════════════════════════════════════════════════════
+  useEffect(() => {
+    const styleId = "instansi-dynamic-styles";
+    let styleTag = document.getElementById(styleId);
+    if (!styleTag) {
+      styleTag = document.createElement("style");
+      styleTag.id = styleId;
+      document.head.appendChild(styleTag);
+    }
+    styleTag.innerHTML = buildStyles(mode);
+    return () => {
+      // Optional: cleanup if you want styles to disappear when leaving the page
+      // styleTag?.remove(); 
+    };
+  }, [mode]);
+
   return (
     <div
       className="pp-root"
       style={{ background: t.bg, minHeight:"100vh", paddingBottom:80 }}
     >
-      <style>{buildStyles(mode)}</style>
-
       {/* ═══════════════════════════════════════════════════
           HERO BANNER
       ═══════════════════════════════════════════════════ */}

@@ -10,7 +10,7 @@
  * ╚══════════════════════════════════════════════════════════════════════════╝
  */
 
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect } from "react";
 import "@ant-design/v5-patch-for-react-19";
 import "@refinedev/antd/dist/reset.css";
 import "./styles/mobile-fix.css";
@@ -48,9 +48,8 @@ import routerBindings, {
   NavigateToResource,
   UnsavedChangesNotifier,
 } from "@refinedev/react-router-v6";
-import { RefineKbar, RefineKbarProvider } from "@refinedev/kbar";
-import { dataProvider } from "@refinedev/supabase";
-import { BrowserRouter, Outlet, Route, Routes, useLocation } from "react-router-dom";
+import { dataProvider, liveProvider } from "@refinedev/supabase";
+import { BrowserRouter, Outlet, Route, Routes } from "react-router-dom";
 
 import { authProvider }          from "./authProvider";
 import { accessControlProvider } from "./accessControlProvider";
@@ -72,7 +71,7 @@ import {
 
 import { DashboardPage }      from "./pages/dashboard";
 import { AiFloatingButton }   from "./components/AiFloatingButton";
-import { GeminiConsultant }   from "./components/GeminiConsultant";
+import { GeminiConsultant } from "./components/GeminiConsultant";
 import { InstansiPage }       from "./pages/instansi";
 import { SantriList }         from "./pages/santri/list";
 import { SantriCreate }       from "./pages/santri/create";
@@ -128,9 +127,9 @@ import { NotificationCreate } from "./pages/notifications/create";
 // ╚══════════════════════════════════════════════════════════════════════════╝
 
 const GOLD        = "#C9A84C";
-const GOLD_LIGHT  = "#FDE68A";  // synced: index.css --gold-light
-const GOLD_BRIGHT = "#FFB700";  // synced: index.css --gold-bright (was #FFD166 — FIXED)
-const GOLD_DEEP   = "#8B6914";  // synced: index.css --gold-dark (was #A07830 — FIXED)
+const GOLD_LIGHT  = "#E8C96A";
+const GOLD_BRIGHT = "#FFD166";  // index.css --gold-bright
+const GOLD_DEEP   = "#A07830";  // derived from --gold-dark
 
 // Dark — matches index.css .dark values exactly
 const D_BG      = "#08070D";   // --surface-base dark
@@ -871,35 +870,10 @@ const PremiumLoginPage: React.FC = () => {
               background:`linear-gradient(135deg, ${GOLD}25, ${GOLD_BRIGHT}15)`,
               border:`1.5px solid ${GOLD}45`, borderRadius:22,
               display:"flex", alignItems:"center", justifyContent:"center",
-              boxShadow: isDark ? `0 0 32px ${GOLD}25, 0 8px 24px rgba(0,0,0,0.30)` : `0 8px 24px ${GOLD}20`,
-              position:"relative", overflow:"hidden",
+              boxShadow: isDark ? `0 0 32px ${GOLD}25, 0 8px 24px rgba(0,0,0,0.30)` : "none",
+              overflow: "hidden", padding: 12
             }}>
-              {/* Pesantren SVG Mark — konsisten dengan Title & header */}
-              <svg width="42" height="42" viewBox="0 0 32 32" fill="none"
-                style={{ filter: `drop-shadow(0 0 6px ${GOLD_BRIGHT}80)` }}>
-                <path d="M16 3C11.029 3 7 7.029 7 12V14H25V12C25 7.029 20.971 3 16 3Z"
-                  fill={isDark ? GOLD_BRIGHT : GOLD_DEEP} opacity="0.95"/>
-                <rect x="5" y="10" width="3" height="11" rx="1.5"
-                  fill={isDark ? GOLD_BRIGHT : GOLD_DEEP} opacity="0.7"/>
-                <path d="M5.5 10 L8 10 L6.5 7 Z"
-                  fill={isDark ? GOLD_BRIGHT : GOLD_DEEP} opacity="0.85"/>
-                <rect x="24" y="10" width="3" height="11" rx="1.5"
-                  fill={isDark ? GOLD_BRIGHT : GOLD_DEEP} opacity="0.7"/>
-                <path d="M24 10 L26.5 10 L25.5 7 Z"
-                  fill={isDark ? GOLD_BRIGHT : GOLD_DEEP} opacity="0.85"/>
-                <rect x="9" y="14" width="14" height="9" rx="2"
-                  fill={isDark ? GOLD_BRIGHT : GOLD_DEEP} opacity="0.85"/>
-                <path d="M13.5 23V18.5C13.5 17.12 14.62 16 16 16C17.38 16 18.5 17.12 18.5 18.5V23"
-                  stroke="black" strokeWidth="1.2" opacity="0.30"/>
-                <circle cx="12" cy="17.5" r="1.2" fill="black" opacity="0.25"/>
-                <circle cx="20" cy="17.5" r="1.2" fill="black" opacity="0.25"/>
-                <rect x="4" y="23" width="24" height="2" rx="1"
-                  fill={isDark ? GOLD_BRIGHT : GOLD_DEEP} opacity="0.5"/>
-                <path d="M16 5.5C17.2 5.5 18.3 6 19 6.9C18.3 6.5 17.5 6.3 16.6 6.4C14.8 6.6 13.4 8 13.3 9.8C13.2 8.9 13.4 8 13.9 7.2C14.5 6.2 15.2 5.5 16 5.5Z"
-                  fill="white" opacity="0.55"/>
-                <path d="M21.5 5L21.9 6.2L23.1 6.2L22.1 7L22.5 8.2L21.5 7.5L20.5 8.2L20.9 7L19.9 6.2L21.1 6.2Z"
-                  fill="#FDE68A" opacity="0.80"/>
-              </svg>
+              <img src="/logo.ico" alt="Logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
             </div>
             <div style={{
               position:"absolute", bottom:-6, right:-6,
@@ -1020,31 +994,44 @@ const PremiumLoginPage: React.FC = () => {
 const AIConsultantWrapper: React.FC = () => {
   const { data: user } = useGetIdentity<IUserIdentity>();
   const allowed = ["super_admin", "dewan", "rois"];
+  
   if (!user || !allowed.includes(user.role)) return null;
-  return <><AiFloatingButton /><GeminiConsultant /></>;
-};
 
-// ✅ FIX #1: PageWrapper menggunakan useLocation().pathname sebagai key
-// Tanpa key berbeda, AnimatePresence TIDAK PERNAH trigger transisi halaman
-// karena React menganggap children tidak berubah.
-const PageWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const location = useLocation();
+  // URL Edge Function Supabase untuk AI Consultant
+  const edgeFunctionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/gemini-consultant`;
+
+  // Mapping identity ke profile yang dibutuhkan component
+  const callerProfile = {
+    id: user.id,
+    full_name: user.name,
+    role: user.role as any,
+    akses_gender: user.scopeGender,
+    akses_jurusan: user.scopeJurusan,
+  };
+
   return (
-    <AnimatePresence mode="wait" initial={false}>
-      <motion.div
-        key={location.pathname}           // ← KEY KRITIS: berubah setiap navigasi
-        className="alh-page-enter"
-        initial={{ opacity:0, y:12 }}
-        animate={{ opacity:1, y:0  }}
-        exit={{ opacity:0, y:-8    }}
-        transition={{ duration:0.32, ease:[0.22,1,0.36,1] }}
-        style={{ width:"100%", minHeight:"100%" }}
-      >
-        {children}
-      </motion.div>
-    </AnimatePresence>
+    <>
+      <AiFloatingButton />
+      <GeminiConsultant 
+        edgeFunctionUrl={edgeFunctionUrl}
+        callerProfile={callerProfile}
+      />
+    </>
   );
 };
+
+const PageWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <motion.div
+    className="alh-page-enter"
+    initial={{ opacity:0, y:12 }}
+    animate={{ opacity:1, y:0  }}
+    exit={{ opacity:0, y:-8    }}
+    transition={{ duration:0.32, ease:[0.22,1,0.36,1] }}
+    style={{ width:"100%" }}
+  >
+    {children}
+  </motion.div>
+);
 
 
 // ╔══════════════════════════════════════════════════════════════════════════╗
@@ -1065,11 +1052,7 @@ const PageWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 const InnerApp: React.FC = () => {
   const { mode } = useColorMode();
-
-  // ✅ FIX #2: useMemo — buildPremiumTheme adalah objek besar 100+ token.
-  // Tanpa memo, ia dibuat ulang setiap render menyebabkan seluruh
-  // ConfigProvider re-render dan semua komponen Ant Design ikut re-render.
-  const antThemeConfig = useMemo(() => buildPremiumTheme(mode), [mode]);
+  const antThemeConfig = buildPremiumTheme(mode);
 
   useEffect(() => {
     // Get or create the style element
@@ -1090,10 +1073,9 @@ const InnerApp: React.FC = () => {
     <ConfigProvider theme={antThemeConfig} locale={idID}>
       <AntdApp>
         <DevtoolsProvider>
-          {/* ✅ FIX #4: RefineKbarProvider aktifkan command palette (Ctrl+K / ⌘+K) */}
-          <RefineKbarProvider>
-            <Refine
+          <Refine
             dataProvider={dataProvider(supabaseClient)}
+            liveProvider={liveProvider(supabaseClient)}
             authProvider={authProvider}
             accessControlProvider={accessControlProvider}
             routerProvider={routerBindings}
@@ -1103,6 +1085,11 @@ const InnerApp: React.FC = () => {
               warnWhenUnsavedChanges: true,
               useNewQueryKeys:        true,
               projectId:              "alhasanah-admin-panel",
+              liveMode:               "auto",
+              title: {
+                text: "Al-Hasanah Media",
+                icon: <img src="/logo.ico" alt="Logo" style={{ width: "24px" }} />
+              }
             }}
             resources={[
               { name:"dashboard",      list:"/",         meta:{ label:"Dashboard",                icon:<DashboardOutlined /> } },
@@ -1164,10 +1151,9 @@ const InnerApp: React.FC = () => {
                     Header={() => <Header sticky />}
                     Sider={(props) => <ThemedSiderV2 {...props} fixed Title={Title} />}
                   >
-                    {/* ✅ FIX #1: AnimatePresence dipindah ke dalam PageWrapper.
-                        PageWrapper menggunakan useLocation().pathname sebagai key
-                        sehingga setiap navigasi trigger animasi masuk/keluar. */}
-                    <PageWrapper><Outlet /></PageWrapper>
+                    <AnimatePresence mode="wait">
+                      <PageWrapper><Outlet /></PageWrapper>
+                    </AnimatePresence>
                     <AIConsultantWrapper />
                   </ThemedLayoutV2>
                 </Authenticated>
@@ -1265,26 +1251,8 @@ const InnerApp: React.FC = () => {
             </Routes>
 
             <UnsavedChangesNotifier />
-            {/* ✅ FIX #5: DocumentTitleHandler dengan custom handler
-                Sebelumnya: tab selalu "Refine" generic
-                Sesudahnya: "Daftar Santri · Al-Hasanah" dst */}
-            <DocumentTitleHandler
-              handler={({ resource, action }) => {
-                const label = resource?.meta?.label ?? resource?.name ?? "";
-                const actionMap: Record<string, string> = {
-                  list:   label,
-                  create: `Tambah ${label}`,
-                  edit:   `Edit ${label}`,
-                  show:   `Detail ${label}`,
-                };
-                const title = actionMap[action ?? "list"] ?? label;
-                return title ? `${title} · Al-Hasanah` : "Al-Hasanah";
-              }}
-            />
-            {/* ✅ FIX #4: RefineKbar renders command palette UI (Ctrl+K / ⌘+K) */}
-            <RefineKbar />
+            <DocumentTitleHandler />
           </Refine>
-          </RefineKbarProvider>
         </DevtoolsProvider>
       </AntdApp>
     </ConfigProvider>
