@@ -68,6 +68,7 @@ import {
   SettingOutlined, FormOutlined, ProjectOutlined,
   DashboardOutlined, BankOutlined, ShoppingCartOutlined,
   SafetyCertificateOutlined, MailOutlined, LockOutlined,
+  HistoryOutlined,
 } from "@ant-design/icons";
 
 import { DashboardPage }      from "./pages/dashboard";
@@ -101,6 +102,8 @@ import { InventarisShow }     from "./pages/inventaris/show";
 import { TagihanList }        from "./pages/tagihan/list";
 import { TagihanCreate }      from "./pages/tagihan/create";
 import { TagihanEdit }        from "./pages/tagihan/edit";
+import { TransaksiList }      from "./pages/transaksi/list";
+import { TransaksiCreate }    from "./pages/transaksi/create";
 import { MurojaahList }       from "./pages/murojaah/list";
 import { MurojaahCreate }     from "./pages/murojaah/create";
 import { MurojaahShow }       from "./pages/murojaah/show";
@@ -1134,6 +1137,8 @@ const InnerApp: React.FC = () => {
               { name:"akademik",     list:"/akademik",    meta:{ label:"Laporan Nilai",                icon:<BookOutlined /> } },
               { name:"tagihan_santri", list:"/tagihan", create:"/tagihan/create", edit:"/tagihan/edit/:id",
                 meta:{ label:"Keuangan & SPP", icon:<WalletOutlined /> } },
+              { name:"transaksi_keuangan", list:"/transaksi", create:"/transaksi/create",
+                meta:{ label:"Riwayat Transaksi", icon:<HistoryOutlined /> } },
               { name:"diklat", meta:{ label:"Diklat & Pasaran", icon:<RocketOutlined /> } },
               { name:"diklat_list",   list:"/diklat",        meta:{ label:"Daftar Peserta",     parent:"diklat", icon:<TeamOutlined /> } },
               { name:"diklat_master", list:"/diklat/master", meta:{ label:"Master Data Diklat", parent:"diklat", icon:<SettingOutlined /> } },
@@ -1230,6 +1235,10 @@ const InnerApp: React.FC = () => {
                   <Route index          element={<TagihanList />}   />
                   <Route path="create"  element={<TagihanCreate />} />
                   <Route path="edit/:id" element={<TagihanEdit />}  />
+                </Route>
+                <Route path="/transaksi">
+                  <Route index element={<TransaksiList />} />
+                  <Route path="create" element={<TransaksiCreate />} />
                 </Route>
                 <Route path="/pengeluaran" element={<PengeluaranList />} />
 

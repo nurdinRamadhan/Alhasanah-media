@@ -1603,7 +1603,7 @@ export const PerizinanList = () => {
                         fontSize: 11, color: IZN.primary, fontWeight: 500,
                     }}>
                         <FileProtectOutlined style={{ marginRight: 6 }} />
-                        File Excel menggunakan kop surat resmi Pesantren Al-Hasanah dengan highlight status otomatis.
+                        file excel di-Generate automatis oleh system Al-Hasanah
                     </div>
                 </div>
             </Modal>

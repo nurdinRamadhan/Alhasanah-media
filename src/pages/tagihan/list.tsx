@@ -14,8 +14,8 @@ import {
     ThunderboltOutlined, DeleteOutlined, BarChartOutlined,
     ClockCircleOutlined, ExclamationCircleOutlined, RiseOutlined,
 } from "@ant-design/icons";
-import { ITagihanSantri, ISantri } from "../../types";
-import { useNavigation, useDelete, useUpdate } from "@refinedev/core";
+import { ITagihanSantri, ISantri, IUserIdentity } from "../../types";
+import { useNavigation, useDelete, useUpdate, useCreate, useGetIdentity } from "@refinedev/core";
 import { formatHijri, formatMasehi } from "../../utility/dateHelper";
 import dayjs from "dayjs";
 import ExcelJS from "exceljs";
@@ -45,6 +45,8 @@ export const TagihanList = () => {
     const { push } = useNavigation();
     const { mutate: deleteMutate } = useDelete();
     const { mutate: updateMutate } = useUpdate();
+    const { mutate: createTransaksi } = useCreate();
+    const { data: user } = useGetIdentity<IUserIdentity>();
 
     // ── Dark Mode Detection ──────────────────
     const isDark = token.colorBgBase !== "#ffffff";
@@ -91,7 +93,7 @@ export const TagihanList = () => {
                 },
             ],
         },
-        meta: { select: "*, santri!inner(nama, nis, kelas, jurusan, foto_url)" },
+        meta: { select: "*, santri!inner(nama, nis, kelas, jurusan, foto_url, wali_id)" },
         sorters: { initial: [{ field: "created_at", order: "desc" }] },
     });
 
@@ -161,6 +163,8 @@ export const TagihanList = () => {
     const handleCashPayment = () => {
         if (!selectedTagihan) return;
         setIsProcessing(true);
+
+        // Update Status Tagihan (Sinkronisasi ke Transaksi Keuangan ditangani Trigger DB v2.0)
         updateMutate(
             {
                 resource: "tagihan_santri",
@@ -198,6 +202,8 @@ export const TagihanList = () => {
                 body: {
                     order_id: selectedTagihan.id,
                     gross_amount: selectedTagihan.sisa_tagihan,
+                    santri_nis: selectedTagihan.santri_nis,
+                    wali_id: selectedTagihan.santri?.wali_id,
                     customer_details: {
                         first_name: selectedTagihan.santri?.nama,
                         email: "admin@alhasanah.com",

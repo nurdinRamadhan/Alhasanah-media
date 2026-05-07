@@ -12,7 +12,7 @@ export type TipeKelas = '1' | '2' | '3';
 export type TipeJurusan = 'KITAB' | 'TAHFIDZ';
 export type StatusSantri = 'AKTIF' | 'LULUS' | 'KELUAR' | 'ALUMNI';
 export type StatusTagihan = 'LUNAS' | 'BELUM' | 'CICILAN';
-export type StatusTransaksi = 'pending' | 'settlement' | 'expire' | 'deny' | 'cancel';
+export type StatusTransaksi = 'pending' | 'success' | 'failed' | 'expire' | 'cancel' | 'settlement' | 'deny';
 export type JenisTransaksi = 'masuk' | 'keluar';
 
 // --- SCOPES ---
@@ -401,14 +401,22 @@ export interface ITransaksiKeuangan {
   id: string; // UUID
   wali_id: string | null;
   admin_pencatat_id: string | null;
+  santri_nis: string | null;
   midtrans_order_id: string | null; // Unique Key
   midtrans_snap_token: string | null;
   jumlah: number;
   tanggal_transaksi: string;
-  status_transaksi: StatusTransaksi;
+  status_transaksi: string;
+  status: StatusTransaksi;
   metode_pembayaran: string; // 'cash', 'bca', 'gopay'
   jenis_transaksi: JenisTransaksi;
+  keterangan: string | null;
   created_at: string;
+
+  // Relations
+  wali?: IProfile;
+  admin?: IProfile;
+  santri?: ISantri;
 }
 
 export interface IDetailTransaksi {

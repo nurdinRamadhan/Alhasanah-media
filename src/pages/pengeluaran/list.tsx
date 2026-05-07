@@ -295,7 +295,23 @@ export const PengeluaranList = () => {
         };
         try {
             if (modalMode === "CREATE") {
+                // 1. Catat ke Tabel Pengeluaran
                 await createMutate({ resource: "pengeluaran", values: payload });
+
+                // 2. Catat ke Jurnal Umum (Transaksi Keuangan)
+                await createMutate({
+                    resource: "transaksi_keuangan",
+                    values: {
+                        jumlah: payload.nominal,
+                        tanggal_transaksi: payload.tanggal_pengeluaran + "T12:00:00Z", // Gunakan jam tengah hari agar aman di timezone
+                        status_transaksi: "settlement",
+                        metode_pembayaran: "cash", // Pengeluaran diasumsikan cash/transfer manual
+                        jenis_transaksi: "keluar",
+                        admin_pencatat_id: user?.id,
+                        keterangan: `[PENGELUARAN] ${payload.judul}: ${payload.keterangan || ""}`
+                    }
+                });
+
                 logActivity({ user, action: "CREATE", resource: "pengeluaran", record_id: "-", details: { judul: String(payload.judul), nominal: Number(payload.nominal), kategori: String(payload.kategori) } });
                 message.success("Pengeluaran berhasil dicatat");
             } else {

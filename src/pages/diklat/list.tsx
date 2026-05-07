@@ -12,13 +12,13 @@ import {
     SafetyCertificateOutlined, CalendarOutlined,
     PhoneOutlined, IdcardOutlined,
 } from "@ant-design/icons";
-import { useDelete, useGetIdentity, useUpdate } from "@refinedev/core";
+import { useDelete, useGetIdentity, useUpdate, useCreate } from "@refinedev/core";
 import { useReactToPrint } from "react-to-print";
 import { QRCode } from "antd";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import dayjs from "dayjs";
-import { IPesertaDiklat, IProfile, IConfigDiklat } from "../../types";
+import { IPesertaDiklat, IProfile, IConfigDiklat, IUserIdentity } from "../../types";
 import { supabaseClient } from "../../utility/supabaseClient";
 import { useColorMode } from "../../contexts/color-mode";
 import { formatHijri, formatMasehi } from "../../utility/dateHelper";
@@ -48,9 +48,10 @@ const JENIS_OPTIONS = [
 export const DiklatList = () => {
     const { token } = useToken();
     const { mode } = useColorMode();
-    const { data: user } = useGetIdentity<IProfile>();
+    const { data: user } = useGetIdentity<IUserIdentity>();
     const { mutate: deleteMutate } = useDelete();
     const { mutate: updateMutate } = useUpdate();
+    const { mutate: createTransaksi } = useCreate();
 
     const isDark = mode === "dark";
 
@@ -125,10 +126,27 @@ export const DiklatList = () => {
     const persentaseLunas = totalPeserta > 0 ? Math.round((stats.lunas / totalPeserta) * 100) : 0;
 
     // ── Confirm Payment ────────────────────────
-    const handleConfirmPayment = (id: number) => {
+    const handleConfirmPayment = (record: IPesertaDiklat) => {
+        const total = Number(record.biaya_pendaftaran || 0) + Number(record.belanja_kitab_nominal || 0);
+        
+        // 1. Catat ke Jurnal Umum (Transaksi Keuangan)
+        createTransaksi({
+            resource: "transaksi_keuangan",
+            values: {
+                jumlah: total,
+                tanggal_transaksi: dayjs().toISOString(),
+                status_transaksi: "settlement",
+                metode_pembayaran: "cash",
+                jenis_transaksi: "masuk",
+                admin_pencatat_id: user?.id || null,
+                keterangan: `Pembayaran Diklat (${record.jenis_diklat} ${record.tahun_diklat}H): ${record.nama_lengkap}`
+            }
+        });
+
+        // 2. Update Status Peserta
         updateMutate({
             resource: "peserta_diklat",
-            id: id.toString(),
+            id: record.id.toString(),
             values: { status_pembayaran: "LUNAS" },
             successNotification: () => ({ message: "Pembayaran berhasil dikonfirmasi.", type: "success" }),
         });
@@ -307,7 +325,7 @@ export const DiklatList = () => {
                         <Popconfirm
                             title="Konfirmasi Pembayaran"
                             description={<div style={{ maxWidth: 240, fontSize: 12 }}>Pastikan peserta sudah hadir dan telah melakukan pembayaran secara tunai.</div>}
-                            onConfirm={() => handleConfirmPayment(record.id)}
+                            onConfirm={() => handleConfirmPayment(record)}
                             okText="✓ Konfirmasi"
                             cancelText="Batal"
                             okButtonProps={{ style: { background: G.gradient, border: "none", color: "#fff", fontWeight: 700 } }}
