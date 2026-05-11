@@ -118,7 +118,11 @@ export default function MapScene({
           return el;
         };
         scene.addControl(brandingControl);
-        try { (scene as any).map.resize(); } catch (e) {}
+        try {
+          (scene as any).map.resize();
+        } catch {
+          // L7 may throw while the underlying map is still initializing.
+        }
       });
     } else {
       // if scene already exists, just set style (avoid destroy/create)
@@ -135,7 +139,11 @@ export default function MapScene({
     if (containerRef.current && !resizeObserverRef.current) {
       const ro = new ResizeObserver(() => {
         if (sceneRef.current) {
-          try { (sceneRef.current as any).map.resize(); } catch (e) {}
+          try {
+            (sceneRef.current as any).map.resize();
+          } catch {
+            // Ignore transient resize errors during layout changes.
+          }
         }
       });
       ro.observe(containerRef.current);
@@ -145,7 +153,11 @@ export default function MapScene({
     // cleanup only on unmount (do not destroy on theme change)
     return () => {
       if (resizeObserverRef.current && containerRef.current) {
-        try { resizeObserverRef.current.unobserve(containerRef.current); } catch (e) {}
+        try {
+          resizeObserverRef.current.unobserve(containerRef.current);
+        } catch {
+          // Observer cleanup is best effort on unmount.
+        }
       }
       // If your app truly navigates away and you want to free memory, you can destroy here:
       // if (sceneRef.current) { sceneRef.current.destroy(); sceneRef.current = null; }
@@ -162,7 +174,11 @@ export default function MapScene({
 
     // cleanup previous layers
     Object.values(layersRef.current).forEach((ly) => {
-      try { if (ly) scene.removeLayer(ly); } catch (e) {}
+      try {
+        if (ly) scene.removeLayer(ly);
+      } catch {
+        // Layer may already be detached by the map runtime.
+      }
     });
     layersRef.current = {};
 

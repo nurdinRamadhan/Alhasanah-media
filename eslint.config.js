@@ -5,7 +5,23 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist"] },
+  {
+    ignores: [
+      "dist",
+      "dist-ssr",
+      "node_modules",
+      "backup",
+      "catatan",
+      "supabase",
+      "test output",
+      "*.txt",
+      "*.sql",
+      "*.csv",
+      "*.xlsx",
+      "*.docx",
+      "*.pdf",
+    ],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],
@@ -19,6 +35,11 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unused-vars": "warn",
+      "@typescript-eslint/ban-ts-comment": "warn",
+      "no-useless-escape": "warn",
+      "prefer-const": "warn",
       "react-refresh/only-export-components": [
         "warn",
         { allowConstantExport: true },

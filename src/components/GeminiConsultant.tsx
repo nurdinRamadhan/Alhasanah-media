@@ -460,10 +460,18 @@ ${instr}
     setChatMessages(prev => prev.map(m => m.id === msgId ? { ...m, actionStatus: "executing" } : m));
     try {
       const { data, error } = await supabaseClient.functions.invoke("ai-agent", {
-        body: { mode: "execute", actionToExecute: { toolName: msg.actionData.toolName, args: msg.actionData.args }, callerProfile },
+        body: { 
+          mode: "execute", 
+          actionToExecute: { toolName: msg.actionData.toolName, args: msg.actionData.args }, 
+          callerProfile,
+          conversationHistory: geminiHistory // Pass history for consistency
+        },
       });
       if (error) throw new Error(error.message);
+      
       const success = data?.success !== false;
+      if (data.updatedHistory) setGeminiHistory(data.updatedHistory);
+
       setChatMessages(prev => prev.map(m =>
         m.id === msgId ? { ...m, actionStatus: success ? "success" : "failed", resultData: data } : m
       ));

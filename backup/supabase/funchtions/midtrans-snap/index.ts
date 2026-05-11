@@ -18,44 +18,66 @@ serve(async (req) => {
     if (!midtransServerKey) throw new Error("Environment Variable: MIDTRANS_SERVER_KEY is missing");
 
     const body = await req.json();
-    let { order_id, gross_amount, customer_details, item_details, santri_nis, wali_id } = body;
+    let { order_id, gross_amount, customer_details, item_details, santri_nis, wali_id, is_donation } = body;
 
-    if (!order_id || !gross_amount) throw new Error("Missing required fields: order_id or gross_amount");
+    if (!gross_amount) throw new Error("Missing required field: gross_amount");
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // --- FIX 1: AMBIL DATA LENGKAP JIKA ANDROID KIRIM PARSIAL ---
-    if (!santri_nis || !wali_id) {
-        console.log(`[SNAP] Missing identifiers, looking up for Tagihan: ${order_id}`);
-        const { data: tagihan, error: dbErr } = await supabase
-            .from("tagihan_santri")
-            .select(`
-                santri_nis, 
-                santri(wali_id)
-            `)
-            .eq("id", order_id)
-            .maybeSingle();
+    // --- LOGIKA IDENTIFIKASI TRANSAKSI ---
+    let finalOrderId = order_id;
+    let description = "Pembayaran Tagihan Digital";
+
+    if (is_donation) {
+        // Jika Donasi: Buat Order ID khusus
+        const donationType = (Array.isArray(item_details) && item_details.length > 0) 
+            ? item_details[0].name 
+            : "Infaq/Shadaqah";
         
-        if (tagihan) {
-            santri_nis = santri_nis || tagihan.santri_nis;
-            const dbWaliId = (tagihan.santri as any)?.wali_id;
-            wali_id = wali_id || dbWaliId;
-            console.log(`[SNAP] Found Identifiers -> NIS: ${santri_nis}, Wali: ${wali_id}`);
-        } else if (dbErr) {
-            console.error(`[SNAP] DB Lookup Error:`, dbErr);
+        const timestamp = Date.now();
+        finalOrderId = `DONASI-${donationType.toUpperCase().replace(/\s+/g, '-')}-${timestamp}`;
+        description = `[DONASI] ${donationType} dari ${customer_details?.first_name || 'Hamba Allah'}`;
+        
+        console.log(`[SNAP] Processing Donation: ${finalOrderId}`);
+    } else {
+        // Jika Tagihan: Lakukan lookup identitas jika perlu
+        if (!santri_nis || !wali_id) {
+            console.log(`[SNAP] Missing identifiers, looking up for Tagihan: ${order_id}`);
+            const { data: tagihan, error: dbErr } = await supabase
+                .from("tagihan_santri")
+                .select(`
+                    santri_nis, 
+                    santri(wali_id)
+                `)
+                .eq("id", order_id)
+                .maybeSingle();
+            
+            if (tagihan) {
+                santri_nis = santri_nis || tagihan.santri_nis;
+                const dbWaliId = (tagihan.santri as any)?.wali_id;
+                wali_id = wali_id || dbWaliId;
+                console.log(`[SNAP] Found Identifiers -> NIS: ${santri_nis}, Wali: ${wali_id}`);
+            } else if (dbErr) {
+                console.error(`[SNAP] DB Lookup Error:`, dbErr);
+            }
         }
+        
+        const timestamp = Date.now();
+        finalOrderId = `${order_id}_${timestamp}`;
+        description = (Array.isArray(item_details) && item_details.length > 0) 
+            ? item_details[0].name 
+            : "Pembayaran Tagihan Digital";
     }
 
     // --- FIX 2: MEMBERSIHKAN PAYLOAD MIDTRANS ---
-    const uniqueOrderId = `${order_id}_${Date.now()}`;
     const cleanAmount = Math.round(Number(gross_amount));
 
     const midtransPayload: any = {
       transaction_details: {
-        order_id: uniqueOrderId,
+        order_id: finalOrderId,
         gross_amount: cleanAmount, 
       },
-      customer_details: customer_details || { first_name: "Wali Santri" },
+      customer_details: customer_details || { first_name: "Hamba Allah" },
       credit_card: { secure: true }
     };
 
@@ -92,27 +114,23 @@ serve(async (req) => {
     // --- FIX 3: LOG TRANSAKSI (Gunakan Enum yang Benar) ---
     try {
         if (midtransData.token) {
-            const deskripsi = (Array.isArray(item_details) && item_details.length > 0) 
-                ? item_details[0].name 
-                : "Pembayaran Tagihan Digital";
-
             const { error: logErr } = await supabase.from("transaksi_keuangan").insert({
                 jumlah: cleanAmount,
                 tanggal_transaksi: new Date().toISOString(),
-                status_transaksi: "pending", // text column
-                status: "pending",           // enum tipe_status_transaksi
+                status_transaksi: "pending", 
+                status: "pending",           
                 metode_pembayaran: "midtrans",
                 jenis_transaksi: "masuk",
                 santri_nis: santri_nis,
                 wali_id: wali_id,
-                admin_pencatat_id: null,      // FIX: Hindari FK Constraint error jika auth.uid() invalid
-                midtrans_order_id: uniqueOrderId,
+                admin_pencatat_id: null,      
+                midtrans_order_id: finalOrderId,
                 midtrans_snap_token: midtransData.token,
-                keterangan: `[MIDTRANS] Menunggu Pembayaran: ${deskripsi}`
+                keterangan: `[MIDTRANS] Menunggu Pembayaran: ${description}`
             });
             
             if (logErr) throw logErr;
-            console.log(`[SNAP] Logged pending transaction: ${uniqueOrderId}`);
+            console.log(`[SNAP] Logged pending transaction: ${finalOrderId}`);
         }
     } catch (logErr) {
         console.error("[SNAP] Logging to DB failed:", logErr);

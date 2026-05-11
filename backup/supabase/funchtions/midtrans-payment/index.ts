@@ -27,17 +27,44 @@ Deno.serve(async (req) => {
             Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
         )
 
-        // 1. Ambil data tagihan untuk referensi (Audit Trail & Metadata)
-        const { data: tagihan } = await supabase
-            .from('tagihan_santri')
-            .select('*, santri(wali_id, nama)')
-            .eq('id', tagihanId)
-            .single()
+        const isDonasi = orderIdRaw.startsWith('DONASI')
+        let santriNis = null
+        let waliId = null
+        let deskripsiFinal = `[MIDTRANS] Pembayaran Berhasil (${notification.payment_type || 'online'})`
 
-        console.log(`[PAYMENT] Processing payment for Santri: ${tagihan?.santri?.nama || 'Unknown'}`)
+        if (!isDonasi) {
+            // --- LOGIKA TAGIHAN SANTRI ---
+            const { data: tagihan } = await supabase
+                .from('tagihan_santri')
+                .select('*, santri(wali_id, nama)')
+                .eq('id', tagihanId)
+                .single()
 
-        // 2. Tandai Tagihan LUNAS
-        await supabase.from('tagihan_santri').update({ status: 'LUNAS' }).eq('id', tagihanId)
+            if (tagihan) {
+                santriNis = tagihan.santri_nis
+                waliId = tagihan.santri?.wali_id
+                console.log(`[PAYMENT] Processing payment for Santri: ${tagihan.santri?.nama || 'Unknown'}`)
+                
+                // Tandai Tagihan LUNAS
+                await supabase.from('tagihan_santri').update({ status: 'LUNAS' }).eq('id', tagihanId)
+            }
+        } else {
+            // --- LOGIKA DONASI UMUM ---
+            console.log(`[PAYMENT] Processing Donation: ${orderIdRaw}`)
+            
+            // Ambil data dari log pending untuk mendapatkan info donatur jika ada
+            const { data: existingTrx } = await supabase
+                .from('transaksi_keuangan')
+                .select('*')
+                .eq('midtrans_order_id', orderIdRaw)
+                .maybeSingle()
+            
+            if (existingTrx) {
+                santriNis = existingTrx.santri_nis
+                waliId = existingTrx.wali_id
+                if (existingTrx.keterangan) deskripsiFinal = existingTrx.keterangan.replace('Menunggu Pembayaran', 'Berhasil')
+            }
+        }
 
         // 3. UPSERT KE BUKU BESAR (Enum: success)
         const { error: errTrx } = await supabase
@@ -47,14 +74,14 @@ Deno.serve(async (req) => {
                 jumlah: Math.round(Number(notification.gross_amount)),
                 tanggal_transaksi: new Date().toISOString(),
                 waktu_bayar_sukses: new Date().toISOString(),
-                status_transaksi: transactionStatus, // Simpan status asli Midtrans (settlement/capture)
-                status: 'success',                   // Enum tipe_status_transaksi WAJIB 'success'
+                status_transaksi: transactionStatus,
+                status: 'success',
                 metode_pembayaran: notification.payment_type || 'digital',
                 jenis_transaksi: 'masuk',
-                santri_nis: tagihan?.santri_nis,
-                wali_id: tagihan?.santri?.wali_id,
-                admin_pencatat_id: null,              // FIX: Webhook tidak punya context Admin
-                keterangan: `[MIDTRANS] Pembayaran Berhasil (${notification.payment_type || 'online'})`
+                santri_nis: santriNis,
+                wali_id: waliId,
+                admin_pencatat_id: null,
+                keterangan: deskripsiFinal
             }, { onConflict: 'midtrans_order_id' }) 
 
         if (errTrx) {

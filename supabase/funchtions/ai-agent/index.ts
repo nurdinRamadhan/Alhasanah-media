@@ -1,7 +1,7 @@
 // ╔══════════════════════════════════════════════════════════════════╗
 // ║          AI AGENT - SUPABASE EDGE FUNCTION                      ║
 // ║          Sistem Manajemen Pesantren                             ║
-// ║          Version: 2.0 | Multi-turn | HITL | Role-Aware         ║
+// ║          Version: 3.0 | Multi-turn | HITL | Role-Aware         ║
 // ╚══════════════════════════════════════════════════════════════════╝
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -41,11 +41,6 @@ const ROLE_TOOL_PERMISSIONS: Record<TRole, string[]> = {
 const QUERY_TOOLS = new Set(["query_santri", "query_tagihan", "query_keuangan", "query_pelanggaran", "query_kesehatan", "query_perizinan", "query_hafalan", "query_prestasi", "query_inventaris", "query_ref_jenis_pembayaran", "query_dompet"]);
 const ACTION_TOOLS = new Set(["generate_tagihan_massal", "generate_tagihan_individual", "update_status_tagihan", "update_status_santri", "update_santri_data", "insert_pelanggaran", "insert_pelanggaran_massal", "insert_kesehatan", "insert_perizinan", "insert_prestasi", "insert_hafalan_tahfidz", "insert_hafalan_kitab", "insert_murojaah", "insert_pengeluaran", "topup_dompet", "kirim_notifikasi"]);
 
-function canUse(role: TRole, toolName: string): boolean {
-  const perms = ROLE_TOOL_PERMISSIONS[role] || [];
-  return perms.includes("*") || perms.includes(toolName);
-}
-
 // ── TOOL DEFINITIONS ─────────────────────────────────────────────
 const ALL_TOOLS = [
   { name: "query_santri", description: "Cari data santri (NIS, nama, kelas, jurusan, status).", parameters: { type: "object", properties: { kelas: { type: "string", enum: ["1", "2", "3"] }, jurusan: { type: "string", enum: ["KITAB", "TAHFIDZ"] }, status_santri: { type: "string", enum: ["AKTIF", "LULUS", "KELUAR", "ALUMNI"] }, jenis_kelamin: { type: "string", enum: ["L", "P"] }, nama_search: { type: "string" }, nis: { type: "string" }, limit: { type: "number" } } } },
@@ -70,7 +65,7 @@ const ALL_TOOLS = [
   { name: "insert_hafalan_tahfidz", description: "Catat hafalan Quran.", parameters: { type: "object", properties: { santri_nis: { type: "string" }, surat: { type: "string" }, ayat_awal: { type: "number" }, ayat_akhir: { type: "number" }, status: { type: "string" }, predikat: { type: "string" } }, required: ["santri_nis", "surat", "ayat_awal", "ayat_akhir", "status", "predikat"] } },
   { name: "insert_pengeluaran", description: "Catat pengeluaran.", parameters: { type: "object", properties: { judul: { type: "string" }, kategori: { type: "string" }, nominal: { type: "number" }, tanggal_pengeluaran: { type: "string" } }, required: ["judul", "kategori", "nominal", "tanggal_pengeluaran"] } },
   { name: "topup_dompet", description: "Top-up saldo dompet.", parameters: { type: "object", properties: { santri_nis: { type: "string" }, nominal: { type: "number" } }, required: ["santri_nis", "nominal"] } },
-  { name: "kirim_notifikasi", description: "Kirim push notification.", parameters: { type: "object", properties: { target: { type: "string" }, title: { type: "string" }, body: { type: "string" } }, required: ["target", "title", "body"] } },
+  { name: "kirim_notifikasi", description: "Kirim push notification ke Wali.", parameters: { type: "object", properties: { santri_nis: { type: "string" }, title: { type: "string" }, body: { type: "string" }, type: { type: "string" } }, required: ["santri_nis", "title", "body"] } },
 ];
 
 // ── UTILS ────────────────────────────────────────────────────────
@@ -95,19 +90,24 @@ async function executeQueryTool(supabase: any, toolName: string, args: any, call
       let q = supabase.from("santri").select("*");
       if (args.kelas) q = q.eq("kelas", args.kelas);
       if (args.jurusan) q = q.eq("jurusan", args.jurusan);
+      if (args.status_santri) q = q.eq("status_santri", args.status_santri);
+      if (args.jenis_kelamin) q = q.eq("jenis_kelamin", args.jenis_kelamin);
       if (args.nama_search) q = q.ilike("nama", `%${args.nama_search}%`);
       if (args.nis) q = q.eq("nis", args.nis);
       const { data, error } = await applyScope(q).limit(args.limit || 100);
       if (error) throw error; return { data, total: data?.length };
     }
     case "query_tagihan": {
+      // Use correct relationship names from schema: santri_nis (santri) and jenis_pembayaran_id (ref_jenis_pembayaran)
       let q = supabase.from("tagihan_santri").select("*, santri:santri_nis(nama, kelas, jurusan), jenis_bayar:jenis_pembayaran_id(nama_pembayaran)");
       if (args.santri_nis) q = q.eq("santri_nis", args.santri_nis);
       if (args.status) q = q.eq("status", args.status);
       if (args.bulan) q = q.gte("created_at", `${args.bulan}-01`).lt("created_at", getNextMonthStart(args.bulan));
+      if (args.jenis_pembayaran_id) q = q.eq("jenis_pembayaran_id", args.jenis_pembayaran_id);
+      
       const { data, error } = await q.limit(args.limit || 100);
       if (error) throw error;
-      const totalSisa = data?.reduce((s: number, t: any) => s + (t.sisa_tagihan || 0), 0);
+      const totalSisa = data?.reduce((s: number, t: any) => s + (Number(t.sisa_tagihan) || 0), 0);
       return { data, summary: { total_sisa: totalSisa, total_record: data?.length } };
     }
     case "query_ref_jenis_pembayaran": {
@@ -118,21 +118,36 @@ async function executeQueryTool(supabase: any, toolName: string, args: any, call
       const table = args.jenis === "pengeluaran" ? "pengeluaran" : "transaksi_keuangan";
       let q = supabase.from(table).select("*");
       if (args.bulan) q = q.gte(args.jenis === "pengeluaran" ? "tanggal_pengeluaran" : "created_at", `${args.bulan}-01`);
+      if (args.kategori) q = q.eq("kategori", args.kategori);
       const { data, error } = await q.limit(args.limit || 100);
       if (error) throw error; return { data };
     }
     case "query_pelanggaran": {
       let q = supabase.from("pelanggaran_santri").select("*, santri:santri_nis(nama, kelas, jurusan)");
       if (args.santri_nis) q = q.eq("santri_nis", args.santri_nis);
+      if (args.jenis_pelanggaran) q = q.ilike("jenis_pelanggaran", `%${args.jenis_pelanggaran}%`);
       const { data, error } = await q.limit(args.limit || 100);
       if (error) throw error; return { data, total_poin: data?.reduce((s: number, p: any) => s + (p.poin || 0), 0) };
+    }
+    case "query_kesehatan": {
+      let q = supabase.from("kesehatan_santri").select("*, santri:santri_nis(nama, kelas, jurusan)");
+      if (args.santri_nis) q = q.eq("santri_nis", args.santri_nis);
+      if (args.keluhan) q = q.ilike("keluhan", `%${args.keluhan}%`);
+      const { data, error } = await q.limit(args.limit || 100);
+      if (error) throw error; return { data };
     }
     case "query_dompet": {
       const { data: dompet, error } = await supabase.from("dompet_santri").select("*").eq("santri_nis", args.santri_nis).single();
       if (error && error.code !== "PGRST116") throw error;
-      return { dompet: dompet || { saldo: 0 } };
+      
+      let history = [];
+      if (args.include_history) {
+        const { data } = await supabase.from("transaksi_dompet").select("*").eq("santri_nis", args.santri_nis).order("created_at", { ascending: false }).limit(10);
+        history = data || [];
+      }
+      return { dompet: dompet || { saldo: 0 }, history };
     }
-    default: return { error: "Query tool not implemented in this version." };
+    default: return { error: `Query tool '${toolName}' not implemented.` };
   }
 }
 
@@ -143,91 +158,201 @@ async function executeActionTool(supabase: any, toolName: string, args: any, cal
       const { error } = await supabase.from("pelanggaran_santri").insert({ santri_nis: args.santri_nis, jenis_pelanggaran: args.jenis_pelanggaran, poin: args.poin, tanggal: tStr, dicatat_oleh_id: caller.id });
       if (error) throw error; return { success: true };
     }
+    case "insert_kesehatan": {
+      const { error } = await supabase.from("kesehatan_santri").insert({ santri_nis: args.santri_nis, keluhan: args.keluhan, tindakan: args.tindakan, tanggal: tStr, dicatat_oleh_id: caller.id });
+      if (error) throw error; return { success: true };
+    }
+    case "update_status_tagihan": {
+      const updateData: any = { status: args.status_baru, updated_at: new Date().toISOString() };
+      if (args.sisa_tagihan !== undefined) updateData.sisa_tagihan = args.sisa_tagihan;
+      const { error } = await supabase.from("tagihan_santri").update(updateData).eq("id", args.tagihan_id);
+      if (error) throw error; return { success: true };
+    }
     case "topup_dompet": {
       const { data: ext } = await supabase.from("dompet_santri").select("saldo").eq("santri_nis", args.santri_nis).single();
-      const nS = (ext?.saldo || 0) + args.nominal;
+      const nS = (Number(ext?.saldo) || 0) + Number(args.nominal);
       await supabase.from("dompet_santri").upsert({ santri_nis: args.santri_nis, saldo: nS }, { onConflict: "santri_nis" });
       await supabase.from("transaksi_dompet").insert({ santri_nis: args.santri_nis, jenis: "masuk", nominal: args.nominal, keterangan: "Top-up via AI", dicatat_oleh_id: caller.id });
       return { success: true, saldo_baru: nS };
     }
-    default: return { error: "Action tool not implemented in this version." };
+    case "kirim_notifikasi": {
+      // Logic from push-notifications/SUPABASE_SETUP.txt
+      const { data: santri } = await supabase.from("santri").select("wali_id").eq("nis", args.santri_nis).single();
+      if (!santri?.wali_id) throw new Error("Wali tidak ditemukan untuk santri ini.");
+      
+      const { error } = await supabase.from("notification_queue").insert({
+        user_id: santri.wali_id,
+        title: args.title,
+        body: args.body,
+        data: { type: args.type || "general", nis: args.santri_nis },
+        source_table: "ai_agent"
+      });
+      if (error) throw error; return { success: true, detail: "Notifikasi dimasukkan ke antrean." };
+    }
+    default: return { error: `Action tool '${toolName}' not implemented.` };
   }
 }
 
 function buildActionSummary(toolName: string, args: any): string {
-  return `**Aksi: ${toolName}**\n\`\`\`json\n${JSON.stringify(args, null, 2)}\n\`\`\``;
+  let summary = `**Aksi: ${toolName.replace(/_/g, " ").toUpperCase()}**\n\n`;
+  for (const [key, value] of Object.entries(args)) {
+    summary += `- **${key}**: ${typeof value === "object" ? JSON.stringify(value) : value}\n`;
+  }
+  return summary;
 }
 
 function buildSystemPrompt(caller: CallerProfile, toolNames: string[]) {
-  return `Kamu adalah AI Agent Pesantren Al-Hasanah. Nama: ${caller.full_name}, Role: ${caller.role}. Hari ini: ${today()}.\nTools: ${toolNames.join(", ")}.\nAturan: 1. Query sebelum action. 2. Action butuh konfirmasi. 3. Respek scope user.`;
+  return `Kamu adalah AI Agent Pesantren Al-Hasanah yang sangat cerdas dan takzim.
+Nama User: ${caller.full_name}
+Role User: ${caller.role} (Pastikan aksi sesuai dengan wewenang role ini)
+Hari ini: ${today()}
+
+TOOLS YANG TERSEDIA:
+${toolNames.join(", ")}
+
+ATURAN KERJA:
+1. Selalu gunakan QUERY sebelum melakukan ACTION untuk memastikan data (seperti NIS santri) akurat.
+2. Setiap ACTION (seperti insert, update, topup) WAJIB melalui konfirmasi user (HITL).
+3. Berikan jawaban dalam Bahasa Indonesia yang formal dan sopan.
+4. Jika user bertanya hal umum, jawab secara informatif berdasarkan data yang ada.
+5. Jika data tidak ditemukan, informasikan dengan santun.
+6. PENTING: Jika kamu memanggil tool, jangan memberikan asumsi hasil sebelum tool tersebut benar-benar dieksekusi.
+
+STRUKTUR DATA:
+- Santri diidentifikasi dengan 'nis' (String).
+- Nominal uang selalu dalam integer (Rupiah).
+- Tanggal gunakan format YYYY-MM-DD.`;
 }
 
 // ── MAIN HANDLER ──────────────────────────────────────────────────
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const geminiKey = Deno.env.get("GEMINI_API_KEY");
+
+  if (!supabaseUrl || !supabaseKey || !geminiKey) {
+    return jsonResponse({ error: "Configuration Error: API Keys are missing in Edge Function secrets." }, 500);
+  }
+
   try {
     const body = await req.json().catch(() => ({}));
     const { mode = "chat", userMessage, conversationHistory = [], actionToExecute, callerProfile } = body;
+    
     if (!callerProfile?.id) return jsonResponse({ error: "Missing callerProfile" }, 401);
     const caller = callerProfile as CallerProfile;
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-
+    // ── EXECUTE MODE (After User Approval) ────────────────────────
     if (mode === "execute") {
       const { toolName, args } = actionToExecute || {};
-      const res = await executeActionTool(supabase, toolName, args, caller);
-      return jsonResponse({ ...res, toolName });
-    }
-    if (mode === "rejected") return jsonResponse({ message: "Dibatalkan" });
+      try {
+        const res = await executeActionTool(supabase, toolName, args, caller);
+        
+        // Add function response to history for multi-turn consistency
+        const updatedHistory = [...conversationHistory, {
+          role: "model",
+          parts: [{ functionCall: { name: toolName, args } }]
+        }, {
+          role: "model", // In Gemini, tool results are often part of a specific flow
+          parts: [{ functionResponse: { name: toolName, response: { content: res } } }]
+        }];
 
-    const apiKey = Deno.env.get("GEMINI_API_KEY");
+        return jsonResponse({ ...res, toolName, updatedHistory });
+      } catch (e: any) {
+        return jsonResponse({ success: false, error: e.message, toolName }, 400);
+      }
+    }
+
+    if (mode === "rejected") return jsonResponse({ message: "Aksi dibatalkan oleh pengguna." });
+
+    // CHAT MODE (Gemini Core Loop)
     const rolePerms = ROLE_TOOL_PERMISSIONS[caller.role] || [];
     const availableTools = rolePerms.includes("*") ? ALL_TOOLS : ALL_TOOLS.filter(t => rolePerms.includes(t.name));
     const systemPrompt = buildSystemPrompt(caller, availableTools.map(t => t.name));
 
-    let messages = [...conversationHistory, { role: "user", parts: [{ text: userMessage || "Halo" }] }];
+    let messages = [...conversationHistory];
     
-    // Model Call
-    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: systemPrompt }] },
-        contents: messages,
-        tools: availableTools.length > 0 ? [{ function_declarations: availableTools }] : undefined,
-        tool_config: { function_calling_config: { mode: "AUTO" } },
-        generationConfig: { temperature: 0.1, maxOutputTokens: 4096 },
-      }),
-    });
-
-    if (!geminiRes.ok) {
-      const err = await geminiRes.json().catch(() => ({}));
-      return jsonResponse({ error: "Gemini API Error", detail: err }, 500);
+    // Move system prompt to the beginning if history is empty, or as a prefix
+    if (messages.length === 0) {
+      messages.push({ role: "user", parts: [{ text: `SYSTEM INSTRUCTION: ${systemPrompt}\n\nUSER MESSAGE: ${userMessage || "Halo"}` }] });
+    } else if (userMessage) {
+      messages.push({ role: "user", parts: [{ text: userMessage }] });
     }
 
-    const data = await geminiRes.json();
-    const candidate = data.candidates?.[0]?.content;
-    if (!candidate) return jsonResponse({ type: "text", answer: "Maaf, AI tidak merespons." });
+    let turnCount = 0;
+    while (turnCount < 5) {
+      turnCount++;
+      const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: messages,
+          tools: availableTools.length > 0 ? [{ function_declarations: availableTools }] : undefined,
+          tool_config: { function_calling_config: { mode: "AUTO" } },
+          generationConfig: { temperature: 0.1, maxOutputTokens: 4096 },
+        }),
+      });
 
-    messages.push({ role: "model", parts: candidate.parts });
-    const fnCall = candidate.parts.find((p: any) => p.functionCall);
-    const textPart = candidate.parts.find((p: any) => p.text);
+      if (!geminiRes.ok) {
+        const err = await geminiRes.json().catch(() => ({}));
+        console.error("Gemini API Error:", JSON.stringify(err));
+        return jsonResponse({ error: "Gemini API Error", detail: err.error?.message || "Unknown" }, 500);
+      }
 
-    if (fnCall) {
-      const { name, args } = fnCall.functionCall;
-      if (ACTION_TOOLS.has(name)) {
-        return jsonResponse({ type: "action_required", toolName: name, args, actionSummary: buildActionSummary(name, args), aiPreMessage: textPart?.text, updatedHistory: messages });
+      const data = await geminiRes.json();
+      const candidate = data.candidates?.[0]?.content;
+      if (!candidate) return jsonResponse({ type: "text", answer: "Maaf, AI sedang tidak tersedia." });
+
+      messages.push({ role: "model", parts: candidate.parts });
+      const fnCallPart = candidate.parts.find((p: any) => p.functionCall);
+      const textPart = candidate.parts.find((p: any) => p.text);
+
+      if (fnCallPart) {
+        const { name, args } = fnCallPart.functionCall;
+        
+        // Jika ACTION TOOL: Berhenti dan minta konfirmasi (HITL)
+        if (ACTION_TOOLS.has(name)) {
+          // Remove last model message (the call) from history before returning to avoid duplication when re-submitting
+          // Wait, actually we NEED it in history for the NEXT turn.
+          return jsonResponse({ 
+            type: "action_required", 
+            toolName: name, 
+            args, 
+            actionSummary: buildActionSummary(name, args), 
+            aiPreMessage: textPart?.text, 
+            updatedHistory: messages 
+          });
+        }
+        
+        // Jika QUERY TOOL: Eksekusi langsung dan lanjut turn berikutnya
+        if (QUERY_TOOLS.has(name)) {
+          try {
+            const qRes = await executeQueryTool(supabase, name, args, caller);
+            messages.push({
+              role: "model", // Note: parts after functionCall in same turn
+              parts: [{ functionResponse: { name, response: { content: qRes } } }]
+            });
+            // Continue loop to let Gemini analyze the query result
+            continue;
+          } catch (e: any) {
+            messages.push({
+              role: "model",
+              parts: [{ functionResponse: { name, response: { content: { error: e.message } } } }]
+            });
+            continue;
+          }
+        }
       }
-      if (QUERY_TOOLS.has(name)) {
-        const qRes = await executeQueryTool(supabase, name, args, caller);
-        // Single turn for now to ensure stability
-        return jsonResponse({ type: "text", answer: `Hasil query ${name}: ${JSON.stringify(qRes)}`, updatedHistory: messages });
-      }
+
+      // Jika hanya TEXT: Berikan jawaban akhir
+      return jsonResponse({ type: "text", answer: textPart?.text || "Selesai.", updatedHistory: messages });
     }
 
-    return jsonResponse({ type: "text", answer: textPart?.text || "Selesai.", updatedHistory: messages });
+    return jsonResponse({ type: "text", answer: "Terlalu banyak langkah eksekusi. Mohon persempit permintaan Anda.", updatedHistory: messages });
 
   } catch (e: any) {
-    console.error("Agent Error:", e.message);
+    console.error("Global Agent Error:", e.message);
     return jsonResponse({ error: e.message }, 500);
   }
 });

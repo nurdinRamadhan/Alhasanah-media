@@ -559,7 +559,13 @@ export const Header: React.FC<RefineThemedLayoutV2HeaderProps> = ({ sticky }) =>
                     {/* Sub info row */}
                     <div
                         className="hidden sm:flex"
-                        style={{ alignItems: "center", gap: 8, marginTop: 2 }}
+                        style={{ 
+                            alignItems: "center", 
+                            gap: 8, 
+                            marginTop: 2,
+                            maxWidth: "clamp(200px, 40vw, 600px)", // Prevents it from pushing too far
+                            overflow: "hidden"
+                        }}
                     >
                         <span style={{
                             width: 3, height: 3, borderRadius: "50%",
@@ -567,10 +573,14 @@ export const Header: React.FC<RefineThemedLayoutV2HeaderProps> = ({ sticky }) =>
                             flexShrink: 0, opacity: 0.7,
                         }} />
                         <span style={{
-                            fontSize: 11, fontWeight: 600,
+                            fontSize: 10, fontWeight: 600,
                             color: isDark ? "rgba(255,183,0,0.45)" : "rgba(139,105,20,0.60)",
                             fontFamily: "'DM Sans', sans-serif",
-                            whiteSpace: "nowrap", letterSpacing: "0.02em",
+                            whiteSpace: "nowrap", 
+                            letterSpacing: "0.01em",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            display: "block"
                         }}>
                             Jl. Raya Cibeuti No.13, Cibeuti, Kec. Kawalu, Kab. Tasikmalaya • Jawa Barat
                         </span>

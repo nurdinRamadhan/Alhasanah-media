@@ -1,25 +1,38 @@
 import { AccessControlProvider, CanParams } from "@refinedev/core";
 import { supabaseClient } from "./utility/supabaseClient";
 
+// In-memory cache to prevent redundant API calls during a single render cycle or session
+let cachedRole: string | null = null;
+let cachedUserId: string | null = null;
+
 export const accessControlProvider: AccessControlProvider = {
   can: async ({ resource, action }: CanParams) => {
+    // 1. Dapatkan user session
     const { data: { user } } = await supabaseClient.auth.getUser();
-    if (!user) return { can: false, reason: "Unauthorized" };
+    if (!user) {
+      cachedRole = null;
+      cachedUserId = null;
+      return { can: false, reason: "Unauthorized" };
+    }
 
-    // Ambil Role real-time dari DB
-    const { data: profile } = await supabaseClient
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    // Pastikan selalu huruf kecil agar tidak error (Misal 'BENDAHARA' jadi 'bendahara')
-    const role = (profile?.role || "").toLowerCase();
+    // 2. Gunakan cache jika userId sama, untuk menghindari pemanggilan DB berulang (30-60x)
+    let role = "";
+    if (cachedUserId === user.id && cachedRole !== null) {
+      role = cachedRole;
+    } else {
+      const { data: profile } = await supabaseClient
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      
+      role = (profile?.role || "").toLowerCase();
+      cachedRole = role;
+      cachedUserId = user.id;
+    }
 
     // 1. SUPER ADMIN, ROIS, & DEWAN (Bebas Akses Semua Sidebar)
     if (["super_admin", "rois", "dewan"].includes(role)) {
-        // Dewan hanya Read-Only (Tidak bisa Create/Edit/Delete)
-        // KECUALI untuk notification_queue (Bisa Create)
         if (role === "dewan") {
             if (resource === "notification_queue" && action === "create") {
                 return { can: true };
@@ -34,10 +47,10 @@ export const accessControlProvider: AccessControlProvider = {
     // 2. KESANTRIAN
     if (role === "kesantrian") {
         const allowedKesantrian = [
-            "kesantrian_menu", "pelanggaran_santri", "kesehatan_santri", "perizinan_santri", // Grup Kesantrian
-            "tahfidz_menu", "hafalan_tahfidz", "murojaah_tahfidz", "hafalan_kitab", // Grup Tahfidz & Takhasus
-            "ulangan_menu", "weekly_tests", "ulangan_arsip", // Grup Ulangan Mingguan
-            "santri", "diklat", "berita", "alumni_data" // Menu Lainnya
+            "kesantrian_menu", "pelanggaran_santri", "kesehatan_santri", "perizinan_santri",
+            "tahfidz_menu", "hafalan_tahfidz", "murojaah_tahfidz", "hafalan_kitab",
+            "ulangan_menu", "weekly_tests", "ulangan_arsip",
+            "santri", "diklat", "berita", "alumni_data"
         ];
         
         if (allowedKesantrian.includes(resource || "")) {
@@ -53,7 +66,6 @@ export const accessControlProvider: AccessControlProvider = {
         ];
 
         if (allowedBendahara.includes(resource || "")) {
-            // Bendahara hanya boleh MELIHAT data santri, tidak boleh Edit/Hapus
             if (resource === "santri" && ["create", "edit", "delete"].includes(action || "")) {
                 return { can: false, reason: "Bendahara tidak bisa mengedit data santri." };
             }
@@ -62,7 +74,6 @@ export const accessControlProvider: AccessControlProvider = {
         return { can: false, reason: "Akses ditolak. Khusus Bendahara." };
     }
 
-    // Default: Tolak semua akses jika tidak terdaftar
     return { can: false };
   },
 };

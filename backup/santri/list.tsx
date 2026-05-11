@@ -13,7 +13,7 @@ import {
     EditOutlined, ManOutlined, WomanOutlined,
     TeamOutlined, CheckCircleOutlined, LogoutOutlined,
     BookOutlined, StarOutlined, DatabaseOutlined,
-    SearchOutlined, ReloadOutlined, FileExcelOutlined, FilePdfOutlined,
+    SearchOutlined, ReloadOutlined, FileExcelOutlined,
     FilterOutlined, SyncOutlined, CrownOutlined,
     AimOutlined, CloseCircleOutlined, RocketOutlined,
     TrophyOutlined,
@@ -21,6 +21,8 @@ import {
 import { useNavigation, CrudFilters } from "@refinedev/core";
 import { ISantri } from "../../types";
 import { formatMasehi } from "../../utility/dateHelper";
+import ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
 import dayjs from "dayjs";
 
 const { Text } = Typography;
@@ -29,13 +31,15 @@ const { useToken } = theme;
 // ═══════════════════════════════════════════════════════════════
 // DESIGN TOKENS — Konsisten dengan design system global
 // ═══════════════════════════════════════════════════════════════
-import { 
-  GOLD, GOLD_BRIGHT, GOLD_LIGHT, GOLD_DEEP, GOLD_DARK 
-} from "../../utility/themeConfig";
-
+const GOLD        = "#C9A84C";
+const GOLD_BRIGHT = "#FFB700";
+const GOLD_LIGHT  = "#FDE68A";
+const GOLD_DEEP   = "#8B6914";
+const GOLD_DARK   = "#5C430A";
 const SUCCESS     = "#059669";
 const DANGER      = "#DC2626";
 const INFO        = "#2563EB";
+const PURPLE      = "#7C3AED";
 const G           = (o: number) => `rgba(201,168,76,${o})`;
 
 // ═══════════════════════════════════════════════════════════════
@@ -79,7 +83,7 @@ const fadeUp: Variants = {
     hidden:  { opacity: 0, y: 18 },
     visible: (i = 0) => ({
         opacity: 1, y: 0,
-        transition: { duration: 0.48, ease: [0.22, 1, 0.36, 1] as const, delay: i * 0.07 },
+        transition: { duration: 0.48, ease: [0.22, 1, 0.36, 1], delay: i * 0.07 },
     }),
 };
 const stagger: Variants = { visible: { transition: { staggerChildren: 0.07 } } };
@@ -325,10 +329,6 @@ export const SantriList = () => {
         message.loading({ content: "Menyiapkan laporan Excel...", key, duration: 0 });
 
         try {
-            const [{ default: ExcelJS }, { saveAs }] = await Promise.all([
-                import("exceljs"),
-                import("file-saver"),
-            ]);
             const rawData = tableQueryResult?.data?.data || [];
 
             const wb = new ExcelJS.Workbook();
@@ -820,33 +820,7 @@ export const SantriList = () => {
 
                 {/* Right actions */}
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    {/* Export PDF */}
-                    <button
-                        onClick={() => {
-                            const filterDesc = [
-                                filters.status ? `Status: ${filters.status}` : "",
-                                filters.jurusan ? `Takhasus: ${filters.jurusan}` : "",
-                                filters.kelas ? `Kelas: ${filters.kelas}` : "",
-                                filters.nama ? `Nama: "${filters.nama}"` : "",
-                            ].filter(Boolean).join(" | ");
-                            import("../../utility/pdfHelper").then(({ exportSantriToPdf }) => {
-                                exportSantriToPdf(allData, filterDesc);
-                            });
-                        }}
-                        style={{
-                            display: "flex", alignItems: "center", gap: 7,
-                            padding: "0 16px", height: 38, borderRadius: 10,
-                            border: `1px solid rgba(220,38,38,0.28)`,
-                            background: isDark ? "rgba(220,38,38,0.08)" : "rgba(220,38,38,0.06)",
-                            color: DANGER, cursor: "pointer", fontSize: 12.5, fontWeight: 700,
-                            transition: "all 0.2s", fontFamily: "'DM Sans', sans-serif",
-                        }}
-                    >
-                        <FilePdfOutlined />
-                        Export PDF
-                    </button>
-
-                    {/* Export Excel */}
+                    {/* Export */}
                     <button
                         onClick={exportToExcel}
                         disabled={isExporting}
