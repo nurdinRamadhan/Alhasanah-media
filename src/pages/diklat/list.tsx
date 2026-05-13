@@ -635,7 +635,7 @@ export const DiklatList = () => {
                                 <div style={{ textAlign: "center", width: "170px" }}>
                                     <div style={{ fontSize: "12px", color: "#4B5563", marginBottom: "60px" }}>Peserta / Wali Santri,</div>
                                     <div style={{ fontWeight: 800, fontSize: "14px", borderBottom: "1.5px solid #111827", paddingBottom: "3px" }}>{printData?.nama_lengkap?.toUpperCase()}</div>
-                                    <div style={{ fontSize: "10px", color: "#9CA3AF", marginTop: "4px" }}>Tanda Tangan & Nama Terang</div>
+                                    <div style={{ fontSize: "10px", color: "#9CA3AF", marginTop: "4px" }}>Tanda tangan & Nama peserta </div>
                                 </div>
                                 <div style={{ textAlign: "center", width: "170px" }}>
                                     <div style={{ fontSize: "12px", color: "#4B5563", marginBottom: "10px" }}>Tasikmalaya, {dayjs().format("DD/MM/YYYY")}</div>

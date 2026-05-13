@@ -21,8 +21,7 @@ import {
     SettingOutlined, 
     BookOutlined,
 } from "@ant-design/icons";
-import { useTable } from "@refinedev/antd";
-import { useUpdate, useDelete, useCreate } from "@refinedev/core";
+import { useUpdate } from "@refinedev/core";
 import { supabaseClient } from "../../../utility/supabaseClient";
 import { IConfigDiklat, IMasterKitab } from "../../../types";
 import { useColorMode } from "../../../contexts/color-mode";
@@ -34,22 +33,30 @@ export const MasterDataPage = () => {
     const { token } = useToken();
     const { mode } = useColorMode();
     const { mutateAsync: updateMutate } = useUpdate();
-    const { mutateAsync: deleteMutate } = useDelete();
-    const { mutateAsync: createMutate } = useCreate();
 
+    const [allConfig, setAllConfig] = useState<IConfigDiklat[]>([]);
+    const [configLoading, setConfigLoading] = useState(false);
     const [allKitab, setAllKitab] = useState<IMasterKitab[]>([]);
     const [kitabLoading, setKitabLoading] = useState(false);
 
-    // 1. CONFIG DIKLAT TABLE
-    const { tableProps: configProps, tableQueryResult: configResult } = useTable<IConfigDiklat>({
-        resource: "config_diklat",
-        syncWithLocation: false,
-        pagination: { mode: "off" }, // Matikan paginasi untuk master data agar muncul semua
-        meta: { 
-            select: "*" // Pastikan mengambil semua kolom secara eksplisit
-        },
-        sorters: { initial: [{ field: "created_at", order: "desc" }] }
-    });
+    const fetchConfigManual = async () => {
+        setConfigLoading(true);
+        try {
+            const { data, error } = await supabaseClient
+                .from("config_diklat")
+                .select("*")
+                .order("created_at", { ascending: false });
+
+            if (error) throw error;
+            setAllConfig((data || []) as IConfigDiklat[]);
+        } catch (e: unknown) {
+            const err = e as Error;
+            console.error("Fetch Config Diklat Error:", err);
+            message.error("Gagal memuat konfigurasi Diklat: " + (err.message || "Terjadi kesalahan"));
+        } finally {
+            setConfigLoading(false);
+        }
+    };
 
     const fetchKitabManual = async () => {
         setAllKitab([]);
@@ -70,6 +77,7 @@ export const MasterDataPage = () => {
     };
 
     useEffect(() => {
+        fetchConfigManual();
         fetchKitabManual();
     }, []);
 
@@ -99,7 +107,7 @@ export const MasterDataPage = () => {
             message.success(`Konfigurasi tahun ${nextStatus ? 'diaktifkan' : 'dinonaktifkan'}`);
             
             // 3. Refresh data tabel
-            await configResult.refetch();
+            await fetchConfigManual();
         } catch (e: unknown) {
             const err = e as any;
             console.error("Update Status Error:", err);
@@ -139,8 +147,18 @@ export const MasterDataPage = () => {
                     key="delete"
                     title="Hapus konfigurasi ini?" 
                     onConfirm={async () => {
-                        await deleteMutate({ resource: "config_diklat", id: record.id.toString() });
-                        await configResult.refetch();
+                        const { error } = await supabaseClient
+                            .from("config_diklat")
+                            .delete()
+                            .eq("id", record.id);
+
+                        if (error) {
+                            message.error("Gagal menghapus konfigurasi: " + error.message);
+                            return;
+                        }
+
+                        message.success("Konfigurasi dihapus");
+                        await fetchConfigManual();
                     }}
                 >
                     <a className="text-red-500">Hapus</a>
@@ -247,8 +265,9 @@ export const MasterDataPage = () => {
                                     <EditableProTable<IConfigDiklat>
                                         headerTitle="Pengaturan Tahun & Administrasi"
                                         rowKey="id"
-                                        dataSource={configProps.dataSource}
-                                        loading={configProps.loading}
+                                        value={allConfig}
+                                        onChange={(data) => setAllConfig(data as IConfigDiklat[])}
+                                        loading={configLoading}
                                         columns={configColumns}
                                         search={false}
                                         options={false}
@@ -281,21 +300,26 @@ export const MasterDataPage = () => {
                                                 };
                                                 
                                                 try {
-                                                    if (typeof key === 'number' && key >= 10000) { 
-                                                        await createMutate({ 
-                                                            resource: "config_diklat", 
-                                                            values: cleanValues 
-                                                        });
+                                                    const numericKey = Number(key);
+                                                    const isNewRecord = numericKey >= 10000 && !row.created_at;
+
+                                                    if (isNewRecord) { 
+                                                        const { error } = await supabaseClient
+                                                            .from("config_diklat")
+                                                            .insert(cleanValues);
+
+                                                        if (error) throw error;
                                                         message.success("Konfigurasi baru ditambahkan");
                                                     } else {
-                                                        await updateMutate({ 
-                                                            resource: "config_diklat", 
-                                                            id: key.toString(), 
-                                                            values: cleanValues 
-                                                        });
+                                                        const { error } = await supabaseClient
+                                                            .from("config_diklat")
+                                                            .update(cleanValues)
+                                                            .eq("id", numericKey);
+
+                                                        if (error) throw error;
                                                         message.success("Konfigurasi diperbarui");
                                                     }
-                                                    await configResult.refetch();
+                                                    await fetchConfigManual();
                                                 } catch (e: unknown) {
                                                     const err = e as Error;
                                                     message.error("Gagal menyimpan: " + err.message);
