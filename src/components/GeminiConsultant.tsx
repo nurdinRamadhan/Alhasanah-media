@@ -10,6 +10,7 @@ import React, {
 import {
   Modal, Typography, Button, Spin, Avatar, Space,
   message as antMessage, Input, Tooltip, Tag, theme, Badge,
+  Select, DatePicker, Radio, Switch,
 } from "antd";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -19,6 +20,8 @@ import {
   ThunderboltOutlined, RobotOutlined, CheckCircleFilled,
   CloseCircleFilled, ExclamationCircleFilled, UserOutlined,
   LoadingOutlined, StarFilled, InfoCircleOutlined, ClearOutlined,
+  FileExcelOutlined, FilePdfOutlined, DownloadOutlined,
+  DatabaseOutlined, FilterOutlined,
 } from "@ant-design/icons";
 import { useList, useGetIdentity } from "@refinedev/core";
 import { Routes, Route } from "react-router-dom";
@@ -26,15 +29,28 @@ import dayjs from "dayjs";
 import ReactMarkdown from "react-markdown";
 import { supabaseClient } from "../utility/supabaseClient";
 import type { IUserIdentity, TGenderScope, TJurusanScope } from "../types";
+import {
+  REPORT_DEFINITIONS,
+  canAccessReport,
+  exportReportToExcel,
+  exportReportToPdf,
+  generateReportData,
+  getDefaultRange,
+  parseReportIntent,
+  type GeneratedReport,
+  type ReportFormat,
+  type ReportMode,
+} from "./reportEngine";
 
 const { Text } = Typography;
 const { TextArea } = Input;
+const { RangePicker } = DatePicker;
 
 // ══════════════════════════════════════════════════════════════════════════
 // TYPES
 // ══════════════════════════════════════════════════════════════════════════
 type TopicKey = "KESEHATAN" | "PELANGGARAN" | "KEUANGAN" | "ADMIN" | "TAHFIDZ" | "BEBAS";
-type AppMode  = "analysis" | "agent";
+type AppMode  = "analysis" | "agent" | "report";
 
 interface CacheEntry { answer: string; savedAt: number; }
 interface Santri { nama: string; kelas?: string; poin?: number; total_hafalan?: number; }
@@ -152,6 +168,28 @@ function useTypewriter() {
 // ══════════════════════════════════════════════════════════════════════════
 const nid = () => Math.random().toString(36).slice(2, 10);
 
+const getFunctionErrorMessage = async (error: unknown) => {
+  const fallback = error instanceof Error ? error.message : "Edge Function gagal dipanggil.";
+  const context = (error as { context?: Response })?.context;
+  if (!context) return fallback;
+
+  try {
+    const detail = await context.clone().json();
+    return detail?.detail?.error?.message
+      || detail?.detail?.message
+      || detail?.error
+      || detail?.message
+      || fallback;
+  } catch {
+    try {
+      const text = await context.clone().text();
+      return text || fallback;
+    } catch {
+      return fallback;
+    }
+  }
+};
+
 // ══════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ══════════════════════════════════════════════════════════════════════════
@@ -176,6 +214,21 @@ export const GeminiConsultant: React.FC<GeminiConsultantProps> = ({
   const [agentInput,    setAgentInput]    = useState("");
   const [agentLoading,  setAgentLoading]  = useState(false);
   const [geminiHistory, setGeminiHistory] = useState<GeminiConvMsg[]>([]);
+
+  // Report state
+  const [reportInput,   setReportInput]   = useState("");
+  const [reportKey,     setReportKey]     = useState("tagihan");
+  const [reportFormat,  setReportFormat]  = useState<ReportFormat>("excel");
+  const [reportMode,    setReportMode]    = useState<ReportMode>("global");
+  const [reportRange,   setReportRange]   = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(() => getDefaultRange(REPORT_DEFINITIONS.find(r => r.key === "tagihan")!));
+  const [reportKelas,   setReportKelas]   = useState("ALL");
+  const [reportJurusan, setReportJurusan] = useState("ALL");
+  const [reportGender,  setReportGender]  = useState("ALL");
+  const [reportStatus,  setReportStatus]  = useState("ALL");
+  const [reportSantri,  setReportSantri]  = useState<string | undefined>();
+  const [reportPreview, setReportPreview] = useState<GeneratedReport | null>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportAiAssist, setReportAiAssist] = useState(true);
 
   // Refs
   const analysisEndRef = useRef<HTMLDivElement>(null);
@@ -263,19 +316,133 @@ export const GeminiConsultant: React.FC<GeminiConsultantProps> = ({
   // ── Data fetching ──────────────────────────────────────────────────────
   const weekStart  = dayjs().startOf("week").toISOString();
   const monthStart = dayjs().startOf("month").format("YYYY-MM-DD");
+  const shouldLoadAnalysisData = isOpen && mode === "analysis";
+  const shouldLoadSantriOptions = isOpen && (
+    mode === "analysis" ||
+    (mode === "report" && reportMode === "personal")
+  );
+  const stableQueryOptions = {
+    enabled: shouldLoadAnalysisData,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: dataSakit }       = useList({ resource: "kesehatan_santri",   pagination: { mode: "off" }, filters: [{ field: "created_at",         operator: "gte", value: weekStart  }], queryOptions: { enabled: isOpen } });
+  const { data: dataSakit }       = useList({ resource: "kesehatan_santri",   pagination: { mode: "off" }, filters: [{ field: "created_at",         operator: "gte", value: weekStart  }], meta: { select: "id,santri_nis,keluhan,tindakan,created_at,tanggal" }, queryOptions: stableQueryOptions });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: dataPelanggaran } = useList({ resource: "pelanggaran_santri", pagination: { mode: "off" }, filters: [{ field: "created_at",         operator: "gte", value: weekStart  }], queryOptions: { enabled: isOpen } });
+  const { data: dataPelanggaran } = useList({ resource: "pelanggaran_santri", pagination: { mode: "off" }, filters: [{ field: "created_at",         operator: "gte", value: weekStart  }], meta: { select: "id,santri_nis,jenis_pelanggaran,poin,created_at,tanggal" }, queryOptions: stableQueryOptions });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: dataPengeluaran } = useList({ resource: "pengeluaran",        pagination: { mode: "off" }, filters: [{ field: "tanggal_pengeluaran", operator: "gte", value: monthStart }], queryOptions: { enabled: isOpen } });
+  const { data: dataPengeluaran } = useList({ resource: "pengeluaran",        pagination: { mode: "off" }, filters: [{ field: "tanggal_pengeluaran", operator: "gte", value: monthStart }], meta: { select: "id,nominal,kategori,judul,tanggal_pengeluaran" }, queryOptions: stableQueryOptions });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: dataTagihan }     = useList({ resource: "tagihan_santri",     pagination: { mode: "off" }, filters: [{ field: "created_at",         operator: "gte", value: monthStart }], queryOptions: { enabled: isOpen } });
+  const { data: dataTagihan }     = useList({ resource: "tagihan_santri",     pagination: { mode: "off" }, filters: [{ field: "created_at",         operator: "gte", value: monthStart }], meta: { select: "id,status,nominal_tagihan,sisa_tagihan,created_at" }, queryOptions: stableQueryOptions });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: dataAudit }       = useList({ resource: "audit_logs",         pagination: { pageSize: 20 }, sorters: [{ field: "created_at", order: "desc" }], queryOptions: { enabled: isOpen } });
+  const { data: dataAudit }       = useList({ resource: "audit_logs",         pagination: { pageSize: 20 }, sorters: [{ field: "created_at", order: "desc" }], meta: { select: "id,created_at,user_name,action,resource" }, queryOptions: stableQueryOptions });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: dataSantri }      = useList({ resource: "santri",             pagination: { mode: "off" }, meta: { select: "*" }, queryOptions: { enabled: isOpen } });
+  const { data: dataSantri }      = useList({ resource: "santri",             pagination: { mode: "off" }, meta: { select: "nis,nama,kelas,jurusan,jenis_kelamin,status_santri,total_hafalan" }, queryOptions: { enabled: shouldLoadSantriOptions, staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false } });
+
+  const availableReports = useMemo(
+    () => REPORT_DEFINITIONS.filter(def => canAccessReport(def, callerProfile?.role)),
+    [callerProfile?.role],
+  );
+  const selectedReport = useMemo(
+    () => availableReports.find(def => def.key === reportKey) || availableReports[0] || REPORT_DEFINITIONS[0],
+    [availableReports, reportKey],
+  );
+  const santriOptions = useMemo(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return ((dataSantri?.data ?? []) as any[])
+      .filter(s => {
+        if (callerProfile?.akses_jurusan !== "ALL" && s.jurusan !== callerProfile?.akses_jurusan) return false;
+        if (callerProfile?.akses_gender !== "ALL" && s.jenis_kelamin !== callerProfile?.akses_gender) return false;
+        if (reportKelas !== "ALL" && s.kelas !== reportKelas) return false;
+        if (reportJurusan !== "ALL" && s.jurusan !== reportJurusan) return false;
+        if (reportGender !== "ALL" && s.jenis_kelamin !== reportGender) return false;
+        return true;
+      })
+      .map(s => ({ value: s.nis, label: `${s.nama} · ${s.nis} · Kelas ${s.kelas ?? "-"}` }));
+  }, [callerProfile?.akses_gender, callerProfile?.akses_jurusan, dataSantri?.data, reportGender, reportJurusan, reportKelas]);
+
+  useEffect(() => {
+    if (!availableReports.some(def => def.key === reportKey) && availableReports[0]) {
+      setReportKey(availableReports[0].key);
+    }
+  }, [availableReports, reportKey]);
+
+  const applyReportDefinition = useCallback((key: string) => {
+    const def = REPORT_DEFINITIONS.find(r => r.key === key);
+    if (!def) return;
+    setReportKey(key);
+    setReportRange(getDefaultRange(def));
+    setReportStatus("ALL");
+    setReportPreview(null);
+    if (!def.formats.includes(reportFormat)) setReportFormat(def.formats[0]);
+  }, [reportFormat]);
+
+  const applyReportIntent = useCallback(() => {
+    const intent = parseReportIntent(reportInput);
+    if (intent.report && canAccessReport(intent.report, callerProfile?.role)) {
+      applyReportDefinition(intent.report.key);
+    }
+    if (intent.format && (!intent.report || intent.report.formats.includes(intent.format))) setReportFormat(intent.format);
+    if (intent.kelas) setReportKelas(intent.kelas);
+    if (intent.jurusan) setReportJurusan(intent.jurusan);
+    if (intent.gender) setReportGender(intent.gender);
+    if (intent.range) setReportRange(intent.range);
+    antMessage.success("Preferensi laporan dipahami dan diterapkan.");
+  }, [applyReportDefinition, callerProfile?.role, reportInput]);
+
+  const buildReportFilters = useCallback(() => ({
+    mode: reportMode,
+    format: reportFormat,
+    dateRange: reportRange,
+    kelas: reportKelas,
+    jurusan: reportJurusan,
+    gender: reportGender,
+    status: reportStatus,
+    santriNis: reportSantri,
+  }), [reportFormat, reportGender, reportJurusan, reportKelas, reportMode, reportRange, reportSantri, reportStatus]);
+
+  const previewReport = useCallback(async () => {
+    if (!callerProfile) { antMessage.error("Profil pengguna tidak ditemukan."); return; }
+    if (reportMode === "personal" && selectedReport.santriField && !reportSantri) {
+      antMessage.warning("Pilih santri untuk laporan personal.");
+      return;
+    }
+    setReportLoading(true);
+    try {
+      const report = await generateReportData(selectedReport, buildReportFilters(), callerProfile);
+      setReportPreview(report);
+      antMessage.success(`${report.rows.length} baris data siap diproses.`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Gagal membuat preview laporan.";
+      antMessage.error(msg);
+    } finally {
+      setReportLoading(false);
+    }
+  }, [buildReportFilters, callerProfile, reportMode, reportSantri, selectedReport]);
+
+  const downloadReport = useCallback(async () => {
+    if (!callerProfile) { antMessage.error("Profil pengguna tidak ditemukan."); return; }
+    if (reportMode === "personal" && selectedReport.santriField && !reportSantri) {
+      antMessage.warning("Pilih santri untuk laporan personal.");
+      return;
+    }
+    setReportLoading(true);
+    try {
+      const report = reportPreview && reportPreview.definition.key === selectedReport.key
+        ? reportPreview
+        : await generateReportData(selectedReport, buildReportFilters(), callerProfile);
+      setReportPreview(report);
+      if (reportFormat === "pdf") await exportReportToPdf(report);
+      else await exportReportToExcel(report);
+      antMessage.success(`Laporan ${selectedReport.label} berhasil diunduh.`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Gagal mengunduh laporan.";
+      antMessage.error(msg);
+    } finally {
+      setReportLoading(false);
+    }
+  }, [buildReportFilters, callerProfile, reportFormat, reportMode, reportPreview, reportSantri, selectedReport]);
 
   // ── Scroll ─────────────────────────────────────────────────────────────
   useEffect(() => { if (isTyping) analysisEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [displayed, isTyping]);
@@ -423,7 +590,7 @@ ${instr}
       const { data, error } = await supabaseClient.functions.invoke("ai-agent", {
         body: { mode: "chat", userMessage: msgText, conversationHistory: geminiHistory, callerProfile },
       });
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(await getFunctionErrorMessage(error));
 
       if (data.type === "text") {
         setChatMessages(prev => [...prev, {
@@ -467,7 +634,7 @@ ${instr}
           conversationHistory: geminiHistory // Pass history for consistency
         },
       });
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(await getFunctionErrorMessage(error));
       
       const success = data?.success !== false;
       if (data.updatedHistory) setGeminiHistory(data.updatedHistory);
@@ -744,7 +911,7 @@ ${instr}
 
             {/* Center: Mode Toggle */}
             <div className="al-mode-toggle" style={{ borderColor: T.borderGold, background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.04)" }}>
-              {(["analysis", "agent"] as AppMode[]).map(m => (
+              {(["analysis", "agent", "report"] as AppMode[]).map(m => (
                 <button
                   key={m}
                   className={`al-mode-btn ${mode === m ? "al-mode-btn--active" : ""}`}
@@ -755,7 +922,11 @@ ${instr}
                     boxShadow: mode === m ? `0 2px 12px ${GOLD_GLOW}` : "none",
                   }}
                 >
-                  {m === "analysis" ? <><RadarChartOutlined /> Analisis</> : <><RobotOutlined /> AI Agent</>}
+                  {m === "analysis"
+                    ? <><RadarChartOutlined /> Analisis</>
+                    : m === "agent"
+                      ? <><RobotOutlined /> AI Agent</>
+                      : <><FileExcelOutlined /> Laporan</>}
                 </button>
               ))}
             </div>
@@ -1137,6 +1308,263 @@ ${instr}
                   </div>
                 </motion.div>
               )}
+
+              {/* ── REPORT MODE ───────────────────────────────────── */}
+              {mode === "report" && (
+                <motion.div key="report" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 18 }} transition={{ duration: 0.25 }}
+                  style={{ display: "flex", width: "100%", height: "100%", background: T.chatBg, overflow: "hidden" }}>
+
+                  <div style={{
+                    width: 320, flexShrink: 0, padding: 18, overflowY: "auto",
+                    borderRight: `1px solid ${T.borderGold}`, background: T.sidebarBg,
+                    display: "flex", flexDirection: "column", gap: 12,
+                  }}>
+                    <div>
+                      <div style={{ fontFamily: "'Cinzel', serif", color: T.text, fontSize: 15, fontWeight: 700, letterSpacing: "0.7px" }}>
+                        Report Intelligence
+                      </div>
+                      <Text style={{ color: T.textSub, fontSize: 11 }}>
+                        Ketik kebutuhan laporan, sistem akan menyesuaikan filter dan format.
+                      </Text>
+                    </div>
+
+                    <div style={{ padding: 12, borderRadius: 12, border: `1px solid ${T.borderGold}`, background: isDark ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.7)" }}>
+                      <Text style={{ color: T.textDim, fontSize: 10, letterSpacing: "1.4px" }}>AI-LIKE REQUEST</Text>
+                      <TextArea
+                        value={reportInput}
+                        onChange={e => setReportInput(e.target.value)}
+                        placeholder="Contoh: buat laporan tagihan kelas 2 bulan ini excel"
+                        autoSize={{ minRows: 3, maxRows: 5 }}
+                        style={{ marginTop: 8, background: T.inputBg, border: `1px solid ${T.inputBorder}`, color: T.text, borderRadius: 10 }}
+                      />
+                      <Button
+                        block
+                        icon={<ThunderboltOutlined />}
+                        onClick={applyReportIntent}
+                        disabled={!reportInput.trim()}
+                        style={{ marginTop: 10, borderRadius: 10, borderColor: T.borderGold, color: GOLD, background: `${GOLD}10`, fontWeight: 700 }}
+                      >
+                        Pahami Permintaan
+                      </Button>
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                      <Text style={{ color: T.textSub, fontSize: 11 }}>Ringkasan AI</Text>
+                      <Switch size="small" checked={reportAiAssist} onChange={setReportAiAssist} />
+                    </div>
+
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "1.8px", color: T.textDim, marginTop: 4 }}>
+                      JENIS LAPORAN
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {availableReports.map((def, index) => {
+                        const active = def.key === selectedReport.key;
+                        return (
+                          <motion.button
+                            key={def.key}
+                            initial={{ opacity: 0, x: -8 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: index * 0.025 }}
+                            onClick={() => applyReportDefinition(def.key)}
+                            style={{
+                              textAlign: "left", cursor: "pointer", borderRadius: 12,
+                              border: `1px solid ${active ? T.borderGold : T.border}`,
+                              background: active ? `${GOLD}14` : "transparent",
+                              padding: "10px 12px", color: T.text,
+                            }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                              <span style={{ fontWeight: 700, fontSize: 12 }}>{def.label}</span>
+                              <Tag style={{ margin: 0, fontSize: 9, borderColor: T.border, color: T.textSub, background: "transparent" }}>{def.category}</Tag>
+                            </div>
+                            <div style={{ color: T.textSub, fontSize: 10, marginTop: 4, lineHeight: 1.45 }}>{def.description}</div>
+                          </motion.button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+                    <div style={{
+                      padding: "16px 22px", borderBottom: `1px solid ${T.border}`,
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      background: isDark ? "rgba(0,0,0,0.2)" : "rgba(255,255,255,0.65)",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div style={{
+                          width: 40, height: 40, borderRadius: 11,
+                          background: `linear-gradient(135deg,${GOLD} 0%,#7A5010 100%)`,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          boxShadow: `0 0 16px ${GOLD_GLOW}`,
+                        }}>
+                          <DatabaseOutlined style={{ color: "#FFF8E0", fontSize: 18 }} />
+                        </div>
+                        <div>
+                          <Text style={{ color: T.text, fontSize: 15, fontWeight: 800 }}>{selectedReport.label}</Text>
+                          <div style={{ color: T.textSub, fontSize: 11, marginTop: 2 }}>
+                            {selectedReport.description}
+                          </div>
+                        </div>
+                      </div>
+                      <Space>
+                        <Button icon={<FilterOutlined />} onClick={previewReport} loading={reportLoading}
+                          style={{ borderRadius: 10, borderColor: T.borderGold, color: T.text, background: "transparent" }}>
+                          Preview
+                        </Button>
+                        <Button type="primary" icon={reportFormat === "pdf" ? <FilePdfOutlined /> : <FileExcelOutlined />}
+                          onClick={downloadReport} loading={reportLoading}
+                          style={{ borderRadius: 10, border: "none", background: `linear-gradient(135deg,${GOLD} 0%,#7A5010 100%)`, fontWeight: 800 }}>
+                          Download
+                        </Button>
+                      </Space>
+                    </div>
+
+                    <div style={{ padding: 20, overflowY: "auto", flex: 1 }}>
+                      <div style={{
+                        border: `1px solid ${T.borderGold}`, borderRadius: 14,
+                        background: isDark ? "rgba(255,255,255,0.025)" : "rgba(255,255,255,0.72)",
+                        padding: 16, marginBottom: 16,
+                      }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
+                          <div>
+                            <Text style={{ color: T.textSub, fontSize: 11 }}>Mode</Text>
+                            <Radio.Group value={reportMode} onChange={e => { setReportMode(e.target.value); setReportPreview(null); }} style={{ display: "flex", marginTop: 6 }}>
+                              <Radio.Button value="global">Massal</Radio.Button>
+                              <Radio.Button value="personal" disabled={!selectedReport.santriField && selectedReport.table !== "santri"}>Individu</Radio.Button>
+                            </Radio.Group>
+                          </div>
+                          <div>
+                            <Text style={{ color: T.textSub, fontSize: 11 }}>Format</Text>
+                            <Radio.Group value={reportFormat} onChange={e => setReportFormat(e.target.value)} style={{ display: "flex", marginTop: 6 }}>
+                              <Radio.Button value="excel" disabled={!selectedReport.formats.includes("excel")}><FileExcelOutlined /> Excel</Radio.Button>
+                              <Radio.Button value="pdf" disabled={!selectedReport.formats.includes("pdf")}><FilePdfOutlined /> PDF</Radio.Button>
+                            </Radio.Group>
+                          </div>
+                          <div style={{ gridColumn: "span 2" }}>
+                            <Text style={{ color: T.textSub, fontSize: 11 }}>Rentang Tanggal</Text>
+                            <RangePicker
+                              value={reportRange}
+                              onChange={(dates) => { setReportRange(dates as [dayjs.Dayjs, dayjs.Dayjs] | null); setReportPreview(null); }}
+                              disabled={!selectedReport.dateField}
+                              style={{ width: "100%", marginTop: 6, borderRadius: 10 }}
+                            />
+                          </div>
+                          <div>
+                            <Text style={{ color: T.textSub, fontSize: 11 }}>Kelas</Text>
+                            <Select value={reportKelas} onChange={v => { setReportKelas(v); setReportPreview(null); }} style={{ width: "100%", marginTop: 6 }}
+                              options={[{ value: "ALL", label: "Semua" }, { value: "1", label: "Kelas 1" }, { value: "2", label: "Kelas 2" }, { value: "3", label: "Kelas 3" }]} />
+                          </div>
+                          <div>
+                            <Text style={{ color: T.textSub, fontSize: 11 }}>Takhasus</Text>
+                            <Select value={reportJurusan} onChange={v => { setReportJurusan(v); setReportPreview(null); }} style={{ width: "100%", marginTop: 6 }}
+                              disabled={callerProfile?.akses_jurusan !== "ALL"}
+                              options={[
+                                { value: "ALL", label: "Semua" },
+                                { value: "KITAB", label: "Kitab" },
+                                { value: "TAHFIDZ", label: "Tahfidz" },
+                              ]} />
+                          </div>
+                          <div>
+                            <Text style={{ color: T.textSub, fontSize: 11 }}>Gender</Text>
+                            <Select value={reportGender} onChange={v => { setReportGender(v); setReportPreview(null); }} style={{ width: "100%", marginTop: 6 }}
+                              disabled={callerProfile?.akses_gender !== "ALL"}
+                              options={[
+                                { value: "ALL", label: "Semua" },
+                                { value: "L", label: "Putra" },
+                                { value: "P", label: "Putri" },
+                              ]} />
+                          </div>
+                          <div>
+                            <Text style={{ color: T.textSub, fontSize: 11 }}>Status/Kategori</Text>
+                            <Select value={reportStatus} onChange={v => { setReportStatus(v); setReportPreview(null); }} style={{ width: "100%", marginTop: 6 }}
+                              disabled={!selectedReport.statusOptions}
+                              options={[
+                                { value: "ALL", label: "Semua" },
+                                ...(selectedReport.statusOptions || []).map(s => ({ value: s, label: s })),
+                              ]} />
+                          </div>
+                          {(reportMode === "personal") && (
+                            <div style={{ gridColumn: "span 2" }}>
+                              <Text style={{ color: T.textSub, fontSize: 11 }}>Santri</Text>
+                              <Select
+                                showSearch
+                                allowClear
+                                value={reportSantri}
+                                onChange={v => { setReportSantri(v); setReportPreview(null); }}
+                                placeholder="Pilih santri untuk laporan individu"
+                                optionFilterProp="label"
+                                options={santriOptions}
+                                style={{ width: "100%", marginTop: 6 }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{
+                        display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 16,
+                      }}>
+                        <div style={{
+                          border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden",
+                          background: isDark ? "rgba(0,0,0,0.18)" : "rgba(255,255,255,0.62)",
+                        }}>
+                          <div style={{ padding: "12px 14px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <Text style={{ color: T.text, fontWeight: 800 }}>Preview Data</Text>
+                            <Tag style={{ margin: 0, borderColor: T.borderGold, color: GOLD, background: `${GOLD}10` }}>
+                              {reportPreview ? `${reportPreview.rows.length} baris` : "Belum dibuat"}
+                            </Tag>
+                          </div>
+                          <div style={{ padding: 14, maxHeight: 330, overflow: "auto" }}>
+                            {!reportPreview ? (
+                              <div style={{ height: 220, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", color: T.textSub, gap: 10 }}>
+                                <DownloadOutlined style={{ fontSize: 32, color: GOLD }} />
+                                <Text style={{ color: T.textSub, textAlign: "center" }}>
+                                  Atur filter, lalu klik Preview atau langsung Download.
+                                </Text>
+                              </div>
+                            ) : reportPreview.rows.length === 0 ? (
+                              <Text style={{ color: T.textSub }}>Tidak ada data sesuai filter.</Text>
+                            ) : (
+                              <table className="al-report-table">
+                                <thead>
+                                  <tr>{selectedReport.columns.slice(0, 6).map(c => <th key={c.key}>{c.label}</th>)}</tr>
+                                </thead>
+                                <tbody>
+                                  {reportPreview.rows.slice(0, 8).map((row, idx) => (
+                                    <tr key={idx}>
+                                      {selectedReport.columns.slice(0, 6).map(c => (
+                                        <td key={c.key}>{String((row as Record<string, unknown>)[c.key] ?? "-").slice(0, 46)}</td>
+                                      ))}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            )}
+                          </div>
+                        </div>
+
+                        <div style={{
+                          border: `1px solid ${T.borderGold}`, borderRadius: 14, padding: 16,
+                          background: isDark ? "rgba(212,160,48,0.055)" : "rgba(212,160,48,0.08)",
+                        }}>
+                          <Text style={{ color: T.text, fontWeight: 800 }}>Rencana Output</Text>
+                          <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+                            <div><Tag color="gold">{selectedReport.category}</Tag><Text style={{ color: T.textSub }}>{selectedReport.label}</Text></div>
+                            <div><Tag>{reportFormat.toUpperCase()}</Tag><Text style={{ color: T.textSub }}>{reportMode === "personal" ? "Laporan individu" : "Laporan massal"}</Text></div>
+                            <div><Text style={{ color: T.textSub, fontSize: 12 }}>Kolom: {selectedReport.columns.map(c => c.label).join(", ")}</Text></div>
+                            {reportAiAssist && (
+                              <div style={{ marginTop: 8, padding: 12, borderRadius: 12, border: `1px dashed ${T.borderGold}`, color: T.textSub, fontSize: 12, lineHeight: 1.65 }}>
+                                <RobotOutlined style={{ color: GOLD, marginRight: 6 }} />
+                                Mode awal memakai parser lokal yang meniru asisten AI untuk mengisi parameter laporan. Data dan file tetap dibuat oleh sistem agar angka akurat.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
             </AnimatePresence>
           </div>
         </div>
@@ -1252,6 +1680,21 @@ ${instr}
         .al-action-markdown code { font-family:'JetBrains Mono',monospace; font-size:11.5px; padding:1px 5px; border-radius:3px; background:rgba(212,160,48,0.12); color:${GOLD_BRIGHT}; }
         .al-action-markdown ul,.al-action-markdown ol { padding-left:18px; margin:4px 0; }
         .al-action-markdown li { margin-bottom:4px; font-size:13px; }
+
+        /* Report table */
+        .al-report-table { width:100%; border-collapse:collapse; font-size:12px; }
+        .al-report-table th {
+          text-align:left; padding:9px 10px; color:#FFF8E0;
+          background:${GOLD}; border-bottom:1px solid rgba(0,0,0,0.08);
+          white-space:nowrap;
+        }
+        .al-report-table td {
+          padding:8px 10px; border-bottom:1px solid rgba(212,160,48,0.12);
+          color:${T.text}; vertical-align:top;
+        }
+        .al-report-table tr:nth-child(even) td {
+          background:rgba(212,160,48,0.045);
+        }
 
         /* Cursor */
         .al-cursor { color:${GOLD}; font-weight:700; animation:al-blink 1s step-end infinite; }
