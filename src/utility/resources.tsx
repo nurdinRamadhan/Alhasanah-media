@@ -37,6 +37,7 @@ export const resources: ResourceProps[] = [
   { name:"hafalan_kitab", list:"/hafalan-kitab", create:"/hafalan-kitab/create", show:"/hafalan-kitab/show/:id",
     meta:{ label:"Hafalan Kitab", parent:"tahfidz_menu", icon:<BookOutlined /> } },
   { name:"alumni_data",  list:"/alumni",      meta:{ label:"Manajemen Alumni",            icon:<GlobalOutlined /> } },
+  { name:"forum_reports", list:"/forum-reports", meta:{ label:"Moderasi Forum Alumni", icon:<SafetyCertificateOutlined /> } },
   { name:"audit_logs",   list:"/audit-logs",  meta:{ label:"Log Aktivitas (Permanen)",     icon:<SafetyCertificateOutlined /> } },
   { name:"rag_knowledge", list:"/rag",         meta:{ label:"RAG Knowledge Base",           icon:<DatabaseOutlined /> } },
   { name:"akademik",     list:"/akademik",    meta:{ label:"Laporan Nilai",                icon:<BookOutlined /> } },

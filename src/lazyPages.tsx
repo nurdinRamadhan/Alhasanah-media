@@ -51,6 +51,7 @@ export const ScanQR             = React.lazy(() => import("./pages/scanQR/ScanQR
 export const CreateAdminPage    = React.lazy(() => import("./pages/admin-management/create").then(m => ({ default: m.CreateAdminPage })));
 export const AdminList          = React.lazy(() => import("./pages/admin-management/list").then(m => ({ default: m.AdminList })));
 export const AlumniList         = React.lazy(() => import("./pages/alumni/list").then(m => ({ default: m.AlumniList })));
+export const ForumReportsList   = React.lazy(() => import("./pages/alumni/forum-reports").then(m => ({ default: m.ForumReportsList })));
 export const WeeklyTestList     = React.lazy(() => import("./pages/ulangan/bank-soal/list").then(m => ({ default: m.WeeklyTestList })));
 export const WeeklyTestCreate   = React.lazy(() => import("./pages/ulangan/create").then(m => ({ default: m.WeeklyTestCreate })));
 export const WeeklyTestArsip    = React.lazy(() => import("./pages/ulangan/arsip/list").then(m => ({ default: m.WeeklyTestArsip })));

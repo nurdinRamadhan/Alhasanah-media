@@ -53,7 +53,8 @@ export const accessControlProvider: AccessControlProvider = {
             "kesantrian_menu", "pelanggaran_santri", "kesehatan_santri", "perizinan_santri",
             "tahfidz_menu", "hafalan_tahfidz", "murojaah_tahfidz", "hafalan_kitab",
             "ulangan_menu", "weekly_tests", "ulangan_arsip",
-            "santri", "diklat", "berita", "alumni_data"
+            "santri", "diklat", "berita", "alumni_data", "forum_reports",
+            "forum_threads", "forum_comments", "forum_moderation_actions"
         ];
         
         if (allowedKesantrian.includes(resource || "")) {

@@ -44,6 +44,13 @@ export interface IAlumniData {
     profesi_sekarang: string;
     instansi_kerja: string;
     alamat_domisili: string;
+    bio?: string | null;
+    avatar_storage_path?: string | null;
+    show_whatsapp?: boolean;
+    show_profession?: boolean;
+    show_location?: boolean;
+    forum_notify_replies?: boolean;
+    forum_notify_reactions?: boolean;
     created_at: string;
     profiles?: IProfile; // Join to check is_active status
 }
