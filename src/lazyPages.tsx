@@ -45,6 +45,7 @@ export const PengeluaranList    = React.lazy(() => import("./pages/pengeluaran/l
 export const DiklatList         = React.lazy(() => import("./pages/diklat/list").then(m => ({ default: m.DiklatList })));
 export const MasterDataPage     = React.lazy(() => import("./pages/diklat/master").then(m => ({ default: m.MasterDataPage })));
 export const AuditLogList       = React.lazy(() => import("./pages/audit/list").then(m => ({ default: m.AuditLogList })));
+export const RagKnowledgePage   = React.lazy(() => import("./pages/rag").then(m => ({ default: m.RagKnowledgePage })));
 export const AkademikPage       = React.lazy(() => import("./pages/akademik/list").then(m => ({ default: m.AkademikPage })));
 export const ScanQR             = React.lazy(() => import("./pages/scanQR/ScanQR").then(m => ({ default: m.ScanQR })));
 export const CreateAdminPage    = React.lazy(() => import("./pages/admin-management/create").then(m => ({ default: m.CreateAdminPage })));

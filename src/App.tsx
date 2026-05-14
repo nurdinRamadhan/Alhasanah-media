@@ -43,7 +43,7 @@ import {
   HafalanKitabCreate, HafalanKitabShow, PengeluaranList, DiklatList, 
   MasterDataPage, AuditLogList, AkademikPage, ScanQR, CreateAdminPage, 
   AdminList, AlumniList, WeeklyTestList, WeeklyTestCreate, WeeklyTestArsip, 
-  NotificationList, NotificationCreate, LoadingFallback 
+  NotificationList, NotificationCreate, RagKnowledgePage, LoadingFallback 
 } from "./lazyPages";
 
 const isDev = import.meta.env.DEV;
@@ -401,6 +401,7 @@ const InnerApp: React.FC = () => {
             <Route path="/hafalan-kitab"><Route index element={<HafalanKitabList />} /><Route path="create" element={<HafalanKitabCreate />} /><Route path="show/:id" element={<HafalanKitabShow />} /></Route>
             <Route path="/alumni"><Route index element={<AlumniList />} /></Route>
             <Route path="/audit-logs"><Route index element={<AuditLogList />} /></Route>
+            <Route path="/rag" element={<RagKnowledgePage />} />
             <Route path="/akademik"><Route index element={<AkademikPage />} /></Route>
             <Route path="/tagihan"><Route index element={<TagihanList />} /><Route path="create" element={<TagihanCreate />} /><Route path="edit/:id" element={<TagihanEdit />} /></Route>
             <Route path="/transaksi"><Route index element={<TransaksiList />} /><Route path="create" element={<TransaksiCreate />} /></Route>

@@ -8,6 +8,7 @@ import {
   SettingOutlined, FormOutlined, ProjectOutlined,
   DashboardOutlined, BankOutlined, ShoppingCartOutlined,
   SafetyCertificateOutlined, HistoryOutlined,
+  DatabaseOutlined,
 } from "@ant-design/icons";
 
 export const resources: ResourceProps[] = [
@@ -37,6 +38,7 @@ export const resources: ResourceProps[] = [
     meta:{ label:"Hafalan Kitab", parent:"tahfidz_menu", icon:<BookOutlined /> } },
   { name:"alumni_data",  list:"/alumni",      meta:{ label:"Manajemen Alumni",            icon:<GlobalOutlined /> } },
   { name:"audit_logs",   list:"/audit-logs",  meta:{ label:"Log Aktivitas (Permanen)",     icon:<SafetyCertificateOutlined /> } },
+  { name:"rag_knowledge", list:"/rag",         meta:{ label:"RAG Knowledge Base",           icon:<DatabaseOutlined /> } },
   { name:"akademik",     list:"/akademik",    meta:{ label:"Laporan Nilai",                icon:<BookOutlined /> } },
   { name:"tagihan_santri", list:"/tagihan", create:"/tagihan/create", edit:"/tagihan/edit/:id",
     meta:{ label:"Keuangan & SPP", icon:<WalletOutlined /> } },

@@ -37,6 +37,9 @@ export const accessControlProvider: AccessControlProvider = {
             if (resource === "notification_queue" && action === "create") {
                 return { can: true };
             }
+            if (resource === "rag_knowledge" && ["list", "show"].includes(action || "")) {
+                return { can: true };
+            }
             if (["create", "edit", "delete"].includes(action || "")) {
                 return { can: false, reason: "Dewan hanya memiliki akses pemantauan (Read-Only)." };
             }

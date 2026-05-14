@@ -57,6 +57,39 @@ export interface IUserIdentity {
     scopeJurusan: TJurusanScope;
 }
 
+export type RagSourceType = 'public' | 'kitab' | 'internal';
+export type RagDocumentStatus = 'draft' | 'active' | 'archived';
+export type RagDocumentType = 'general' | 'kitab' | 'report' | 'policy' | 'sop' | 'faq';
+
+export interface IRagDocument {
+    id: string;
+    title: string;
+    source_type: RagSourceType;
+    document_type: RagDocumentType;
+    status: RagDocumentStatus;
+    content_preview?: string | null;
+    metadata: Json;
+    created_by?: string | null;
+    chunk_count: number;
+    embedding_model?: string | null;
+    embedding_dimension: number;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface IRagQueryLog {
+    id: string;
+    session_id?: string | null;
+    query_text: string;
+    source_type?: 'public' | 'kitab' | 'internal' | 'mixed' | null;
+    context_type?: 'public_chatbot' | 'wali_chatbot' | 'admin_decision' | 'kitab_chatbot' | 'ingest_test' | null;
+    retrieved_chunk_ids?: string[] | null;
+    response_preview?: string | null;
+    latency_ms?: number | null;
+    metadata: Json;
+    created_at: string;
+}
+
 // --- INSTANSI & STRUKTUR KEPENGURUSAN ---
 export interface IInstansiInfo {
     id: number;

@@ -50,7 +50,7 @@ const { RangePicker } = DatePicker;
 // TYPES
 // ══════════════════════════════════════════════════════════════════════════
 type TopicKey = "KESEHATAN" | "PELANGGARAN" | "KEUANGAN" | "ADMIN" | "TAHFIDZ" | "BEBAS";
-type AppMode  = "analysis" | "agent" | "report";
+type AppMode  = "analysis" | "agent" | "rag" | "report";
 
 interface CacheEntry { answer: string; savedAt: number; }
 interface Santri { nama: string; kelas?: string; poin?: number; total_hafalan?: number; }
@@ -75,6 +75,16 @@ interface GeminiConvMsg {
   parts: unknown[];
 }
 
+interface RagDecisionResult {
+  answer: string;
+  data_sources?: {
+    db_context?: boolean;
+    kitab_references?: Array<{ title: string; metadata?: Record<string, unknown>; similarity?: number }>;
+    internal_docs?: Array<{ title: string; metadata?: Record<string, unknown>; similarity?: number }>;
+  };
+  confidence_note?: string;
+}
+
 export interface GeminiConsultantProps {
   edgeFunctionUrl?: string;
   callerProfile?: {
@@ -93,6 +103,7 @@ const GOLD = "#D4A030";
 const GOLD_BRIGHT = "#F5C842";
 const GOLD_GLOW   = "rgba(212,160,48,0.45)";
 const CACHE_TTL_MS = 30 * 60 * 1000;
+const RAG_DECISION_ROLES = ["super_admin", "rois", "dewan"];
 
 const MENU_ITEMS = [
   { key: "KESEHATAN"   as TopicKey, label: "Analisa Kesehatan", arabic: "التدقيق Medical", icon: <MedicineBoxOutlined />, color: "#F87171" },
@@ -108,6 +119,13 @@ const QUICK_CMDS = [
   { text: "Buat tagihan SPP 500rb untuk semua santri aktif kelas 2",   icon: "💰" },
   { text: "Rekap pelanggaran tertinggi minggu ini",                     icon: "⚠️" },
   { text: "Tampilkan progres hafalan terbaik santri tahfidz kelas 3",  icon: "📖" },
+];
+
+const RAG_QUICK_PROMPTS = [
+  "Bandingkan kondisi keuangan bulan ini dengan dokumen rekap yang tersedia, lalu berikan prioritas tindakan.",
+  "Analisis tren kedisiplinan dan kaitkan dengan SOP atau catatan internal yang ada di knowledge base.",
+  "Evaluasi perkembangan akademik dan hafalan berdasarkan data sistem serta dokumen rekap yang sudah diupload.",
+  "Buat rekomendasi operasional minggu ini berdasarkan data database dan dokumen internal.",
 ];
 
 const ACTION_ICON: Record<string, string> = {
@@ -215,6 +233,18 @@ export const GeminiConsultant: React.FC<GeminiConsultantProps> = ({
   const [agentLoading,  setAgentLoading]  = useState(false);
   const [geminiHistory, setGeminiHistory] = useState<GeminiConvMsg[]>([]);
 
+  // RAG decision state
+  const [ragInput, setRagInput] = useState("");
+  const [ragContextType, setRagContextType] = useState<"operational" | "financial" | "academic" | "santri" | "kitab">("operational");
+  const [ragKelas, setRagKelas] = useState("ALL");
+  const [ragMonth, setRagMonth] = useState(dayjs().format("MM"));
+  const [ragYear, setRagYear] = useState(dayjs().format("YYYY"));
+  const [ragIncludeDb, setRagIncludeDb] = useState(true);
+  const [ragIncludeInternal, setRagIncludeInternal] = useState(true);
+  const [ragIncludeKitab, setRagIncludeKitab] = useState(false);
+  const [ragLoading, setRagLoading] = useState(false);
+  const [ragResult, setRagResult] = useState<RagDecisionResult | null>(null);
+
   // Report state
   const [reportInput,   setReportInput]   = useState("");
   const [reportKey,     setReportKey]     = useState("tagihan");
@@ -249,6 +279,15 @@ export const GeminiConsultant: React.FC<GeminiConsultantProps> = ({
   }, [identity, propCallerProfile]);
 
   const edgeFunctionUrl = propEdgeUrl || `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/gemini-consultant`;
+  const canUseRagDecision = RAG_DECISION_ROLES.includes(String(callerProfile?.role || "").toLowerCase());
+  const availableModes = useMemo<AppMode[]>(
+    () => canUseRagDecision ? ["analysis", "agent", "rag", "report"] : ["analysis", "agent", "report"],
+    [canUseRagDecision],
+  );
+
+  useEffect(() => {
+    if (mode === "rag" && !canUseRagDecision) setMode("analysis");
+  }, [canUseRagDecision, mode]);
 
   // ── Theme detection ────────────────────────────────────────────────────
   const { token } = theme.useToken();
@@ -573,6 +612,48 @@ ${instr}
     if (!q || loading || isTyping) return;
     consultGemini("BEBAS", q);
     setFreeInput("");
+  };
+
+  const runRagDecision = async (prompt?: string) => {
+    const query = (prompt ?? ragInput).trim();
+    if (!query || ragLoading) return;
+    if (!canUseRagDecision) {
+      antMessage.error("Mode RAG Decision hanya untuk super admin, rois, dan dewan.");
+      return;
+    }
+
+    setRagLoading(true);
+    setRagResult(null);
+    if (prompt) setRagInput(prompt);
+
+    try {
+      const { data, error } = await supabaseClient.functions.invoke("rag-query-admin", {
+        body: {
+          query,
+          context_type: ragContextType,
+          include_kitab: ragIncludeKitab || ragContextType === "kitab",
+          include_db_context: ragIncludeDb,
+          include_internal: ragIncludeInternal,
+          filters: {
+            kelas: ragKelas === "ALL" ? undefined : ragKelas,
+            bulan: ragMonth || undefined,
+            tahun: ragYear || undefined,
+          },
+        },
+      });
+
+      if (error) throw new Error(await getFunctionErrorMessage(error));
+      if (data?.error) throw new Error(data.error);
+      setRagResult(data as RagDecisionResult);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Gagal menjalankan RAG Decision.";
+      antMessage.error(msg);
+      setRagResult({
+        answer: `⚠️ **Gagal menjalankan analisis RAG.**\n\n${msg}`,
+      });
+    } finally {
+      setRagLoading(false);
+    }
   };
 
   // ── Agent: send message ───────────────────────────────────────────────
@@ -911,7 +992,7 @@ ${instr}
 
             {/* Center: Mode Toggle */}
             <div className="al-mode-toggle" style={{ borderColor: T.borderGold, background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.04)" }}>
-              {(["analysis", "agent", "report"] as AppMode[]).map(m => (
+              {availableModes.map(m => (
                 <button
                   key={m}
                   className={`al-mode-btn ${mode === m ? "al-mode-btn--active" : ""}`}
@@ -926,7 +1007,9 @@ ${instr}
                     ? <><RadarChartOutlined /> Analisis</>
                     : m === "agent"
                       ? <><RobotOutlined /> AI Agent</>
-                      : <><FileExcelOutlined /> Laporan</>}
+                      : m === "rag"
+                        ? <><DatabaseOutlined /> RAG Decision</>
+                        : <><FileExcelOutlined /> Laporan</>}
                 </button>
               ))}
             </div>
@@ -1304,6 +1387,220 @@ ${instr}
                       <Text style={{ color: T.textDim, fontSize: 10, letterSpacing: "0.3px" }}>
                         Agent tidak dapat menghapus data · Semua aksi terlog di audit_logs · Selalu butuh konfirmasi Anda
                       </Text>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* ── RAG DECISION MODE ────────────────────────────── */}
+              {mode === "rag" && canUseRagDecision && (
+                <motion.div key="rag" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 18 }} transition={{ duration: 0.25 }}
+                  style={{ display: "flex", width: "100%", height: "100%", background: T.chatBg, overflow: "hidden" }}>
+
+                  <div style={{
+                    width: 330, flexShrink: 0, padding: 18, overflowY: "auto",
+                    borderRight: `1px solid ${T.borderGold}`, background: T.sidebarBg,
+                    display: "flex", flexDirection: "column", gap: 14,
+                  }}>
+                    <div>
+                      <div style={{ fontFamily: "'Cinzel', serif", color: T.text, fontSize: 15, fontWeight: 700, letterSpacing: "0.7px" }}>
+                        RAG Decision
+                      </div>
+                      <Text style={{ color: T.textSub, fontSize: 11, lineHeight: 1.6 }}>
+                        Analisis pengambilan keputusan berbasis data agregat database dan dokumen RAG yang sudah diupload.
+                      </Text>
+                    </div>
+
+                    <div style={{ padding: 12, borderRadius: 12, border: `1px solid ${T.borderGold}`, background: isDark ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.7)" }}>
+                      <Text style={{ color: T.textDim, fontSize: 10, letterSpacing: "1.4px" }}>PERTANYAAN STRATEGIS</Text>
+                      <TextArea
+                        value={ragInput}
+                        onChange={e => setRagInput(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); runRagDecision(); } }}
+                        placeholder="Contoh: bandingkan tagihan bulan ini dengan rekap laporan dan beri rekomendasi prioritas"
+                        autoSize={{ minRows: 5, maxRows: 8 }}
+                        disabled={ragLoading}
+                        style={{ marginTop: 8, background: T.inputBg, border: `1px solid ${T.inputBorder}`, color: T.text, borderRadius: 10 }}
+                      />
+                      <Button
+                        block
+                        type="primary"
+                        icon={<SendOutlined />}
+                        onClick={() => runRagDecision()}
+                        loading={ragLoading}
+                        disabled={!ragInput.trim()}
+                        style={{ marginTop: 10, borderRadius: 10, border: "none", background: `linear-gradient(135deg,${GOLD} 0%,#7A5010 100%)`, fontWeight: 800 }}
+                      >
+                        Jalankan Analisis
+                      </Button>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                      <div>
+                        <Text style={{ color: T.textSub, fontSize: 11 }}>Konteks</Text>
+                        <Select
+                          value={ragContextType}
+                          onChange={setRagContextType}
+                          style={{ width: "100%", marginTop: 6 }}
+                          options={[
+                            { value: "operational", label: "Operasional" },
+                            { value: "financial", label: "Keuangan" },
+                            { value: "academic", label: "Akademik" },
+                            { value: "santri", label: "Kesantrian" },
+                            { value: "kitab", label: "Kitab" },
+                          ]}
+                        />
+                      </div>
+                      <div>
+                        <Text style={{ color: T.textSub, fontSize: 11 }}>Kelas</Text>
+                        <Select
+                          value={ragKelas}
+                          onChange={setRagKelas}
+                          style={{ width: "100%", marginTop: 6 }}
+                          options={[
+                            { value: "ALL", label: "Semua" },
+                            { value: "1", label: "Kelas 1" },
+                            { value: "2", label: "Kelas 2" },
+                            { value: "3", label: "Kelas 3" },
+                          ]}
+                        />
+                      </div>
+                      <div>
+                        <Text style={{ color: T.textSub, fontSize: 11 }}>Bulan</Text>
+                        <Select
+                          value={ragMonth}
+                          onChange={setRagMonth}
+                          allowClear
+                          style={{ width: "100%", marginTop: 6 }}
+                          options={Array.from({ length: 12 }, (_, index) => {
+                            const value = String(index + 1).padStart(2, "0");
+                            return { value, label: dayjs(`2026-${value}-01`).format("MMMM") };
+                          })}
+                        />
+                      </div>
+                      <div>
+                        <Text style={{ color: T.textSub, fontSize: 11 }}>Tahun</Text>
+                        <Input value={ragYear} onChange={e => setRagYear(e.target.value)} style={{ width: "100%", marginTop: 6 }} />
+                      </div>
+                    </div>
+
+                    <div style={{ padding: 12, borderRadius: 12, border: `1px solid ${T.border}`, background: isDark ? "rgba(0,0,0,0.18)" : "rgba(255,255,255,0.55)" }}>
+                      <Text style={{ color: T.textDim, fontSize: 10, letterSpacing: "1.4px" }}>SUMBER ANALISIS</Text>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
+                        <Switch checked={ragIncludeDb} onChange={setRagIncludeDb} checkedChildren="Data DB" unCheckedChildren="Data DB" />
+                        <Switch checked={ragIncludeInternal} onChange={setRagIncludeInternal} checkedChildren="Dokumen Internal" unCheckedChildren="Dokumen Internal" />
+                        <Switch checked={ragIncludeKitab} onChange={setRagIncludeKitab} checkedChildren="Kitab" unCheckedChildren="Kitab" />
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <Text style={{ color: T.textDim, fontSize: 10, letterSpacing: "1.4px" }}>CONTOH ANALISIS</Text>
+                      {RAG_QUICK_PROMPTS.map((prompt, index) => (
+                        <motion.button
+                          key={prompt}
+                          initial={{ opacity: 0, x: -8 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.04 }}
+                          onClick={() => runRagDecision(prompt)}
+                          style={{
+                            textAlign: "left", cursor: "pointer", borderRadius: 12,
+                            border: `1px solid ${T.border}`,
+                            background: "transparent",
+                            padding: "10px 12px", color: T.textSub, fontSize: 12, lineHeight: 1.5,
+                          }}
+                        >
+                          {prompt}
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+                    <div style={{
+                      padding: "16px 22px", borderBottom: `1px solid ${T.border}`,
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      background: isDark ? "rgba(0,0,0,0.2)" : "rgba(255,255,255,0.65)",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div style={{
+                          width: 40, height: 40, borderRadius: 11,
+                          background: `linear-gradient(135deg,${GOLD} 0%,#7A5010 100%)`,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          boxShadow: `0 0 16px ${GOLD_GLOW}`,
+                        }}>
+                          <DatabaseOutlined style={{ color: "#FFF8E0", fontSize: 18 }} />
+                        </div>
+                        <div>
+                          <Text style={{ color: T.text, fontSize: 15, fontWeight: 800 }}>RAG Decision Support</Text>
+                          <div style={{ color: T.textSub, fontSize: 11, marginTop: 2 }}>
+                            Jawaban memakai `rag-query-admin`: data agregat aman + dokumen RAG aktif.
+                          </div>
+                        </div>
+                      </div>
+                      <Space>
+                        <Tag style={{ margin: 0, borderColor: T.borderGold, color: GOLD, background: `${GOLD}10` }}>
+                          {ragContextType.toUpperCase()}
+                        </Tag>
+                        <Button icon={<ReloadOutlined />} onClick={() => runRagDecision()} disabled={!ragInput.trim() || ragLoading}
+                          style={{ borderRadius: 10, borderColor: T.borderGold, color: T.text, background: "transparent" }}>
+                          Analisa Ulang
+                        </Button>
+                      </Space>
+                    </div>
+
+                    <div style={{ padding: 22, overflowY: "auto", flex: 1 }}>
+                      {ragLoading ? (
+                        <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 18 }}>
+                          <Spin indicator={<LoadingOutlined style={{ fontSize: 38, color: GOLD }} />} />
+                          <Text style={{ color: GOLD, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: "2px" }}>
+                            MENGGABUNGKAN DATA DB DAN DOKUMEN RAG
+                          </Text>
+                        </div>
+                      ) : !ragResult ? (
+                        <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, color: T.textSub }}>
+                          <DatabaseOutlined style={{ fontSize: 42, color: GOLD }} />
+                          <Text style={{ color: T.textSub, textAlign: "center", maxWidth: 520 }}>
+                            Upload dokumen rekap/SOP/kebijakan di menu RAG Knowledge Base, lalu gunakan mode ini untuk membandingkan dokumen dengan data sistem dan meminta rekomendasi keputusan.
+                          </Text>
+                        </div>
+                      ) : (
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 16, alignItems: "start" }}>
+                          <div style={{
+                            border: `1px solid ${T.border}`, borderRadius: 14, padding: 18,
+                            background: isDark ? "rgba(0,0,0,0.18)" : "rgba(255,255,255,0.66)",
+                          }}>
+                            <div className="al-md-response">
+                              <ReactMarkdown>{ragResult.answer}</ReactMarkdown>
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                            <div style={{ border: `1px solid ${T.borderGold}`, borderRadius: 14, padding: 14, background: `${GOLD}0D` }}>
+                              <Text style={{ color: T.text, fontWeight: 800 }}>Sumber Dipakai</Text>
+                              <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+                                <Tag color={ragResult.data_sources?.db_context ? "success" : "default"}>
+                                  Data DB: {ragResult.data_sources?.db_context ? "digunakan" : "tidak"}
+                                </Tag>
+                                <Tag>Internal: {ragResult.data_sources?.internal_docs?.length || 0} dokumen</Tag>
+                                <Tag>Kitab: {ragResult.data_sources?.kitab_references?.length || 0} referensi</Tag>
+                              </div>
+                            </div>
+                            <div style={{ border: `1px solid ${T.border}`, borderRadius: 14, padding: 14 }}>
+                              <Text style={{ color: T.text, fontWeight: 800 }}>Catatan Keyakinan</Text>
+                              <div style={{ marginTop: 8, color: T.textSub, fontSize: 12, lineHeight: 1.65 }}>
+                                {ragResult.confidence_note || "Kualitas jawaban mengikuti kelengkapan dokumen RAG dan data modul yang tersedia."}
+                              </div>
+                            </div>
+                            {[...(ragResult.data_sources?.internal_docs || []), ...(ragResult.data_sources?.kitab_references || [])].slice(0, 5).map((source, index) => (
+                              <div key={`${source.title}-${index}`} style={{ border: `1px solid ${T.border}`, borderRadius: 12, padding: 12 }}>
+                                <Text style={{ color: T.text, fontSize: 12, fontWeight: 700 }}>{source.title}</Text>
+                                <div style={{ color: T.textSub, fontSize: 11, marginTop: 4 }}>
+                                  Similarity: {typeof source.similarity === "number" ? source.similarity.toFixed(3) : "-"}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </motion.div>
