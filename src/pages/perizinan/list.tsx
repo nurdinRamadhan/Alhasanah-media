@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { logActivity } from "../../utility/logger";
+import { santriAlias } from "../../utility/privacy";
 import { useTable, useSelect } from "@refinedev/antd";
 import { ProTable, ProColumns } from "@ant-design/pro-components";
 import {
@@ -124,6 +125,7 @@ export const PerizinanList = () => {
         resource: "santri",
         optionLabel: "nama",
         optionValue: "nis",
+        meta: { select: "nama, nis, kelas, jurusan, status_santri" },
         onSearch: (v) => [
             { field: "nama", operator: "contains", value: v },
             { field: "nis",  operator: "contains", value: v },
@@ -134,7 +136,7 @@ export const PerizinanList = () => {
     const { tableProps, tableQueryResult } = useTable<IPerizinanSantri>({
         resource: "perizinan_santri",
         syncWithLocation: false,
-        meta: { select: "*, santri!inner(nama, nis, kelas, jurusan, foto_url)" },
+        meta: { select: "*, santri!inner(nama, nis, kelas, jurusan)" },
         sorters: { initial: [{ field: "created_at", order: "desc" }] },
     });
 
@@ -185,7 +187,7 @@ export const PerizinanList = () => {
         const santriMap: Record<string, { nama: string; count: number }> = {};
         allData.forEach((d) => {
             const k = d.santri_nis;
-            if (!santriMap[k]) santriMap[k] = { nama: d.santri?.nama || "-", count: 0 };
+            if (!santriMap[k]) santriMap[k] = { nama: d.santri?.nama || santriAlias(d.santri?.nis) || "-", count: 0 };
             santriMap[k].count += 1;
         });
         const topSantri = Object.entries(santriMap)
@@ -321,14 +323,14 @@ export const PerizinanList = () => {
 
                 const { data } = await supabaseClient
                     .from("perizinan_santri")
-                    .select("*, santri(nama, kelas, jurusan)")
+                    .select("*, santri(nama, nis, kelas, jurusan)")
                     .order("created_at", { ascending: false });
 
                 (data || []).forEach((item: any, idx) => {
                     const row = ws.addRow([
                         formatMasehi(item.created_at),
                         formatHijri(item.created_at),
-                        item.santri?.nama?.toUpperCase(),
+                        (item.santri?.nama || santriAlias(item.santri?.nis))?.toUpperCase(),
                         item.santri?.kelas,
                         item.santri?.jurusan,
                         item.jenis_izin,
@@ -358,15 +360,19 @@ export const PerizinanList = () => {
 
             } else {
                 const { data: santri } = await supabaseClient
-                    .from("santri").select("*").eq("nis", selectedNIS).single();
+                    .from("santri")
+                    .select("nama, nis, kelas, jurusan")
+                    .eq("nis", selectedNIS)
+                    .single();
+                if (!santri) throw new Error("Data santri tidak ditemukan.");
                 const { data: history } = await supabaseClient
                     .from("perizinan_santri").select("*")
                     .eq("santri_nis", selectedNIS)
                     .order("created_at", { ascending: false });
 
-                const ws = wb.addWorksheet(`Riwayat - ${santri.nama}`);
+                const ws = wb.addWorksheet(`Riwayat - ${santri.nama || santriAlias(santri.nis)}`);
                 applyHeader(ws, 7, "LAPORAN RIWAYAT PERIZINAN SANTRI", [
-                    `NAMA   : ${santri.nama.toUpperCase()}`,
+                    `NAMA   : ${(santri.nama || santriAlias(santri.nis)).toUpperCase()}`,
                     `NIS    : ${santri.nis}`,
                     `KELAS  : ${santri.kelas} (${santri.jurusan})`,
                     `CETAK  : ${dayjs().format("DD MMMM YYYY HH:mm")}`,
@@ -399,7 +405,7 @@ export const PerizinanList = () => {
                 });
 
                 const buf = await wb.xlsx.writeBuffer();
-                saveAs(new Blob([buf]), `Riwayat_Perizinan_${santri.nama.replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.xlsx`);
+                saveAs(new Blob([buf]), `Riwayat_Perizinan_${(santri.nama || santriAlias(santri.nis)).replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.xlsx`);
                 message.success("Riwayat perizinan personal berhasil diunduh.");
             }
 
@@ -535,7 +541,7 @@ export const PerizinanList = () => {
                             fontWeight: 800, fontSize: 13.5, color: token.colorText,
                             lineHeight: 1.25, letterSpacing: "-0.2px",
                         }}>
-                            {record.santri?.nama?.toUpperCase() || "—"}
+                            {(record.santri?.nama || santriAlias(record.santri?.nis))?.toUpperCase() || "—"}
                         </div>
                         <div style={{
                             fontSize: 10, color: token.colorTextTertiary,

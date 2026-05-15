@@ -4,6 +4,7 @@ import { Form, Input, DatePicker, InputNumber, Row, Col, Radio, Card, Alert, Typ
 import dayjs from "dayjs";
 import { IPelanggaranSantri } from "../../types";
 import { formatHijri } from "../../utility/dateHelper";
+import { santriAlias } from "../../utility/privacy";
 
 const { Text } = Typography;
 
@@ -35,7 +36,7 @@ export const PelanggaranEdit = () => {
                         <Card title="Identitas Pelanggar" bordered={false} className="shadow-sm mb-6">
                             {/* Santri tidak bisa diubah saat edit untuk menjaga integritas */}
                             <Form.Item label="Nama Santri" help="Santri tidak dapat diubah. Hapus dan buat baru jika salah orang.">
-                                <Input value={record?.santri?.nama} disabled className="bg-gray-100 text-gray-800" />
+                                <Input value={record?.santri?.nama || santriAlias(record?.santri?.nis)} disabled className="bg-gray-100 text-gray-800" />
                             </Form.Item>
 
                             <Form.Item 

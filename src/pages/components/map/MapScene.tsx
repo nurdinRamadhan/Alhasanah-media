@@ -15,6 +15,11 @@ import "../../../styles/map.css";
 
 export type MapMode = "heatmap" | "choropleth" | "points";
 
+const santriAlias = (nis?: string | null) => {
+  const safe = String(nis || "").replace(/[^0-9A-Za-z]/g, "");
+  return `Santri-${safe.slice(-4) || "XXXX"}`;
+};
+
 export default function MapScene({
   mode,
   theme,
@@ -49,7 +54,7 @@ export default function MapScene({
       try {
         const q = supabaseClient
           .from("santri")
-          .select("nis,nama,kelas,jurusan,latitude,longitude,foto_url,kecamatan_id")
+          .select("nis,kelas,jurusan,latitude,longitude,foto_url,kecamatan_id")
           .limit(20000);
 
         if (filters.kelas) (q as any).eq("kelas", filters.kelas);
@@ -187,7 +192,7 @@ export default function MapScene({
       features: santriWithCoords.map((s) => ({
         type: "Feature" as const,
         geometry: { type: "Point", coordinates: [s.longitude!, s.latitude!] } as Geometry,
-        properties: { nis: s.nis, nama: s.nama, kelas: s.kelas, jurusan: s.jurusan, foto_url: s.foto_url },
+        properties: { nis: s.nis, kelas: s.kelas, jurusan: s.jurusan, foto_url: s.foto_url },
       })),
     };
 
@@ -216,7 +221,7 @@ export default function MapScene({
       polygon.on("click", async ({ feature }: any) => {
         const kecId = feature.properties?.id ?? feature.properties?.kecamatan_id;
         if (!kecId) return;
-        const { data } = await supabaseClient.from("santri").select("nis,nama,foto_url,kelas,jurusan,alamat_lengkap").eq("kecamatan_id", kecId).limit(500);
+        const { data } = await supabaseClient.from("santri").select("nis,foto_url,kelas,jurusan").eq("kecamatan_id", kecId).limit(500);
         setDrawerItems((data as ISantri[]) ?? []);
         setDrawerOpen(true);
       });
@@ -234,7 +239,7 @@ export default function MapScene({
       points.on("click", async ({ feature }: any) => {
         if (!feature || !feature.properties) return;
         const nis = feature.properties.nis;
-        const { data } = await supabaseClient.from("santri").select("nis,nama,foto_url,kelas,jurusan,alamat_lengkap").eq("nis", nis).single();
+        const { data } = await supabaseClient.from("santri").select("nis,foto_url,kelas,jurusan").eq("nis", nis).single();
         setDrawerItems(data ? [data as ISantri] : []);
         setDrawerOpen(true);
       });
@@ -296,11 +301,10 @@ export default function MapScene({
               <List.Item>
                 <List.Item.Meta
                   avatar={<Avatar src={item.foto_url ?? undefined} />}
-                  title={<span className="text-white">{item.nama ?? item.nis}</span>}
+                  title={<span className="text-white">{santriAlias(item.nis)}</span>}
                   description={
                     <div className="text-xs text-gray-300">
                       {item.kelas} • {item.jurusan}
-                      <div className="text-[11px] opacity-70">{item.alamat_lengkap}</div>
                     </div>
                   }
                 />

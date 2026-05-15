@@ -13,6 +13,7 @@ import { ISantri, IHafalanKitab } from "../../types";
 import { useParams } from "react-router-dom";
 import dayjs from "dayjs";
 import { formatDualDate, formatHijri, formatMasehi } from "../../utility/dateHelper";
+import { santriAlias } from "../../utility/privacy";
 import { supabaseClient } from "../../utility/supabaseClient";
 import { useReactToPrint } from "react-to-print";
 
@@ -69,7 +70,7 @@ export const HafalanKitabShow = () => {
                 <Col xs={24} md={8}>
                     <Card className="text-center shadow-sm rounded-xl border-emerald-100">
                         <Avatar size={100} src={santri?.foto_url} icon={<UserOutlined />} className="bg-emerald-50 text-emerald-600 mb-4 border-2 border-emerald-200" />
-                        <Title level={3} style={{ margin: 0 }}>{santri?.nama}</Title>
+                        <Title level={3} style={{ margin: 0 }}>{santri?.nama || santriAlias(santri?.nis)}</Title>
                         <Text type="secondary" className="block mb-4">{santri?.nis} | Kelas {santri?.kelas} - {santri?.jurusan}</Text>
                         
                         <Divider />
@@ -130,7 +131,7 @@ export const HafalanKitabShow = () => {
                     <Row className="mb-6">
                         <Col span={12}>
                             <table className="w-full">
-                                <tr><td>Nama Santri</td><td>:</td><td>{santri?.nama}</td></tr>
+                                <tr><td>Nama Santri</td><td>:</td><td>{santri?.nama || santriAlias(santri?.nis)}</td></tr>
                                 <tr><td>NIS</td><td>:</td><td>{santri?.nis}</td></tr>
                             </table>
                         </Col>

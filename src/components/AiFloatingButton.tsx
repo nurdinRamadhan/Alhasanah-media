@@ -7,6 +7,7 @@ import {
 } from "@ant-design/icons";
 import { useList } from "@refinedev/core";
 import dayjs from "dayjs";
+import { santriAlias } from "../utility/privacy";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -27,6 +28,7 @@ export const AiFloatingButton = () => {
         filters: [{ field: "created_at", operator: "gte", value: startOfWeek }],
         pagination: { pageSize: 5 },
         sorters: [{ field: "created_at", order: "desc" }],
+        meta: { select: "id,keluhan,keterangan,created_at,santri:santri_nis(nama,nis)" },
         queryOptions: { enabled: isOpen }
     });
 
@@ -77,7 +79,7 @@ export const AiFloatingButton = () => {
                 result.push({
                     type: 'alert',
                     icon: <MedicineBoxOutlined style={{ color: '#ef4444' }}/>,
-                    text: `KESEHATAN (Minggu Ini): Ada ${jumlahSakit} kasus baru. Terakhir: ${latest?.santri?.nama} (${info}).`
+                    text: `KESEHATAN (Minggu Ini): Ada ${jumlahSakit} kasus baru. Terakhir: ${latest?.santri?.nama || santriAlias(latest?.santri?.nis)} (${info}).`
                 });
             } else {
                 result.push({

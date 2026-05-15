@@ -33,7 +33,11 @@ export const HafalanKitabCreate = () => {
         resource: "santri",
         optionLabel: "nama",
         optionValue: "nis",
-        onSearch: (value) => [{ field: "nama", operator: "contains", value }],
+        meta: { select: "nama, nis, kelas, jurusan, status_santri" },
+        onSearch: (value) => [
+            { field: "nama", operator: "contains", value },
+            { field: "nis", operator: "contains", value },
+        ],
     });
 
     const selectedDate = Form.useWatch("tanggal", form);

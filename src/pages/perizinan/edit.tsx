@@ -3,6 +3,7 @@ import { Edit, useForm } from "@refinedev/antd";
 import { Form, Input, DatePicker, Radio, Card, Row, Col, Alert, Select } from "antd";
 import dayjs from "dayjs";
 import { IPerizinanSantri } from "../../types";
+import { santriAlias } from "../../utility/privacy";
 
 export const PerizinanEdit = () => {
     const { formProps, saveButtonProps, queryResult } = useForm<IPerizinanSantri>();
@@ -21,7 +22,7 @@ export const PerizinanEdit = () => {
             >
                 {/* Info Santri (Read Only) */}
                 <Alert 
-                    message={`Mengedit Izin: ${record?.santri?.nama || '...'}`}
+                    message={`Mengedit Izin: ${record?.santri?.nama || santriAlias(record?.santri?.nis) || '...'}`}
                     type="info" 
                     showIcon 
                     className="mb-6"

@@ -36,14 +36,14 @@ Deno.serve(async (req) => {
             // --- LOGIKA TAGIHAN SANTRI ---
             const { data: tagihan } = await supabase
                 .from('tagihan_santri')
-                .select('*, santri(wali_id, nama)')
+                .select('*, santri(wali_id, nama, nis)')
                 .eq('id', tagihanId)
                 .single()
 
             if (tagihan) {
                 santriNis = tagihan.santri_nis
                 waliId = tagihan.santri?.wali_id
-                console.log(`[PAYMENT] Processing payment for Santri: ${tagihan.santri?.nama || 'Unknown'}`)
+                console.log(`[PAYMENT] Processing payment for Santri: ${tagihan.santri?.nama || tagihan.santri?.nis || tagihan.santri_nis || 'Unknown'}`)
                 
                 // Tandai Tagihan LUNAS
                 await supabase.from('tagihan_santri').update({ status: 'LUNAS' }).eq('id', tagihanId)

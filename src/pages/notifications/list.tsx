@@ -75,6 +75,7 @@ export const NotificationList = () => {
         resource: "santri",
         optionLabel: "nama",
         optionValue: "wali_id",
+        meta: { select: "nama, nis, wali_id, kelas, jurusan, status_santri" },
         pagination: { pageSize: 500 }
     });
 

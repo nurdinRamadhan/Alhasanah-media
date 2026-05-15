@@ -8,6 +8,26 @@ interface LogParams {
     details?: any;
 }
 
+const SENSITIVE_KEY_PATTERN = /(nama|nik|nisn|alamat|kontak|no_hp|phone|email|ayah|ibu|wali|tanggal_lahir|tempat_lahir|no_kk|no_kip|rekening|password)/i;
+
+const sanitizeAuditDetails = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(sanitizeAuditDetails);
+    if (!value || typeof value !== "object") return value;
+    if (value instanceof HTMLElement) return undefined;
+
+    const out: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+        if (key.startsWith("_")) continue;
+        if (SENSITIVE_KEY_PATTERN.test(key)) {
+            out[key] = "[REDACTED]";
+            continue;
+        }
+        if (child && typeof child === "object" && "type" in child && "props" in child) continue;
+        out[key] = sanitizeAuditDetails(child);
+    }
+    return out;
+};
+
 export const logActivity = async ({ user, action, resource, record_id, details }: LogParams) => {
     // 1. CEGAH ERROR: Jika user kosong, batalkan
     if (!user) return;
@@ -27,12 +47,7 @@ export const logActivity = async ({ user, action, resource, record_id, details }
             try {
                 // Trik: Stringify lalu Parse ulang untuk membuang referensi memori
                 // Menggunakan replacer untuk membuang key yang berawalan '_' (biasanya internal React)
-                const jsonString = JSON.stringify(details, (key, value) => {
-                    if (key.startsWith('_')) return undefined; // Buang internal React
-                    if (value && value.type && value.props) return undefined; // Buang Komponen React
-                    if (value instanceof HTMLElement) return undefined; // Buang elemen HTML
-                    return value;
-                });
+                const jsonString = JSON.stringify(sanitizeAuditDetails(details));
                 cleanDetails = JSON.parse(jsonString);
             } catch (e) {
                 cleanDetails = { error: "Data detail terlalu kompleks untuk disimpan" };

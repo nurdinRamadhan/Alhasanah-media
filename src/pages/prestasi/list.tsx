@@ -20,6 +20,7 @@ import { IPrestasiSantri, ISantri } from "../../types";
 import { useCreate, useGetIdentity, useList } from "@refinedev/core";
 import dayjs from "dayjs";
 import { formatHijri } from "../../utility/dateHelper";
+import { santriAlias } from "../../utility/privacy";
 
 const { Text, Title } = Typography;
 
@@ -50,7 +51,7 @@ export const PrestasiList = () => {
     const { tableProps, tableQueryResult } = useTable<IPrestasiSantri>({
         resource: "prestasi_santri",
         syncWithLocation: true,
-        meta: { select: "*, santri(nama, nis, kelas, jurusan, foto_url)" },
+        meta: { select: "*, santri(nama, nis, kelas, jurusan)" },
         sorters: { initial: [{ field: "tanggal_prestasi", order: "desc" }] }
     });
 
@@ -62,6 +63,7 @@ export const PrestasiList = () => {
         resource: "santri",
         optionLabel: "nama",
         optionValue: "nis",
+        meta: { select: "nama, nis, kelas, jurusan, status_santri" },
         filters: [{ field: "status_santri", operator: "eq", value: "AKTIF" }],
     });
 
@@ -94,7 +96,7 @@ export const PrestasiList = () => {
                 <Space>
                     <Avatar src={record.santri?.foto_url} icon={<UserOutlined />} />
                     <div className="flex flex-col">
-                        <Text strong>{record.santri?.nama}</Text>
+                        <Text strong>{record.santri?.nama || santriAlias(record.santri?.nis)}</Text>
                         <Text type="secondary" style={{ fontSize: 10 }}>{record.santri?.nis}</Text>
                     </div>
                 </Space>

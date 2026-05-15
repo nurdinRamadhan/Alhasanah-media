@@ -1,8 +1,9 @@
-import React, { useRef } from "react";
-import { useShow, useNavigation } from "@refinedev/core";
+import React, { useEffect, useRef, useState } from "react";
+import { useNavigation } from "@refinedev/core";
+import { useParams } from "react-router-dom";
 import {
     Typography, Card, Row, Col, Avatar, Tag, Button,
-    Skeleton, theme, Space, Tooltip, Divider, Progress,
+    Skeleton, theme, Space, Tooltip, Divider, Progress, Alert,
 } from "antd";
 import { motion, Variants } from "framer-motion";
 import {
@@ -21,6 +22,7 @@ import dayjs from "dayjs";
 import "dayjs/locale/id";
 import { useReactToPrint } from "react-to-print";
 import { formatHijri, formatMasehi } from "../../utility/dateHelper";
+import { supabaseClient } from "../../utility/supabaseClient";
 
 const { Text, Title } = Typography;
 const { useToken } = theme;
@@ -215,6 +217,7 @@ const MetricBox: React.FC<{
 export const SantriShow = () => {
     const { token } = useToken();
     const { list, edit } = useNavigation();
+    const { id } = useParams();
 
     // ── Dark mode detection ──────────────────────────────────
     const bg   = token.colorBgContainer;
@@ -227,10 +230,47 @@ export const SantriShow = () => {
         return lum < 128;
     })();
 
-    // ── Fetch ────────────────────────────────────────────────
-    const { queryResult } = useShow({ meta: { select: "*, profiles:wali_id(*)" } });
-    const { data, isLoading } = queryResult;
-    const record = data?.data;
+    const [secureRecord, setSecureRecord] = useState<any | null>(null);
+    const [secureLoading, setSecureLoading] = useState(true);
+    const [secureError, setSecureError] = useState<string | null>(null);
+    const nis = decodeURIComponent(id || "");
+
+    useEffect(() => {
+        let active = true;
+        if (!nis) {
+            setSecureLoading(false);
+            setSecureError("NIS santri tidak ditemukan di URL.");
+            return;
+        }
+
+        const loadSecureDetail = async () => {
+            setSecureLoading(true);
+            setSecureError(null);
+            try {
+                const { data: secureData, error } = await supabaseClient.rpc("get_santri_detail_secure", {
+                    p_nis: nis,
+                    p_reason: "admin_panel_show",
+                });
+                if (!active) return;
+                if (error) throw error;
+                setSecureRecord(secureData || null);
+            } catch (error: any) {
+                if (!active) return;
+                setSecureRecord(null);
+                setSecureError(error.message || "Gagal memuat detail santri.");
+            } finally {
+                if (active) setSecureLoading(false);
+            }
+        };
+
+        void loadSecureDetail();
+
+        return () => {
+            active = false;
+        };
+    }, [nis]);
+
+    const record = secureRecord;
 
     // ── Print ────────────────────────────────────────────────
     const componentRef = useRef<HTMLDivElement>(null);
@@ -240,7 +280,7 @@ export const SantriShow = () => {
     });
 
     // ── Loading ──────────────────────────────────────────────
-    if (isLoading || !record) {
+    if (secureLoading) {
         return (
             <Card bordered={false} style={{
                 borderRadius: 20,
@@ -248,6 +288,26 @@ export const SantriShow = () => {
                 background: token.colorBgContainer,
             }}>
                 <Skeleton avatar={{ size: 110 }} active paragraph={{ rows: 10 }} />
+            </Card>
+        );
+    }
+
+    if (secureError || !record) {
+        return (
+            <Card bordered={false} style={{
+                borderRadius: 20,
+                border: `1px solid ${G(0.14)}`,
+                background: token.colorBgContainer,
+            }}>
+                <Alert
+                    type="error"
+                    showIcon
+                    message="Detail santri tidak dapat ditampilkan"
+                    description={secureError || "Data tidak ditemukan atau akses admin tidak mencukupi."}
+                />
+                <Button style={{ marginTop: 16 }} icon={<ArrowLeftOutlined />} onClick={() => list("santri")}>
+                    Kembali ke List Santri
+                </Button>
             </Card>
         );
     }

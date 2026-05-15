@@ -130,9 +130,9 @@ const statusLabel: Record<Exclude<ReportStatus, "all">, string> = {
 
 const reasonLabel: Record<string, string> = {
     spam: "Spam",
-    harassment: "Pelecehan",
-    inappropriate: "Tidak pantas",
-    privacy: "Privasi",
+    tidak_pantas: "Tidak pantas",
+    fitnah: "Fitnah",
+    privasi: "Privasi",
     lainnya: "Lainnya",
 };
 
@@ -198,15 +198,21 @@ export const ForumReportsList = () => {
         const statuses: Exclude<ReportStatus, "all">[] = ["open", "reviewing", "resolved", "rejected"];
         const nextStats: ReportStats = { open: 0, reviewing: 0, resolved: 0, rejected: 0 };
 
-        await Promise.all(statuses.map(async (status) => {
-            const { count } = await supabaseClient
-                .from("forum_reports")
-                .select("id", { count: "exact", head: true })
-                .eq("status", status);
-            nextStats[status] = count || 0;
-        }));
+        try {
+            await Promise.all(statuses.map(async (status) => {
+                const { count, error } = await supabaseClient
+                    .from("forum_reports")
+                    .select("id", { count: "exact", head: true })
+                    .eq("status", status);
+                if (error) throw error;
+                nextStats[status] = count || 0;
+            }));
 
-        setStats(nextStats);
+            setStats(nextStats);
+        } catch (error) {
+            const text = error instanceof Error ? error.message : "Gagal memuat statistik laporan forum.";
+            messageApi.error(text);
+        }
     };
 
     useEffect(() => {
@@ -306,11 +312,16 @@ export const ForumReportsList = () => {
 
     const runModeration = async (
         report: ForumReport,
-        action: "hide" | "restore" | "resolve" | "reject",
+        action: "reviewing" | "hide" | "restore" | "resolve" | "reject",
     ) => {
         setActionLoading(`${action}-${report.id}`);
         try {
             const moderatorId = await getModeratorId();
+
+            if (action === "reviewing") {
+                await updateReportStatus(report, moderatorId, "reviewing");
+                messageApi.success("Laporan ditandai sedang ditinjau.");
+            }
 
             if (action === "hide") {
                 await changeContentStatus(report, "hidden");
@@ -350,7 +361,7 @@ export const ForumReportsList = () => {
 
     const confirmAction = (
         report: ForumReport,
-        action: "hide" | "restore" | "resolve" | "reject",
+        action: "reviewing" | "hide" | "restore" | "resolve" | "reject",
         title: string,
         content: string,
         danger = false,
@@ -484,7 +495,7 @@ export const ForumReportsList = () => {
 
             <div>
                 <Title level={3} style={{ marginBottom: 4 }}>
-                    Moderasi Forum Alumni
+                    Laporan Forum
                 </Title>
                 <Text type="secondary">
                     Tinjau laporan, sembunyikan konten bermasalah, dan simpan jejak tindakan moderator.
@@ -552,6 +563,18 @@ export const ForumReportsList = () => {
                 onClose={() => setSelectedReport(null)}
                 extra={selectedReport ? (
                     <Space wrap>
+                        <Button
+                            icon={<SafetyCertificateOutlined />}
+                            loading={actionLoading === `reviewing-${selectedReport.id}`}
+                            onClick={() => confirmAction(
+                                selectedReport,
+                                "reviewing",
+                                "Tandai sedang ditinjau?",
+                                "Status laporan akan berubah menjadi ditinjau.",
+                            )}
+                        >
+                            Reviewing
+                        </Button>
                         <Button
                             icon={<CheckCircleOutlined />}
                             loading={actionLoading === `resolve-${selectedReport.id}`}

@@ -53,7 +53,7 @@ type TopicKey = "KESEHATAN" | "PELANGGARAN" | "KEUANGAN" | "ADMIN" | "TAHFIDZ" |
 type AppMode  = "analysis" | "agent" | "rag" | "report";
 
 interface CacheEntry { answer: string; savedAt: number; }
-interface Santri { nama: string; kelas?: string; poin?: number; total_hafalan?: number; }
+interface Santri { nama?: string; nis?: string; kelas?: string; poin?: number; total_hafalan?: number; }
 
 interface ChatMessage {
   id:             string;
@@ -138,6 +138,13 @@ const ACTION_ICON: Record<string, string> = {
   insert_murojaah:            "🔁", insert_pengeluaran:          "💸",
   topup_dompet:               "💳", kirim_notifikasi:            "🔔",
 };
+
+const santriAlias = (nis?: string | null) => {
+  const safe = String(nis || "").replace(/[^0-9A-Za-z]/g, "");
+  return `Santri-${safe.slice(-4) || "XXXX"}`;
+};
+
+const santriName = (santri?: Santri | null) => santri?.nama || santriAlias(santri?.nis);
 
 // ══════════════════════════════════════════════════════════════════════════
 // HOOK: TYPEWRITER (analysis mode)
@@ -367,7 +374,7 @@ export const GeminiConsultant: React.FC<GeminiConsultantProps> = ({
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: dataSakit }       = useList({ resource: "kesehatan_santri",   pagination: { mode: "off" }, filters: [{ field: "created_at",         operator: "gte", value: weekStart  }], meta: { select: "id,santri_nis,keluhan,tindakan,created_at,tanggal" }, queryOptions: stableQueryOptions });
+  const { data: dataSakit }       = useList({ resource: "kesehatan_santri",   pagination: { mode: "off" }, filters: [{ field: "created_at",         operator: "gte", value: weekStart  }], meta: { select: "id,santri_nis,keluhan,tindakan,created_at,tanggal,santri:santri_nis(nama,nis)" }, queryOptions: stableQueryOptions });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: dataPelanggaran } = useList({ resource: "pelanggaran_santri", pagination: { mode: "off" }, filters: [{ field: "created_at",         operator: "gte", value: weekStart  }], meta: { select: "id,santri_nis,jenis_pelanggaran,poin,created_at,tanggal" }, queryOptions: stableQueryOptions });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -377,7 +384,7 @@ export const GeminiConsultant: React.FC<GeminiConsultantProps> = ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: dataAudit }       = useList({ resource: "audit_logs",         pagination: { pageSize: 20 }, sorters: [{ field: "created_at", order: "desc" }], meta: { select: "id,created_at,user_name,action,resource" }, queryOptions: stableQueryOptions });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: dataSantri }      = useList({ resource: "santri",             pagination: { mode: "off" }, meta: { select: "nis,nama,kelas,jurusan,jenis_kelamin,status_santri,total_hafalan" }, queryOptions: { enabled: shouldLoadSantriOptions, staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false } });
+  const { data: dataSantri }      = useList({ resource: "santri",             pagination: { mode: "off" }, meta: { select: "nama,nis,kelas,jurusan,jenis_kelamin,status_santri,total_hafalan" }, queryOptions: { enabled: shouldLoadSantriOptions, staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false } });
 
   const availableReports = useMemo(
     () => REPORT_DEFINITIONS.filter(def => canAccessReport(def, callerProfile?.role)),
@@ -398,7 +405,7 @@ export const GeminiConsultant: React.FC<GeminiConsultantProps> = ({
         if (reportGender !== "ALL" && s.jenis_kelamin !== reportGender) return false;
         return true;
       })
-      .map(s => ({ value: s.nis, label: `${s.nama} · ${s.nis} · Kelas ${s.kelas ?? "-"}` }));
+      .map(s => ({ value: s.nis, label: `${s.nama || santriAlias(s.nis)} · ${s.nis} · Kelas ${s.kelas ?? "-"}` }));
   }, [callerProfile?.akses_gender, callerProfile?.akses_jurusan, dataSantri?.data, reportGender, reportJurusan, reportKelas]);
 
   useEffect(() => {
@@ -502,7 +509,7 @@ export const GeminiConsultant: React.FC<GeminiConsultantProps> = ({
     switch (topic) {
       case "KESEHATAN": {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const list = dataSakit?.data.map((d: any) => `- ${d.santri?.nama ?? "?"}: ${d.keluhan ?? "-"}`).join("\n") || "Nihil";
+        const list = dataSakit?.data.map((d: any) => `- ${d.santri?.nama || santriAlias(d.santri_nis)}: ${d.keluhan ?? "-"}`).join("\n") || "Nihil";
         ctx   = `Total Sakit Minggu Ini: ${dataSakit?.total ?? 0}\nDetail:\n${list}`;
         instr = "Analisa tren penyakit santri minggu ini. Apakah ada indikasi wabah? Identifikasi penyakit dominan dan berikan saran medis preventif yang konkret. Akhiri dengan satu rekomendasi aksi prioritas.";
         break;
@@ -512,9 +519,9 @@ export const GeminiConsultant: React.FC<GeminiConsultantProps> = ({
         const all    = [...(dataSantri?.data ?? [])] as Santri[];
         const sorted = all.sort((a, b) => (Number(b.poin) || 0) - (Number(a.poin) || 0));
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const top    = sorted.slice(0, 3).map((s: any) => `- ${s.nama} (Kelas ${s.kelas ?? "-"}): ${s.poin ?? 0} Poin`).join("\n") || "Alhamdulillah, nihil.";
+        const top    = sorted.slice(0, 3).map((s: any) => `- ${santriName(s)} (Kelas ${s.kelas ?? "-"}): ${s.poin ?? 0} Poin`).join("\n") || "Alhamdulillah, nihil.";
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const clean  = sorted.length > 3 ? sorted.slice(-3).reverse().map((s: any) => `- ${s.nama} (Kelas ${s.kelas ?? "-"}): ${s.poin ?? 0} Poin`).join("\n") : "Semua santri disiplin.";
+        const clean  = sorted.length > 3 ? sorted.slice(-3).reverse().map((s: any) => `- ${santriName(s)} (Kelas ${s.kelas ?? "-"}): ${s.poin ?? 0} Poin`).join("\n") : "Semua santri disiplin.";
         ctx   = `⚠️ Perhatian Khusus:\n${top}\n\n🛡️ Santri Teladan:\n${clean}`;
         instr = "Evaluasi tren kedisiplinan. Sarankan pendekatan personal (tabayyun) untuk santri bermasalah, bukan hanya hukuman. Apresiasi yang tertib. Akhiri dengan nasehat tegas namun mengayomi.";
         break;
@@ -544,9 +551,9 @@ export const GeminiConsultant: React.FC<GeminiConsultantProps> = ({
         const all    = [...(dataSantri?.data ?? [])] as Santri[];
         const sorted = all.sort((a, b) => (Number(b.total_hafalan) || 0) - (Number(a.total_hafalan) || 0));
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const top    = sorted.slice(0, 3).map((s: any) => `- ${s.nama} (${s.kelas ?? "-"}): ${s.total_hafalan ?? 0} Juz`).join("\n");
+        const top    = sorted.slice(0, 3).map((s: any) => `- ${santriName(s)} (${s.kelas ?? "-"}): ${s.total_hafalan ?? 0} Juz`).join("\n");
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const low    = sorted.slice(-3).reverse().map((s: any) => `- ${s.nama} (${s.kelas ?? "-"}): ${s.total_hafalan ?? 0} Juz`).join("\n");
+        const low    = sorted.slice(-3).reverse().map((s: any) => `- ${santriName(s)} (${s.kelas ?? "-"}): ${s.total_hafalan ?? 0} Juz`).join("\n");
         ctx   = `🏆 Mumtaz:\n${top}\n\n⚠️ Perlu Bimbingan:\n${low}`;
         instr = "Sebagai Musyrif Tahfidz: Apresiasi Mumtaz (Barakallah). Sarankan solusi konkret untuk santri tertinggal. Ingatkan pentingnya Muraja'ah. Akhiri dengan satu ayat motivasi.";
         break;

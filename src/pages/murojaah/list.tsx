@@ -18,6 +18,7 @@ import dayjs from "dayjs";
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { supabaseClient } from "../../utility/supabaseClient";
+import { santriAlias } from "../../utility/privacy";
 
 const { Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -26,6 +27,7 @@ export const MurojaahList = () => {
     const { tableProps } = useTable<ISantri>({
         resource: "santri",
         syncWithLocation: true,
+        meta: { select: "nama, nis, kelas, jurusan, jenis_kelamin, status_santri, total_hafalan, foto_url" },
         filters: {
             permanent: [
                 { field: "jurusan", operator: "eq", value: "TAHFIDZ" },
@@ -49,8 +51,12 @@ export const MurojaahList = () => {
         resource: "santri",
         optionLabel: "nama",
         optionValue: "nis",
+        meta: { select: "nama, nis, kelas, jurusan, status_santri" },
         filters: [{ field: "jurusan", operator: "eq", value: "TAHFIDZ" }],
-        onSearch: (value) => [{ field: "nama", operator: "contains", value }],
+        onSearch: (value) => [
+            { field: "nama", operator: "contains", value },
+            { field: "nis", operator: "contains", value },
+        ],
     });
 
     // --- LOGIC EXPORT EXCEL ---
@@ -73,7 +79,7 @@ export const MurojaahList = () => {
                 // Ambil data dengan join santri
                 const { data: logs, error } = await supabaseClient
                     .from('murojaah_tahfidz')
-                    .select('*, santri(nama, kelas)')
+                    .select('*, santri(nama, nis, kelas)')
                     .gte('tanggal', startDate)
                     .lte('tanggal', endDate)
                     .order('tanggal', { ascending: false }); // Urutkan tanggal terbaru
@@ -106,7 +112,7 @@ export const MurojaahList = () => {
                         tgl: formatMasehi(item.tanggal),
                         hijri: formatHijri(item.tanggal), // Kolom Hijriah baru
                         nis: item.santri_nis,
-                        nama: item.santri?.nama,
+                        nama: item.santri?.nama || santriAlias(item.santri?.nis),
                         kelas: item.santri?.kelas,
                         jenis: item.jenis_murojaah,
                         cakupan: cakupan,
@@ -122,7 +128,12 @@ export const MurojaahList = () => {
                     setIsLoadingExport(false); return;
                 }
 
-                const { data: santri } = await supabaseClient.from('santri').select('*').eq('nis', selectedSantri).single();
+                const { data: santri } = await supabaseClient
+                    .from('santri')
+                    .select('nama, nis, kelas, jurusan')
+                    .eq('nis', selectedSantri)
+                    .single();
+                if (!santri) throw new Error("Data santri tidak ditemukan.");
                 const { data: logs } = await supabaseClient
                     .from('murojaah_tahfidz')
                     .select('*')
@@ -131,12 +142,12 @@ export const MurojaahList = () => {
                     .lte('tanggal', endDate)
                     .order('tanggal', { ascending: false });
 
-                const ws = wb.addWorksheet(`Murojaah - ${santri.nama.substring(0, 20)}`);
+                const ws = wb.addWorksheet(`Murojaah - ${(santri.nama || santriAlias(santri.nis)).substring(0, 20)}`);
 
                 // Header Biodata
                 ws.getCell('A1').value = "LAPORAN PERSONAL MUROJAAH";
                 ws.getCell('A1').font = { size: 16, bold: true, color: { argb: 'FF7E22CE' } };
-                ws.getCell('A3').value = "Nama:"; ws.getCell('B3').value = santri.nama;
+                ws.getCell('A3').value = "Nama:"; ws.getCell('B3').value = santri.nama || santriAlias(santri.nis);
                 ws.getCell('A4').value = "Kelas:"; ws.getCell('B4').value = santri.kelas;
                 ws.getCell('A5').value = "Periode:"; ws.getCell('B5').value = `${dateRange[0].format('DD MMM')} s/d ${dateRange[1].format('DD MMM YYYY')}`;
 
@@ -183,7 +194,7 @@ export const MurojaahList = () => {
     const columns: ProColumns<ISantri>[] = [
         {
             title: "Santri Tahfidz",
-            dataIndex: "nama",
+            dataIndex: "nis",
             width: 250,
             fixed: "left",
             render: (_, record) => (
@@ -195,7 +206,7 @@ export const MurojaahList = () => {
                         className="border border-purple-100 bg-purple-50 text-purple-600"
                     />
                     <div className="flex flex-col">
-                        <Text strong className="text-gray-800 dark:text-gray-100">{record.nama}</Text>
+                        <Text strong className="text-gray-800 dark:text-gray-100">{record.nama || santriAlias(record.nis)}</Text>
                         <Space size={4}>
                             <Tag bordered={false} className="m-0 text-[10px] bg-gray-100">{record.nis}</Tag>
                             <Tag color="cyan" className="m-0 text-[10px]">Kelas {record.kelas}</Tag>

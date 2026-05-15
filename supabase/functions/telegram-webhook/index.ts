@@ -431,7 +431,7 @@ async function buildDataContext(
         resInventarisRusak,
     ] = await Promise.allSettled([
         // Santri aktif — kolom yang benar-benar ada di schema
-        buildSantriQuery("nis, nama, kelas, jurusan, jenis_kelamin, total_hafalan, hafalan_kitab, pembimbing"),
+        buildSantriQuery("nis, kelas, jurusan, jenis_kelamin, total_hafalan, hafalan_kitab, pembimbing"),
 
         // Kesehatan 7 hari — field: keluhan, tindakan, catatan (bukan keterangan!)
         supabase
@@ -550,10 +550,9 @@ async function buildDataContext(
     // deno-lint-ignore no-explicit-any
     santriList.forEach((s: any) => { santriMap[s.nis] = s; });
 
-    const namaOf = (nis: string, short = false): string => {
-        const nama = santriMap[nis]?.nama ?? nis;
-        if (!short) return nama;
-        return nama.split(" ").slice(0, 2).join(" ");
+    const namaOf = (nis: string, _short = false): string => {
+        const safeNis = String(nis || "").replace(/[^0-9A-Za-z]/g, "");
+        return `Santri-${safeNis.slice(-4) || "XXXX"}`;
     };
     const kelasOf = (nis: string): string => santriMap[nis]?.kelas ?? "?";
 
@@ -665,7 +664,7 @@ async function buildDataContext(
         .sort((a: any, b: any) => parseInt(b.total_hafalan ?? "0", 10) - parseInt(a.total_hafalan ?? "0", 10))
         .slice(0, 3)
         // deno-lint-ignore no-explicit-any
-        .map((s: any) => `${s.nama.split(" ")[0]}(${s.total_hafalan ?? 0}juz)`)
+        .map((s: any) => `${namaOf(s.nis, true)}(${s.total_hafalan ?? 0}juz)`)
         .join(", ") || "-";
     const mumtazWeek  = hafalanList.filter((h: { predikat: string }) => h.predikat === "MUMTAZ").length;
     const kurangWeek  = hafalanList.filter((h: { predikat: string }) => h.predikat === "KURANG").length;

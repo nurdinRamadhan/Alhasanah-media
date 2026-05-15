@@ -42,7 +42,7 @@ import {
   TransaksiCreate, MurojaahList, MurojaahCreate, MurojaahShow, HafalanKitabList, 
   HafalanKitabCreate, HafalanKitabShow, PengeluaranList, DiklatList, 
   MasterDataPage, AuditLogList, AkademikPage, ScanQR, CreateAdminPage, 
-  AdminList, AlumniList, ForumReportsList, WeeklyTestList, WeeklyTestCreate, WeeklyTestArsip, 
+  AdminList, AlumniList, ForumModerationList, ForumReportsList, AlumniChatMonitoringList, WeeklyTestList, WeeklyTestCreate, WeeklyTestArsip, 
   NotificationList, NotificationCreate, RagKnowledgePage, LoadingFallback 
 } from "./lazyPages";
 
@@ -400,7 +400,9 @@ const InnerApp: React.FC = () => {
             <Route path="/murojaah"><Route index element={<MurojaahList />} /><Route path="create" element={<MurojaahCreate />} /><Route path="show/:id" element={<MurojaahShow />} /></Route>
             <Route path="/hafalan-kitab"><Route index element={<HafalanKitabList />} /><Route path="create" element={<HafalanKitabCreate />} /><Route path="show/:id" element={<HafalanKitabShow />} /></Route>
             <Route path="/alumni"><Route index element={<AlumniList />} /></Route>
+            <Route path="/forum-alumni"><Route index element={<ForumModerationList />} /></Route>
             <Route path="/forum-reports"><Route index element={<ForumReportsList />} /></Route>
+            <Route path="/chat-alumni"><Route index element={<AlumniChatMonitoringList />} /></Route>
             <Route path="/audit-logs"><Route index element={<AuditLogList />} /></Route>
             <Route path="/rag" element={<RagKnowledgePage />} />
             <Route path="/akademik"><Route index element={<AkademikPage />} /></Route>

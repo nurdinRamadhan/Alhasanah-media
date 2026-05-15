@@ -12,6 +12,7 @@ import { ISantri } from "../../types";
 import { useNavigate, useParams } from "react-router-dom";
 import { formatDualDate, formatMasehi, formatHijri } from "../../utility/dateHelper";
 import { supabaseClient } from "../../utility/supabaseClient";
+import { santriAlias } from "../../utility/privacy";
 
 const { Title, Text } = Typography;
 
@@ -23,7 +24,7 @@ export const HafalanShow = () => {
     const { data: santriData, isLoading: santriLoading } = useOne<ISantri>({
         resource: "santri",
         id: id as string,
-        meta: { idColumnName: "nis" } // Penting karena PK kita NIS
+        meta: { idColumnName: "nis", select: "nama, nis, kelas, jurusan, jenis_kelamin, status_santri, total_hafalan, foto_url" } // Penting karena PK kita NIS
     });
 
     // 2. Ambil Riwayat Hafalan (Manual Fetch agar bisa sort desc)
@@ -61,7 +62,7 @@ export const HafalanShow = () => {
                 <Col xs={24} md={8}>
                     <Card className="text-center shadow-sm rounded-xl border-emerald-100">
                         <Avatar size={100} src={record.foto_url} icon={<ReadOutlined />} className="bg-emerald-100 text-emerald-600 mb-4" />
-                        <Title level={3} style={{ margin: 0 }}>{record.nama}</Title>
+                        <Title level={3} style={{ margin: 0 }}>{record.nama || santriAlias(record.nis)}</Title>
                         <Text type="secondary">{record.nis} | {record.kelas}</Text>
                         
                         <Divider />

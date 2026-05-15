@@ -24,8 +24,12 @@ const { formProps, saveButtonProps, form } = useForm<ITagihanSantri>({
         resource: "santri",
         optionLabel: "nama",
         optionValue: "nis",
+        meta: { select: "nama, nis, kelas, jurusan, status_santri" },
         filters: [{ field: "status_santri", operator: "eq", value: "AKTIF" }],
-        onSearch: (value) => [{ field: "nama", operator: "contains", value }],
+        onSearch: (value) => [
+            { field: "nama", operator: "contains", value },
+            { field: "nis", operator: "contains", value },
+        ],
     });
 
     const handleNominalChange = (value: number | null) => {

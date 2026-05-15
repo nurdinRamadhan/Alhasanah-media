@@ -1,0 +1,923 @@
+/* ================================================================
+   PESANTREN ADMIN SYSTEM — PREMIUM UI v2.0
+   Design System: Luxury Gold × Dark Obsidian
+   Font: Syne (Display) + DM Sans (Body) + DM Mono (Numbers)
+   ================================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+/* ================================================================
+   DESIGN TOKENS — LIGHT MODE
+   ================================================================ */
+:root {
+  /* ── Brand Gold ── */
+  --gold-50:      #FFFBF0;
+  --gold-100:     #FEF3C7;
+  --gold-200:     #FDE68A;
+  --gold-300:     #FCD34D;
+  --gold-400:     #FBBF24;
+  --gold-primary: #C9A84C;
+  --gold-bright:  #FFB700;
+  --gold-light:   #FDE68A;
+  --gold-dark:    #8B6914;
+  --gold-deep:    #5C430A;
+  --gold-glow:    rgba(201, 168, 76, 0.25);
+  --gold-glow-lg: rgba(201, 168, 76, 0.18);
+
+  /* ── Surfaces ── */
+  --surface-base:     #F7F4EE;
+  --surface-card:     #FFFFFF;
+  --surface-elevated: #FFFFFF;
+  --surface-sunken:   #F0EDE5;
+  --surface-overlay:  rgba(255, 255, 255, 0.92);
+
+  /* ── Text ── */
+  --text-primary:   #0A0805;
+  --text-secondary: #6B5F50;
+  --text-tertiary:  #9E9080;
+  --text-disabled:  #C4B89E;
+
+  /* ── Borders ── */
+  --border-subtle:    rgba(201, 168, 76, 0.10);
+  --border-default:   rgba(201, 168, 76, 0.20);
+  --border-prominent: rgba(201, 168, 76, 0.40);
+  --border-focus:     rgba(201, 168, 76, 0.60);
+
+  /* ── Semantic ── */
+  --success:       #059669;
+  --success-muted: rgba(5, 150, 105, 0.10);
+  --danger:        #DC2626;
+  --danger-muted:  rgba(220, 38, 38, 0.10);
+  --info:          #2563EB;
+  --info-muted:    rgba(37, 99, 235, 0.10);
+  --purple:        #7C3AED;
+
+  /* ── Shadows ── */
+  --shadow-xs:   0 1px 2px rgba(0,0,0,0.04);
+  --shadow-sm:   0 2px 8px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:   0 4px 16px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.04);
+  --shadow-lg:   0 8px 32px rgba(0,0,0,0.08), 0 4px 8px rgba(0,0,0,0.04);
+  --shadow-xl:   0 20px 60px rgba(0,0,0,0.10);
+  --shadow-gold: 0 4px 20px rgba(201,168,76,0.18), 0 0 0 1px rgba(201,168,76,0.12);
+  --shadow-gold-lg: 0 8px 40px rgba(201,168,76,0.22), 0 0 0 1px rgba(201,168,76,0.16);
+
+  /* ── Typography ── */
+  --font-display: 'Syne', sans-serif;
+  --font-body:    'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono:    'DM Mono', 'Fira Code', monospace;
+
+  /* ── Radius ── */
+  --r-sm:  8px;
+  --r-md:  12px;
+  --r-lg:  18px;
+  --r-xl:  24px;
+  --r-2xl: 32px;
+
+  /* ── Transitions ── */
+  --ease-out:   cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --t-fast:  150ms var(--ease-in-out);
+  --t-base:  250ms var(--ease-in-out);
+  --t-slow:  400ms var(--ease-out);
+}
+
+/* ================================================================
+   DESIGN TOKENS — DARK MODE
+   ================================================================ */
+.dark {
+  --surface-base:     #08070D;
+  --surface-card:     #0F0F1A;
+  --surface-elevated: #141424;
+  --surface-sunken:   #060610;
+  --surface-overlay:  rgba(15, 15, 26, 0.96);
+
+  --text-primary:   #F0EDE5;
+  --text-secondary: #9E9080;
+  --text-tertiary:  #5C5248;
+  --text-disabled:  #3A342E;
+
+  --border-subtle:    rgba(201, 168, 76, 0.07);
+  --border-default:   rgba(201, 168, 76, 0.14);
+  --border-prominent: rgba(201, 168, 76, 0.30);
+  --border-focus:     rgba(201, 168, 76, 0.55);
+
+  --shadow-xs:   0 1px 2px rgba(0,0,0,0.30);
+  --shadow-sm:   0 2px 8px rgba(0,0,0,0.40);
+  --shadow-md:   0 4px 16px rgba(0,0,0,0.50);
+  --shadow-lg:   0 8px 32px rgba(0,0,0,0.60);
+  --shadow-xl:   0 20px 60px rgba(0,0,0,0.70);
+  --shadow-gold: 0 4px 20px rgba(201,168,76,0.12), 0 0 0 1px rgba(201,168,76,0.08);
+  --shadow-gold-lg: 0 8px 40px rgba(201,168,76,0.16), 0 0 0 1px rgba(201,168,76,0.12);
+}
+
+/* ================================================================
+   BASE RESET & GLOBAL TYPOGRAPHY
+   ================================================================ */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  min-height: 100vh;
+  margin: 0 !important;
+  padding: 0 !important;
+  background-color: var(--surface-base) !important;
+}
+
+#root { display: flex; flex-direction: column; }
+
+body {
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.6;
+  font-feature-settings: 'cv11', 'ss01', 'liga' 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+  transition: background-color var(--t-slow), color var(--t-slow);
+}
+
+/* ── FIX BUG HEADER SHIFT: Heading override di-scope ke konten halaman saja.
+   Sebelumnya: h1,h2,h3,h4,h5,h6 terlalu broad → mengenai ProLayout sider
+   title & header title → font metrics Syne berbeda dari default sehingga
+   kerning dan layout bergeser. letter-spacing juga dihapus dari scope global
+   karena menyebabkan teks bergeser di komponen ProLayout.                   */
+.ant-layout-content h1,
+.ant-layout-content h2,
+.ant-layout-content h3,
+.ant-layout-content h4,
+.ant-layout-content h5,
+.ant-layout-content h6,
+.ant-modal h1,
+.ant-modal h2,
+.ant-modal h3,
+.ant-modal h4,
+.ant-typography h1,
+.ant-typography h2,
+.ant-typography h3,
+.ant-typography h4 {
+  font-family: var(--font-display) !important;
+}
+
+/* Numbers use DM Mono */
+.number-mono {
+  font-family: var(--font-mono) !important;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ================================================================
+   ANT DESIGN LAYOUT
+   ================================================================ */
+.ant-layout {
+  background: var(--surface-base) !important;
+  font-family: var(--font-body) !important;
+  width: 100%;
+  min-height: 100vh;
+}
+
+.ant-layout-content {
+  background: var(--surface-base) !important;
+  padding: 28px !important;
+  min-height: 100%;
+}
+
+@media (max-width: 640px) {
+  .ant-layout-content { padding: 14px !important; }
+}
+
+/* ================================================================
+   PREMIUM SIDEBAR
+   ================================================================ */
+.ant-layout-sider {
+  transition: all var(--t-base) !important;
+  border-right: 1px solid var(--border-subtle) !important;
+}
+
+.dark .ant-layout-sider {
+  background: #09090F !important;
+  border-right: 1px solid rgba(201,168,76,0.07) !important;
+  box-shadow: 4px 0 48px rgba(0,0,0,0.55) !important;
+}
+
+/* Ensure the sider content wrapper also has no padding that affects the logo */
+.ant-layout-sider-children {
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 0 !important; /* Fix for shifted logo area */
+}
+
+/* Sider top logo area — Simplified for custom Title component */
+.ant-layout-sider .ant-pro-sider-logo,
+.ant-pro-sider-logo,
+.ant-pro-sider-header,
+.ant-pro-sider-logo-container {
+  border-bottom: 1px solid var(--border-subtle) !important;
+  padding: 0 !important;
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  overflow: hidden !important;
+  background: transparent !important; /* Let Title component handle background */
+}
+
+/* ================================================================
+   PREMIUM HEADER
+   ================================================================ */
+.ant-layout-header {
+  backdrop-filter: blur(16px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 999 !important;
+  transition: all var(--t-base) !important;
+}
+
+.dark .ant-layout-header {
+  background: rgba(9,9,15,0.94) !important;
+  border-bottom: 1px solid rgba(201,168,76,0.07) !important;
+  box-shadow: 0 1px 0 rgba(201,168,76,0.05) !important;
+}
+
+/* ================================================================
+   PREMIUM SIDEBAR MENU
+   ================================================================ */
+.ant-menu {
+  background: transparent !important;
+  border-inline-end: none !important;
+  font-family: var(--font-body) !important;
+}
+
+/* Group headers */
+.ant-menu-item-group-title {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.14em !important;
+  text-transform: uppercase !important;
+  color: var(--text-tertiary) !important;
+  padding: 16px 20px 4px !important;
+  font-family: var(--font-display) !important;
+}
+
+.ant-menu-item,
+.ant-menu-submenu-title {
+  border-radius: var(--r-md) !important;
+  margin: 3px 10px !important;
+  font-weight: 500 !important;
+  transition: all var(--t-fast) !important;
+  font-family: var(--font-body) !important;
+}
+
+/* Hover state */
+.ant-menu-item:not(.ant-menu-item-selected):hover,
+.ant-menu-submenu-title:hover {
+  background: var(--border-subtle) !important;
+  color: var(--gold-primary) !important;
+}
+
+.dark .ant-menu-item:not(.ant-menu-item-selected):hover,
+.dark .ant-menu-submenu-title:hover {
+  background: rgba(201,168,76,0.06) !important;
+  color: var(--gold-bright) !important;
+}
+
+/* Selected state — premium gold pill */
+.ant-menu-item-selected {
+  background: linear-gradient(135deg, var(--gold-primary) 0%, var(--gold-bright) 100%) !important;
+  color: #000000 !important;
+  font-weight: 700 !important;
+  box-shadow: 0 4px 20px rgba(201,168,76,0.38), 0 2px 6px rgba(0,0,0,0.1) !important;
+}
+
+.ant-menu-item-selected .ant-menu-item-icon,
+.ant-menu-item-selected .anticon,
+.ant-menu-item-selected * {
+  color: #000000 !important;
+}
+
+/* ================================================================
+   ANT CARD — FIX DARK MODE TOGGLE BUG
+   ================================================================ */
+.ant-card {
+  background: var(--surface-card) !important;
+  border-color: var(--border-subtle) !important;
+  font-family: var(--font-body) !important;
+  transition: box-shadow var(--t-base), border-color var(--t-base), transform var(--t-base) !important;
+}
+
+/* FIX: Bug utama dashboard putih setelah toggle dark→light→dark.
+   Ant Design 5 (CSS-in-JS) menginjeksi background card via generated class.
+   Ketika toggle ulang ke dark mode, ada race condition antara update
+   ConfigProvider token dan CSS class .dark — hasilnya card sementara
+   atau permanen mengambil nilai dari `:root` (putih).
+   Solusi: paksa override dengan double specificity + !important.           */
+.dark .ant-card,
+html.dark .ant-card,
+body.dark .ant-card {
+  background: var(--surface-card) !important;
+  border-color: var(--border-subtle) !important;
+  color: var(--text-primary) !important;
+}
+
+.dark .ant-card-body,
+html.dark .ant-card-body,
+body.dark .ant-card-body {
+  background: transparent !important;
+  color: var(--text-primary) !important;
+}
+
+.ant-card-head {
+  font-family: var(--font-display) !important;
+  border-bottom-color: var(--border-subtle) !important;
+  min-height: auto !important;
+}
+
+.dark .ant-card-head {
+  background: transparent !important;
+  border-bottom-color: rgba(201,168,76,0.07) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Premium card hover */
+.premium-card:hover {
+  box-shadow: var(--shadow-gold-lg) !important;
+  border-color: var(--border-default) !important;
+  transform: translateY(-2px) !important;
+}
+
+/* ================================================================
+   PRO COMPONENTS DARK MODE — FIX TOGGLE BUG
+   Bug: ProTable toolbar, ProCard, ProLayout content area tidak
+   memiliki dark override sehingga menggunakan default putih.
+   ================================================================ */
+.dark .ant-pro-card,
+.dark [class*='ant-pro-card'] {
+  background: var(--surface-card) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+.dark .ant-pro-card-body {
+  background: transparent !important;
+}
+
+.dark .ant-pro-table-list-toolbar,
+.dark .ant-pro-table-list-toolbar-container {
+  background: var(--surface-card) !important;
+  border-bottom-color: rgba(201,168,76,0.08) !important;
+}
+
+.dark .ant-pro-table-list-toolbar-title {
+  color: var(--text-primary) !important;
+}
+
+/* ProLayout content wrapper dark */
+.dark .ant-pro-layout-content,
+.dark .ant-pro-layout .ant-layout {
+  background: var(--surface-base) !important;
+}
+
+/* Pagination dark */
+.dark .ant-pagination-item {
+  background: rgba(255,255,255,0.04) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+.dark .ant-pagination-item a {
+  color: var(--text-secondary) !important;
+}
+
+.dark .ant-pagination-item-active {
+  background: rgba(201,168,76,0.15) !important;
+  border-color: rgba(201,168,76,0.40) !important;
+}
+
+.dark .ant-pagination-item-active a {
+  color: var(--gold-bright) !important;
+}
+
+.dark .ant-pagination-prev button,
+.dark .ant-pagination-next button {
+  background: rgba(255,255,255,0.04) !important;
+  border-color: var(--border-subtle) !important;
+  color: var(--text-secondary) !important;
+}
+
+/* ================================================================
+   RECHARTS DARK MODE — FIX CHART PUTIH SETELAH TOGGLE
+   Recharts render SVG — tidak inherit CSS variables maupun
+   Ant Design tokens. Harus di-override manual per element.
+   ================================================================ */
+
+/* Wrapper containers */
+.dark .recharts-wrapper {
+  background: transparent !important;
+}
+
+/* Cartesian grid lines */
+.dark .recharts-cartesian-grid line,
+.dark .recharts-cartesian-grid-horizontal line,
+.dark .recharts-cartesian-grid-vertical line {
+  stroke: rgba(255,255,255,0.05) !important;
+}
+
+/* Axis lines dan ticks */
+.dark .recharts-xAxis .recharts-cartesian-axis-line,
+.dark .recharts-yAxis .recharts-cartesian-axis-line {
+  stroke: rgba(255,255,255,0.08) !important;
+}
+
+.dark .recharts-xAxis .recharts-cartesian-axis-tick-line,
+.dark .recharts-yAxis .recharts-cartesian-axis-tick-line {
+  stroke: rgba(255,255,255,0.08) !important;
+}
+
+/* Axis tick text */
+.dark .recharts-xAxis .recharts-cartesian-axis-tick text,
+.dark .recharts-yAxis .recharts-cartesian-axis-tick text {
+  fill: var(--text-tertiary) !important;
+}
+
+/* Legend */
+.dark .recharts-legend-item-text {
+  color: var(--text-secondary) !important;
+  fill: var(--text-secondary) !important;
+}
+
+/* Tooltip */
+.dark .recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: var(--surface-elevated) !important;
+  border: 1px solid var(--border-default) !important;
+  border-radius: 10px !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+.dark .recharts-default-tooltip .recharts-tooltip-label {
+  color: var(--text-primary) !important;
+}
+
+.dark .recharts-default-tooltip .recharts-tooltip-item {
+  color: var(--text-secondary) !important;
+}
+
+/* ResponsiveContainer background fix */
+.dark .recharts-responsive-container {
+  background: transparent !important;
+}
+
+/* Area/Bar chart reference lines */
+.dark .recharts-reference-line line {
+  stroke: rgba(201,168,76,0.20) !important;
+}
+
+/* ================================================================
+   ANT TABLE — PREMIUM STYLE
+   ================================================================ */
+.ant-table {
+  background: transparent !important;
+  font-family: var(--font-body) !important;
+}
+
+.ant-table-thead > tr > th {
+  background: var(--surface-sunken) !important;
+  font-weight: 700 !important;
+  font-size: 11px !important;
+  letter-spacing: 0.07em !important;
+  text-transform: uppercase !important;
+  font-family: var(--font-display) !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+  padding: 12px 16px !important;
+}
+
+.dark .ant-table-thead > tr > th {
+  background: rgba(201,168,76,0.04) !important;
+  color: var(--gold-bright) !important;
+  border-bottom: 1px solid rgba(201,168,76,0.12) !important;
+}
+
+.dark .ant-table-tbody > tr > td {
+  border-bottom: 1px solid rgba(255,255,255,0.03) !important;
+  color: var(--text-primary) !important;
+}
+
+.dark .ant-table-tbody > tr:hover > td {
+  background: rgba(201,168,76,0.03) !important;
+}
+
+/* ================================================================
+   ANT STATISTIC — DARK MODE
+   ================================================================ */
+.ant-statistic-title {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  font-family: var(--font-display) !important;
+}
+
+.ant-statistic-content-value {
+  font-family: var(--font-display) !important;
+  letter-spacing: -0.03em !important;
+}
+
+.dark .ant-statistic-title {
+  color: var(--text-tertiary) !important;
+}
+
+.dark .ant-statistic-content {
+  color: var(--text-primary) !important;
+}
+
+/* ================================================================
+   ANT POPCONFIRM / POPOVER DARK MODE
+   ================================================================ */
+.dark .ant-popover-inner {
+  background: var(--surface-elevated) !important;
+  border: 1px solid var(--border-subtle) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+.dark .ant-popover-title {
+  color: var(--text-primary) !important;
+  border-bottom-color: var(--border-subtle) !important;
+}
+
+.dark .ant-popover-inner-content,
+.dark .ant-popconfirm-description {
+  color: var(--text-secondary) !important;
+}
+
+.dark .ant-popover-arrow::before,
+.dark .ant-popover-arrow::after {
+  background: var(--surface-elevated) !important;
+}
+
+/* ================================================================
+   ANT FORM DARK MODE
+   ================================================================ */
+.dark .ant-form-item-label > label {
+  color: var(--text-secondary) !important;
+}
+
+.dark .ant-form-item-explain-error {
+  color: var(--danger) !important;
+}
+
+/* DatePicker dark */
+.dark .ant-picker {
+  background: rgba(255,255,255,0.04) !important;
+  border-color: var(--border-default) !important;
+  color: var(--text-primary) !important;
+}
+
+.dark .ant-picker-input > input {
+  color: var(--text-primary) !important;
+}
+
+.dark .ant-picker-suffix {
+  color: var(--text-tertiary) !important;
+}
+
+/* InputNumber dark */
+.dark .ant-input-number {
+  background: rgba(255,255,255,0.04) !important;
+  border-color: var(--border-default) !important;
+  color: var(--text-primary) !important;
+}
+
+.dark .ant-input-number-input {
+  color: var(--text-primary) !important;
+  background: transparent !important;
+}
+
+.dark .ant-input-number-group-addon {
+  background: rgba(255,255,255,0.06) !important;
+  border-color: var(--border-default) !important;
+  color: var(--text-secondary) !important;
+}
+
+/* ================================================================
+   ANT INPUT & SELECT
+   ================================================================ */
+.dark .ant-input,
+.dark .ant-input-affix-wrapper {
+  background: rgba(255,255,255,0.04) !important;
+  border-color: var(--border-default) !important;
+  color: var(--text-primary) !important;
+  font-family: var(--font-body) !important;
+}
+
+.dark .ant-select-selector {
+  background: rgba(255,255,255,0.04) !important;
+  border-color: var(--border-default) !important;
+  color: var(--text-primary) !important;
+}
+
+.dark .ant-select-arrow { color: var(--text-tertiary) !important; }
+
+/* ================================================================
+   ANT BUTTON
+   ================================================================ */
+.ant-btn-primary {
+  background: linear-gradient(135deg, var(--gold-primary), var(--gold-bright)) !important;
+  border-color: transparent !important;
+  color: #000000 !important;
+  font-weight: 700 !important;
+  font-family: var(--font-body) !important;
+  box-shadow: 0 4px 16px rgba(201,168,76,0.32) !important;
+  transition: all var(--t-fast) !important;
+}
+
+.ant-btn-primary:hover {
+  background: linear-gradient(135deg, var(--gold-bright), var(--gold-primary)) !important;
+  box-shadow: 0 6px 24px rgba(201,168,76,0.44) !important;
+  transform: translateY(-1px);
+}
+
+/* ================================================================
+   ANT DIVIDER
+   ================================================================ */
+.dark .ant-divider {
+  border-color: rgba(201,168,76,0.08) !important;
+}
+
+/* ================================================================
+   ANT MODAL / DRAWER
+   ================================================================ */
+.dark .ant-modal-content {
+  background: var(--surface-elevated) !important;
+  border: 1px solid var(--border-subtle) !important;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.75) !important;
+}
+
+.dark .ant-modal-header {
+  background: transparent !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+}
+
+.dark .ant-modal-title { color: var(--text-primary) !important; }
+
+.dark .ant-drawer-content {
+  background: var(--surface-card) !important;
+  border-left: 1px solid var(--border-subtle) !important;
+}
+
+/* ================================================================
+   ANT SKELETON DARK
+   ================================================================ */
+.dark .ant-skeleton-paragraph > li,
+.dark .ant-skeleton-title,
+.dark .ant-skeleton-element .ant-skeleton-button,
+.dark .ant-skeleton-element .ant-skeleton-input,
+.dark .ant-skeleton-element .ant-skeleton-avatar,
+.dark .ant-skeleton-element .ant-skeleton-image {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.04) 25%,
+    rgba(201,168,76,0.06) 50%,
+    rgba(255,255,255,0.04) 75%
+  ) !important;
+  background-size: 400% 100% !important;
+  animation: skeletonShimmer 1.6s ease infinite !important;
+}
+
+/* ================================================================
+   ANT TAG & BADGE
+   ================================================================ */
+.dark .ant-tag {
+  border-color: var(--border-subtle) !important;
+  background: rgba(255,255,255,0.04) !important;
+  color: var(--text-secondary) !important;
+}
+
+/* ================================================================
+   ANT TOOLTIP & POPOVER
+   ================================================================ */
+.dark .ant-tooltip-inner {
+  background: var(--surface-elevated) !important;
+  border: 1px solid var(--border-subtle) !important;
+}
+
+/* ================================================================
+   RECHARTS OVERRIDES
+   ================================================================ */
+.recharts-tooltip-wrapper { outline: none !important; }
+
+.recharts-legend-item-text {
+  font-family: var(--font-body) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
+/* ================================================================
+   CUSTOM SCROLLBAR — PREMIUM GOLD
+   ================================================================ */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(201,168,76,0.18);
+  border-radius: 10px;
+  transition: background var(--t-fast);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--gold-primary); }
+.dark ::-webkit-scrollbar-thumb { background: rgba(201,168,76,0.12); }
+.dark ::-webkit-scrollbar-thumb:hover { background: var(--gold-bright); }
+
+/* ================================================================
+   ANIMATIONS & KEYFRAMES
+   ================================================================ */
+
+/* Gold shimmer scan */
+@keyframes goldShimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+/* Skeleton dark mode */
+@keyframes skeletonShimmer {
+  0%   { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
+/* Pulse ring */
+@keyframes pulseRing {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(201,168,76,0.40); }
+  50%       { box-shadow: 0 0 0 8px rgba(201,168,76,0); }
+}
+
+/* Dot pulse — Enhanced for visibility */
+@keyframes dotPulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.6;
+    box-shadow: 0 0 0 0 rgba(255, 183, 0, 0.7);
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+    box-shadow: 0 0 10px 2px rgba(255, 183, 0, 0.5);
+  }
+  100% {
+    transform: scale(0.8);
+    opacity: 0.6;
+    box-shadow: 0 0 0 0 rgba(255, 183, 0, 0);
+  }
+}
+
+/* Float up/down */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-5px); }
+}
+
+/* Scan line sweep */
+@keyframes scanLine {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+/* Border rotate glow */
+@keyframes borderGlow {
+  0%, 100% { opacity: 0.4; }
+  50%       { opacity: 1; }
+}
+
+/* ================================================================
+   UTILITY CLASSES
+   ================================================================ */
+
+/* Gold shimmer animated text */
+.text-gold-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--gold-deep)  0%,
+    var(--gold-bright) 35%,
+    var(--gold-primary) 55%,
+    var(--gold-deep) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: goldShimmer 4s linear infinite;
+}
+
+/* Live dot indicator */
+.live-dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--gold-bright);
+  animation: dotPulse 2s ease-in-out infinite;
+  flex-shrink: 0;
+  margin-right: 2px;
+  position: relative;
+  z-index: 2;
+}
+
+.live-dot.green   { background: var(--success); }
+.live-dot.red     { background: var(--danger); }
+.live-dot.default { background: var(--gold-bright); }
+
+/* Gold pulse card glow */
+.gold-pulse { animation: pulseRing 2.5s ease-in-out infinite; }
+
+/* Premium card interaction */
+.premium-card {
+  transition:
+    transform var(--t-base),
+    box-shadow var(--t-base),
+    border-color var(--t-base) !important;
+}
+
+/* Islamic geometric diagonal grid background */
+.geo-bg {
+  background-image:
+    repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 28px,
+      rgba(201,168,76,0.025) 28px,
+      rgba(201,168,76,0.025) 29px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 28px,
+      rgba(201,168,76,0.025) 28px,
+      rgba(201,168,76,0.025) 29px
+    );
+}
+
+/* Scan line effect on a card top */
+.scan-line {
+  position: relative;
+  overflow: hidden;
+}
+.scan-line::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold-bright), transparent);
+  animation: scanLine 3s linear infinite;
+}
+
+/* Gold top border line */
+.gold-top-line::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, var(--gold-primary) 30%, var(--gold-bright) 70%, transparent 100%);
+  border-radius: 2px 2px 0 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* KPI metric number */
+.kpi-value {
+  font-family: var(--font-display) !important;
+  letter-spacing: -0.04em !important;
+  line-height: 1 !important;
+  font-feature-settings: 'tnum';
+}
+
+/* ================================================================
+   CATATAN FIX TAMBAHAN — WAJIB DI REACT (bukan CSS)
+   ================================================================
+   Selain fix CSS di atas, ada 1 fix wajib di sisi React untuk
+   mengatasi white card bug secara tuntas:
+
+   Di file App.tsx atau _app.tsx, tambahkan `key={mode}` pada
+   ConfigProvider agar seluruh component tree di-remount saat
+   mode berubah, memaksa semua useToken() hooks mengambil nilai baru:
+
+   ─── SEBELUM (bug) ───────────────────────────────────────────
+   <ConfigProvider theme={{ algorithm: mode === 'dark'
+     ? theme.darkAlgorithm
+     : theme.defaultAlgorithm }}>
+     <App />
+   </ConfigProvider>
+
+   ─── SESUDAH (fix) ───────────────────────────────────────────
+   <ConfigProvider
+     key={mode}                    ← tambahkan ini
+     theme={{ algorithm: mode === 'dark'
+       ? theme.darkAlgorithm
+       : theme.defaultAlgorithm }}>
+     <App />
+   </ConfigProvider>
+
+   Penjelasan: Ant Design 5 CSS-in-JS menggunakan React context untuk
+   propagasi token. Tanpa key, context update mungkin tidak memicu
+   re-render pada komponen yang memo-ized atau deeply nested, sehingga
+   token lama (putih) tetap digunakan meski mode sudah berubah.
+   key={mode} memaksa full remount — sedikit lebih lambat tapi
+   menjamin semua token ter-refresh dengan benar.
+   ================================================================ */

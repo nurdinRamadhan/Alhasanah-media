@@ -8,7 +8,7 @@ import {
   SettingOutlined, FormOutlined, ProjectOutlined,
   DashboardOutlined, BankOutlined, ShoppingCartOutlined,
   SafetyCertificateOutlined, HistoryOutlined,
-  DatabaseOutlined,
+  DatabaseOutlined, MessageOutlined,
 } from "@ant-design/icons";
 
 export const resources: ResourceProps[] = [
@@ -36,8 +36,11 @@ export const resources: ResourceProps[] = [
     meta:{ label:"Murojaah (Ulang)", parent:"tahfidz_menu", icon:<SyncOutlined /> } },
   { name:"hafalan_kitab", list:"/hafalan-kitab", create:"/hafalan-kitab/create", show:"/hafalan-kitab/show/:id",
     meta:{ label:"Hafalan Kitab", parent:"tahfidz_menu", icon:<BookOutlined /> } },
-  { name:"alumni_data",  list:"/alumni",      meta:{ label:"Manajemen Alumni",            icon:<GlobalOutlined /> } },
-  { name:"forum_reports", list:"/forum-reports", meta:{ label:"Moderasi Forum Alumni", icon:<SafetyCertificateOutlined /> } },
+  { name:"alumni_menu", meta:{ label:"ALUMNI", icon:<TeamOutlined /> } },
+  { name:"alumni_data",  list:"/alumni",      meta:{ label:"Data Alumni", parent:"alumni_menu", icon:<GlobalOutlined /> } },
+  { name:"forum_threads", list:"/forum-alumni", meta:{ label:"Forum", parent:"alumni_menu", icon:<MessageOutlined /> } },
+  { name:"forum_reports", list:"/forum-reports", meta:{ label:"Laporan Forum", parent:"alumni_menu", icon:<SafetyCertificateOutlined /> } },
+  { name:"chat_monitoring", list:"/chat-alumni", meta:{ label:"Laporan Chat", parent:"alumni_menu", icon:<MessageOutlined /> } },
   { name:"audit_logs",   list:"/audit-logs",  meta:{ label:"Log Aktivitas (Permanen)",     icon:<SafetyCertificateOutlined /> } },
   { name:"rag_knowledge", list:"/rag",         meta:{ label:"RAG Knowledge Base",           icon:<DatabaseOutlined /> } },
   { name:"akademik",     list:"/akademik",    meta:{ label:"Laporan Nilai",                icon:<BookOutlined /> } },

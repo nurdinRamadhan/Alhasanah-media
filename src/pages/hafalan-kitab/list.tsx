@@ -14,6 +14,7 @@ import {
 import { IHafalanKitab, NAMA_KITAB_LIST } from "../../types";
 import { useNavigation } from "@refinedev/core";
 import { formatHijri, formatMasehi } from "../../utility/dateHelper";
+import { santriAlias } from "../../utility/privacy";
 import dayjs from "dayjs";
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
@@ -34,7 +35,7 @@ export const HafalanKitabList = () => {
     const { tableProps, tableQueryResult, setFilters, filters } = useTable<IHafalanKitab>({
         resource: "hafalan_kitab",
         syncWithLocation: true,
-        meta: { select: "*, santri(nama, nis, kelas, jurusan, foto_url)" },
+        meta: { select: "*, santri(nama, nis, kelas, jurusan)" },
         sorters: { initial: [{ field: "tanggal", order: "desc" }] },
         pagination: { pageSize: 1000 }, // Ambil banyak untuk keperluan grouping
     });
@@ -68,7 +69,7 @@ export const HafalanKitabList = () => {
         displayData.forEach((item: any) => {
             worksheet.addRow({
                 nis: item.santri?.nis,
-                nama: item.santri?.nama,
+                nama: item.santri?.nama || santriAlias(item.santri?.nis),
                 kitab: item.nama_kitab,
                 materi: item.bab_materi,
                 tgl_m: formatMasehi(item.tanggal),
@@ -92,7 +93,7 @@ export const HafalanKitabList = () => {
                 <div className="flex items-center gap-3">
                     <Avatar src={record.santri?.foto_url} icon={<UserOutlined />} className="border border-emerald-100" />
                     <div className="flex flex-col leading-tight">
-                        <Text strong className="text-sm">{record.santri?.nama}</Text>
+                        <Text strong className="text-sm">{record.santri?.nama || santriAlias(record.santri?.nis)}</Text>
                         <Text type="secondary" className="text-[10px]">{record.santri?.nis} | {record.santri?.kelas}-{record.santri?.jurusan}</Text>
                     </div>
                 </div>

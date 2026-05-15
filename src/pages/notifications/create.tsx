@@ -17,8 +17,10 @@ export const NotificationCreate = () => {
         resource: "santri",
         optionLabel: "nama", 
         optionValue: "wali_id", // ID Wali yang akan menerima notifikasi
+        meta: { select: "nama, nis, wali_id, kelas, jurusan, status_santri" },
         onSearch: (value) => [
             { field: "nama", operator: "contains", value },
+            { field: "nis", operator: "contains", value },
         ],
         sorters: [
             { field: "nama", order: "asc" }

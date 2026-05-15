@@ -13,6 +13,7 @@ export const PerizinanCreate = () => {
         resource: "santri",
         optionLabel: "nama",
         optionValue: "nis",
+        meta: { select: "nama, nis, kelas, jurusan, status_santri" },
         onSearch: (value) => [
             { field: "nama", operator: "contains", value },
             { field: "nis", operator: "contains", value },

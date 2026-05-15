@@ -1,0 +1,862 @@
+================================================================================
+  REFERENSI TIPE DATA EMIS 4.0 — KEMENTERIAN AGAMA REPUBLIK INDONESIA
+  Untuk Sistem Pesantren Terintegrasi
+================================================================================
+  Versi Dokumen  : 2.0
+  Basis Referensi: EMIS 4.0 Kemenag (emis.kemenag.go.id)
+                   Formulir F-PD Dapodik / Pendataan Peserta Didik Resmi
+                   Juknis Dirjen Pendis Kemenag
+                   PMA No. 30 Tahun 2020 tentang Pesantren
+                   UU No. 18 Tahun 2019 tentang Pesantren
+  Berlaku untuk  : Pesantren, Madrasah Diniyah, PDF, SPM, PKPPS
+  Diperbarui     : Mei 2026
+================================================================================
+
+CATATAN PENTING:
+- Semua kode numerik dalam dokumen ini adalah kode referensi resmi EMIS/Dapodik
+- Nilai "value" dalam integrasi API/sinkronisasi WAJIB menggunakan kode numerik
+  atau string resmi, BUKAN teks bebas
+- Kode 99 secara umum berarti "Lain-lain" di seluruh sistem EMIS
+- Field yang ditandai [WAJIB] harus diisi agar data diterima oleh EMIS
+- Field yang ditandai [OPSIONAL] dianjurkan tapi tidak memblokir validasi BAP
+
+================================================================================
+  BAB 1 — DATA PRIBADI SANTRI
+================================================================================
+
+------------------------------------------------------------------------
+1.1 JENIS KELAMIN [WAJIB]
+------------------------------------------------------------------------
+Kode | Label
+-----|-------------------------------
+L    | Laki-laki
+P    | Perempuan
+
+Catatan: EMIS menggunakan "L" dan "P", bukan angka.
+         Beberapa formulir lama menggunakan 01/02 — gunakan L/P untuk EMIS 4.0.
+
+------------------------------------------------------------------------
+1.2 AGAMA [WAJIB]
+------------------------------------------------------------------------
+Kode | Label
+-----|-------------------------------
+01   | Islam
+02   | Kristen / Protestan
+03   | Katholik
+04   | Hindu
+05   | Budha
+06   | Khong Hu Chu
+99   | Lainnya
+
+Catatan: Pesantren umumnya hanya menggunakan kode 01 (Islam), namun
+         field ini tetap wajib ada di skema data untuk kepatuhan EMIS.
+
+------------------------------------------------------------------------
+1.3 KEWARGANEGARAAN
+------------------------------------------------------------------------
+Kode | Label
+-----|-------------------------------
+WNI  | Warga Negara Indonesia
+WNA  | Warga Negara Asing
+
+Catatan: Jika WNA, wajib mengisi nama negara asal dan No. KITAS
+         sebagai pengganti NIK.
+
+------------------------------------------------------------------------
+1.4 STATUS BERKEBUTUHAN KHUSUS (ABK) [WAJIB — default: 01]
+------------------------------------------------------------------------
+Kode | Label                         | Keterangan
+-----|-------------------------------|----------------------------------
+01   | Tidak Berkebutuhan Khusus     | Default untuk santri reguler
+02   | Netra                         | Kode A — Tunanetra
+03   | Rungu                         | Kode B — Tunarungu
+04   | Grahita Ringan                | Kode C — Tunagrahita ringan
+05   | Grahita Sedang                | Kode C1 — Tunagrahita sedang
+06   | Daksa Ringan                  | Kode D — Tunadaksa ringan
+07   | Daksa Sedang                  | Kode D1 — Tunadaksa sedang
+08   | Laras                         | Kode E — Tunalaras / gangguan emosi
+09   | Wicara                        | Kode F — Tunawicara
+10   | Tuna Ganda                    | Kode G — Kombinasi lebih dari satu
+11   | Hiperaktif                    | Kode H — ADHD
+12   | Cerdas Istimewa               | Kode I — Gifted
+13   | Bakat Istimewa                | Kode J — Talented
+14   | Kesulitan Belajar             | Kode K — Learning disability
+15   | Narkoba                       | Kode N — Korban penyalahgunaan
+16   | Indigo                        | Kode O
+17   | Down Syndrome                 | Kode P
+18   | Autis                         | Kode Q — Autism Spectrum Disorder
+
+------------------------------------------------------------------------
+1.5 STATUS TEMPAT TINGGAL SANTRI [WAJIB]
+------------------------------------------------------------------------
+Kode | Label
+-----|-------------------------------
+1    | Bersama Orang Tua
+2    | Bersama Wali
+3    | Kos / Kontrak
+4    | Asrama Pesantren
+5    | Panti Asuhan
+9    | Lainnya
+
+Catatan: Santri mukim pesantren umumnya menggunakan kode 4 (Asrama).
+         Santri nonmukim bisa menggunakan kode 1, 2, atau 3.
+
+------------------------------------------------------------------------
+1.6 MODA TRANSPORTASI KE LEMBAGA
+------------------------------------------------------------------------
+Kode | Label
+-----|----------------------------------------------
+01   | Jalan Kaki
+02   | Kendaraan Pribadi (Motor/Mobil)
+03   | Kendaraan Umum / Angkot
+04   | Jemputan Sekolah / Pesantren
+05   | Kereta Api
+06   | Ojek (konvensional maupun online)
+07   | Andong / Bendi / Sado / Dokar / Delman / Becak
+08   | Perahu Penyeberangan / Rakit / Getek
+99   | Lainnya
+
+Catatan: Untuk santri mukim (kode 4), field ini dapat diisi "01" (Jalan Kaki)
+         karena santri sudah tinggal di asrama.
+
+------------------------------------------------------------------------
+1.7 JARAK TEMPAT TINGGAL KE LEMBAGA
+------------------------------------------------------------------------
+Kode | Label
+-----|-------------------------------
+1    | Kurang dari 1 km
+2    | Lebih dari 1 km (sebutkan dalam satuan km)
+
+Catatan: Jika memilih kode 2, wajib mengisi field jarak_km (numerik).
+
+------------------------------------------------------------------------
+1.8 STATUS KEPEMILIKAN RUMAH ORANG TUA
+------------------------------------------------------------------------
+Kode | Label
+-----|-------------------------------
+1    | Milik Sendiri
+2    | Rumah Orang Tua / Keluarga
+3    | Rumah Kerabat / Saudara
+4    | Rumah Dinas
+5    | Sewa atau Kontrak
+9    | Lainnya
+
+------------------------------------------------------------------------
+1.9 STATUS SANTRI DI PESANTREN [WAJIB]
+------------------------------------------------------------------------
+Kode | Label              | Keterangan
+-----|--------------------|------------------------------------------
+1    | Santri Mukim       | Tinggal di asrama pesantren (wajib mukim)
+2    | Santri Non-Mukim   | Tidak tinggal di asrama, datang harian
+3    | Santri Kalong      | Istilah lokal untuk non-mukim
+
+Catatan: UU No. 18 Tahun 2019 mewajibkan minimal 15 santri mukim untuk
+         pesantren yang terdaftar resmi di EMIS/IJOP.
+
+------------------------------------------------------------------------
+1.10 JENIS KELUAR / ALASAN TIDAK AKTIF
+------------------------------------------------------------------------
+Kode | Label
+-----|-------------------------------
+1    | Lulus
+2    | Mutasi Keluar
+3    | Dikeluarkan
+4    | Mengundurkan Diri
+5    | Putus Sekolah / Berhenti
+6    | Wafat / Meninggal Dunia
+7    | Hilang
+8    | Lainnya
+
+================================================================================
+  BAB 2 — DATA ORANG TUA DAN WALI
+================================================================================
+
+------------------------------------------------------------------------
+2.1 STATUS ORANG TUA [WAJIB]
+------------------------------------------------------------------------
+Kode         | Label                          | Nilai EMIS Resmi
+-------------|-------------------------------|----------------------
+HIDUP        | Masih Hidup                   | "HIDUP"
+MENINGGAL    | Sudah Meninggal               | "MENINGGAL"
+TIDAK_TAHU   | Tanpa Keterangan / Tidak Diketahui | "TANPA KETERANGAN"
+
+PERHATIAN: Nilai resmi EMIS adalah "HIDUP", "MENINGGAL", "TANPA KETERANGAN"
+           BUKAN "MASIH_HIDUP" atau "TIDAK_DIKETAHUI".
+           Kesalahan pada field ini menyebabkan data ditolak saat sinkronisasi.
+
+------------------------------------------------------------------------
+2.2 PENDIDIKAN TERAKHIR ORANG TUA / WALI [WAJIB]
+------------------------------------------------------------------------
+Kode | Label                  | Setara
+-----|------------------------|----------------------------
+01   | Tidak Sekolah          | —
+02   | Putus SD               | Tidak tamat SD
+03   | SD / Sederajat         | MI, Paket A
+04   | SMP / Sederajat        | MTs, Paket B
+05   | SMA / Sederajat        | MA, SMK, Paket C
+06   | D1                     | Diploma 1
+07   | D2                     | Diploma 2
+08   | D3                     | Diploma 3 / Sarjana Muda
+09   | D4 / S1                | Diploma 4 / Sarjana
+10   | S2                     | Magister / Master
+11   | S3                     | Doktor
+
+Catatan: Kode ini berlaku sama untuk Ayah, Ibu, dan Wali.
+
+------------------------------------------------------------------------
+2.3 PEKERJAAN ORANG TUA / WALI [WAJIB]
+------------------------------------------------------------------------
+Kode | Label                | Catatan
+-----|----------------------|----------------------------------------------
+01   | Tidak Bekerja        | Termasuk ibu rumah tangga penuh
+02   | Nelayan              | Termasuk pembudidaya ikan
+03   | Petani               | Termasuk pekebun
+04   | Peternak             | Termasuk peternak unggas
+05   | PNS / TNI / POLRI    | DIGABUNG dalam satu kode — tidak dipisah
+06   | Karyawan Swasta      | Pegawai perusahaan swasta
+07   | Pedagang Kecil       | Warung, PKL, pasar tradisional
+08   | Pedagang Besar       | Toko, distributor, grosir
+09   | Wiraswasta           | Usaha mandiri / berwirausaha
+10   | Wirausaha            | (berbeda dari Wiraswasta di EMIS)
+11   | Buruh                | Buruh harian, buruh pabrik
+12   | Pensiunan            | PNS/TNI/POLRI purna tugas
+99   | Lain-lain            | Di luar semua kategori di atas
+
+PERHATIAN KRITIS:
+- PNS, TNI, dan POLRI HARUS dijadikan SATU opsi (kode 05)
+  Jangan pisahkan menjadi tiga opsi berbeda karena EMIS tidak mengenal kode
+  terpisah untuk masing-masing.
+- "Karyawan Swasta" (kode 06) BERBEDA dari "Wiraswasta" (kode 09)
+- "Wirausaha" (kode 10) adalah kategori tersendiri di EMIS, berbeda dari
+  "Wiraswasta" (kode 09).
+- "Pedagang Kecil" (07) dan "Pedagang Besar" (08) adalah dua kode berbeda.
+
+------------------------------------------------------------------------
+2.4 PENGHASILAN BULANAN ORANG TUA / WALI [WAJIB]
+------------------------------------------------------------------------
+Kode | Rentang Penghasilan
+-----|-------------------------------
+1    | Kurang dari Rp 500.000
+2    | Rp 500.000 – Rp 999.999
+3    | Rp 1.000.000 – Rp 1.999.999
+4    | Rp 2.000.000 – Rp 4.999.999
+5    | Rp 5.000.000 – Rp 20.000.000
+6    | Lebih dari Rp 20.000.000
+
+Catatan: Field ini wajib diisi untuk Ayah, Ibu, dan Wali secara terpisah.
+         Jika tidak bekerja, pilih kode 1.
+
+------------------------------------------------------------------------
+2.5 HUBUNGAN WALI DENGAN SANTRI
+------------------------------------------------------------------------
+Label              | Keterangan
+-------------------|------------------------------------------
+Kakek              | Kakek dari pihak ayah atau ibu
+Nenek              | Nenek dari pihak ayah atau ibu
+Paman              | Saudara laki-laki orang tua
+Bibi               | Saudara perempuan orang tua
+Kakak Kandung      | Saudara kandung lebih tua
+Kakak Tiri         | Saudara tiri lebih tua
+Kakak Ipar         | Pasangan dari kakak kandung
+Mertua             | Orang tua dari pasangan (jika santri sudah menikah)
+Orang Tua Angkat   | Wali adopsi resmi
+Lembaga            | Panti asuhan atau lembaga sosial
+Lainnya            | Hubungan wali lainnya
+
+Catatan: EMIS tidak menetapkan kode numerik standar untuk hubungan wali.
+         Gunakan label teks sesuai kondisi. Pastikan konsisten.
+
+================================================================================
+  BAB 3 — DATA PROGRAM DAN PENDIDIKAN PESANTREN
+================================================================================
+
+------------------------------------------------------------------------
+3.1 JENIS / PROGRAM PENDIDIKAN PESANTREN [WAJIB]
+------------------------------------------------------------------------
+Kode | Label                                  | Dasar Hukum
+-----|----------------------------------------|----------------------
+01   | Pendidikan Diniyah Formal (PDF)         | UU 18/2019 Pasal 26
+02   | Satuan Pendidikan Mu'adalah (SPM)       | UU 18/2019 Pasal 27
+03   | Pendidikan Kesetaraan (Paket A/B/C)     | UU 18/2019 Pasal 28
+04   | Pendidikan Kepesantrenan (Takhassus)    | UU 18/2019 Pasal 25
+05   | Pendidikan Tahfidz Al-Qur'an            | —
+06   | Kajian Kitab Kuning / Salafiyah         | —
+07   | Madrasah Diniyah Takmiliyah (MDT)       | —
+08   | Ma'had Aly (Pendidikan Tinggi Pesantren)| UU 18/2019 Pasal 29
+99   | Program Lainnya                         | —
+
+------------------------------------------------------------------------
+3.2 JENJANG PENDIDIKAN DI PESANTREN
+------------------------------------------------------------------------
+Kode | Label                          | Setara Umum
+-----|--------------------------------|----------------------------
+01   | Ula                            | Setara SD / MI (6 tahun)
+02   | Wustha                         | Setara SMP / MTs (3 tahun)
+03   | Ulya                           | Setara SMA / MA (3 tahun)
+04   | Ma'had Aly                     | Setara Perguruan Tinggi
+05   | Paket A                        | Setara SD
+06   | Paket B                        | Setara SMP
+07   | Paket C                        | Setara SMA
+08   | Non-jenjang (Halaqah/Takhassus)| Tanpa pengelompokan jenjang formal
+
+------------------------------------------------------------------------
+3.3 STATUS AKTIF SANTRI [WAJIB]
+------------------------------------------------------------------------
+Kode | Label
+-----|-------------------------------
+1    | Aktif
+2    | Cuti
+3    | Tidak Aktif / Non-aktif
+4    | Lulus
+5    | Mutasi Keluar
+6    | Drop Out / Keluar
+
+------------------------------------------------------------------------
+3.4 JENIS PENDAFTARAN SANTRI
+------------------------------------------------------------------------
+Kode | Label
+-----|-------------------------------
+01   | Santri Baru
+02   | Santri Pindahan / Mutasi Masuk
+03   | Santri Aktif Kembali (setelah cuti)
+
+------------------------------------------------------------------------
+3.5 JENIS BANTUAN / BEASISWA YANG DITERIMA
+------------------------------------------------------------------------
+Kode | Label
+-----|----------------------------------------------
+01   | KIP (Kartu Indonesia Pintar)
+02   | PIP (Program Indonesia Pintar)
+03   | PKH (Program Keluarga Harapan)
+04   | KKS (Kartu Keluarga Sejahtera)
+05   | BPJS Kesehatan
+06   | BSM (Bantuan Siswa Miskin)
+07   | PBSB (Beasiswa Santri Berprestasi)
+08   | Beasiswa Tahfidz
+09   | Beasiswa Pesantren dari Pemda
+99   | Bantuan / Beasiswa Lainnya
+00   | Tidak Menerima Bantuan
+
+------------------------------------------------------------------------
+3.6 ALASAN LAYAK PIP (jika penerima PIP)
+------------------------------------------------------------------------
+Kode | Label
+-----|----------------------------------------------
+01   | Pemegang PKH / KPS / KIP
+02   | Penerima BSM 2014
+03   | Yatim / Piatu / Panti Asuhan / Panti Sosial
+04   | Terdampak Bencana Alam
+05   | Pernah Drop Out
+06   | Siswa Miskin / Rentan Miskin
+07   | Daerah Konflik
+08   | Keluarga Terpidana
+09   | Kelainan Fisik
+
+================================================================================
+  BAB 4 — DATA LEMBAGA / IDENTITAS PESANTREN
+================================================================================
+
+------------------------------------------------------------------------
+4.1 JENIS LEMBAGA PESANTREN
+------------------------------------------------------------------------
+Kode | Label                                  | Keterangan
+-----|----------------------------------------|---------------------------
+01   | Pesantren Salafiyah                    | Berbasis kitab kuning murni
+02   | Pesantren Khalafiyah / Ashriyah        | Modern / berbasis formal
+03   | Pesantren Kombinasi / Terpadu          | Gabungan salaf dan modern
+04   | Pesantren Tahfidzul Qur'an             | Fokus hafalan Al-Qur'an
+05   | Pesantren Diniyah                      | Berbasis madrasah diniyah
+
+------------------------------------------------------------------------
+4.2 STATUS LEMBAGA
+------------------------------------------------------------------------
+Kode | Label
+-----|-------------------------------
+1    | Aktif / Beroperasi
+2    | Tidak Aktif / Tutup Sementara
+3    | Ditutup Permanen
+
+------------------------------------------------------------------------
+4.3 SATUAN PENDIDIKAN DI BAWAH PESANTREN [untuk input per-satuan]
+------------------------------------------------------------------------
+Kode | Label                                  | Singkatan
+-----|----------------------------------------|-----------
+01   | Madrasah Ibtidaiyah                    | MI
+02   | Madrasah Tsanawiyah                    | MTs
+03   | Madrasah Aliyah                        | MA
+04   | Madrasah Diniyah Takmiliyah Awaliyah   | MDTA
+05   | Madrasah Diniyah Takmiliyah Wustha     | MDTW
+06   | Madrasah Diniyah Takmiliyah Ulya       | MDTU
+07   | Pendidikan Diniyah Formal Wustha       | PDF Wustha
+08   | Pendidikan Diniyah Formal Ulya         | PDF Ulya
+09   | Satuan Pendidikan Mu'adalah Wustha     | SPM Wustha
+10   | Satuan Pendidikan Mu'adalah Ulya       | SPM Ulya
+11   | PKPPS (Kelompok Kegiatan Belajar PP)   | PKPPS
+12   | Ma'had Aly                             | —
+
+------------------------------------------------------------------------
+4.4 IDENTITAS DOKUMEN LEGALITAS PESANTREN
+------------------------------------------------------------------------
+Field           | Format           | Keterangan
+----------------|------------------|----------------------------------
+NSP             | 12 digit numerik | Nomor Statistik Pesantren
+NPSN            | 8 digit numerik  | Nomor Pokok Satuan Nasional
+IJOP            | —                | Izin Operasional Pesantren
+Piagam_PSP      | —                | Piagam Statistik Pesantren
+SK_Kemenag      | —                | SK dari Kanwil/Kankemenag
+
+================================================================================
+  BAB 5 — DATA TENAGA PENDIDIK (USTADZ / GTK)
+================================================================================
+
+------------------------------------------------------------------------
+5.1 STATUS KEPEGAWAIAN GTK
+------------------------------------------------------------------------
+Kode | Label
+-----|-------------------------------
+01   | PNS (Pegawai Negeri Sipil)
+02   | PPPK (Pegawai Pemerintah dengan Perjanjian Kerja)
+03   | Honorer / GTT (Guru Tidak Tetap)
+04   | Guru Tetap Yayasan
+05   | Tenaga Sukarela / Tanpa Gaji
+99   | Lainnya
+
+------------------------------------------------------------------------
+5.2 JENIS TUGAS / JABATAN GTK
+------------------------------------------------------------------------
+Kode | Label
+-----|-------------------------------
+01   | Pengasuh / Mudir Pesantren
+02   | Kepala Satuan Pendidikan
+03   | Wakil Kepala Bidang Kurikulum
+04   | Wakil Kepala Bidang Kesiswaan
+05   | Wakil Kepala Bidang Sarpras
+06   | Guru / Ustadz Pengajar
+07   | Wali Kelas / Wali Halaqah
+08   | Pembina Asrama / Musyrif
+09   | Tenaga Administrasi / TU
+10   | Pustakawan
+11   | Laboran
+12   | Konselor / BK
+99   | Lainnya
+
+------------------------------------------------------------------------
+5.3 PENDIDIKAN TERAKHIR GTK
+------------------------------------------------------------------------
+Kode | Label
+-----|-------------------------------
+01   | Tidak Sekolah / Tidak Tamat SD
+03   | SD / Sederajat
+04   | SMP / Sederajat
+05   | SMA / Sederajat
+06   | D1
+07   | D2
+08   | D3
+09   | D4 / S1
+10   | S2
+11   | S3
+
+------------------------------------------------------------------------
+5.4 STATUS SERTIFIKASI GTK
+------------------------------------------------------------------------
+Kode | Label
+-----|-------------------------------
+1    | Sudah Sertifikasi
+2    | Belum Sertifikasi
+3    | Tidak Wajib Sertifikasi (honorer non-formal)
+
+------------------------------------------------------------------------
+5.5 MAPEL / BIDANG MENGAJAR
+------------------------------------------------------------------------
+Kode | Label                          | Konteks
+-----|--------------------------------|----------------------------
+01   | Al-Qur'an / Tahfidz            | Kepesantrenan
+02   | Tafsir Al-Qur'an               | Kepesantrenan
+03   | Hadits                         | Kepesantrenan
+04   | Aqidah / Tauhid                | Kepesantrenan
+05   | Fiqih / Syariah                | Kepesantrenan
+06   | Akhlak / Tasawuf               | Kepesantrenan
+07   | Bahasa Arab                    | Kepesantrenan / Formal
+08   | Nahwu / Shorof                 | Kepesantrenan
+09   | Kitab Kuning (Umum)            | Kepesantrenan
+10   | Matematika                     | Formal
+11   | Bahasa Indonesia               | Formal
+12   | Bahasa Inggris                 | Formal
+13   | IPA / Sains                    | Formal
+14   | IPS                            | Formal
+15   | PPKN                           | Formal
+16   | Sejarah Kebudayaan Islam (SKI) | Formal Keagamaan
+99   | Lainnya                        | —
+
+------------------------------------------------------------------------
+5.6 IDENTITAS PROFESIONAL GTK
+------------------------------------------------------------------------
+Field    | Format              | Keterangan
+---------|---------------------|---------------------------------------
+NIK      | 16 digit numerik    | Wajib, validasi Dukcapil
+NUPTK    | 16 digit numerik    | Nomor Unik PTK (jika sudah punya)
+NIP      | 18 digit numerik    | Khusus PNS
+NRG      | 16 digit numerik    | Nomor Registrasi Guru (jika sertifikasi)
+No_Serdik| —                   | Nomor Sertifikat Pendidik
+
+================================================================================
+  BAB 6 — FORMAT DAN VALIDASI FIELD IDENTITAS
+================================================================================
+
+------------------------------------------------------------------------
+6.1 ATURAN FORMAT NIK [WAJIB — validasi ketat]
+------------------------------------------------------------------------
+- Panjang         : 16 digit numerik, tidak boleh huruf
+- Struktur        :
+    Digit 1-2     : Kode provinsi (11–94)
+    Digit 3-4     : Kode kabupaten/kota
+    Digit 5-6     : Kode kecamatan
+    Digit 7-12    : Tanggal lahir (DDMMYY)
+                    Perempuan: tanggal + 40 (misal tgl 15 = 55)
+    Digit 13-16   : Nomor urut pendaftaran di Dukcapil
+- Karakter valid  : 0–9 saja
+- Tidak boleh     : spasi, tanda hubung, tanda baca apapun
+
+Regex validasi  : ^\d{16}$
+Validasi kode provinsi: digit 1-2 harus antara 11 dan 94
+
+------------------------------------------------------------------------
+6.2 ATURAN FORMAT NISN [WAJIB untuk santri yang punya]
+------------------------------------------------------------------------
+- Panjang         : 10 digit numerik
+- Dikeluarkan oleh: Pusdatin Kemdikbud (melalui VervalPD)
+- Tidak bisa diubah setelah diterbitkan
+- Jika belum punya: kosongkan, jangan isi "0000000000"
+- Cara mendapatkan: melalui VervalPD atau koordinasi Kemenag kab/kota
+
+Regex validasi  : ^\d{10}$
+
+------------------------------------------------------------------------
+6.3 ATURAN FORMAT NSP (Nomor Statistik Pesantren)
+------------------------------------------------------------------------
+- Panjang         : 12 digit numerik
+- Dikeluarkan oleh: Ditjen Pendis Kemenag
+- Ditetapkan melalui: SK Dirjen Pendis
+
+------------------------------------------------------------------------
+6.4 ATURAN FORMAT NPSN
+------------------------------------------------------------------------
+- Panjang         : 8 digit numerik
+- Berlaku untuk   : Satuan pendidikan formal di bawah pesantren
+
+------------------------------------------------------------------------
+6.5 ATURAN FORMAT NAMA LENGKAP [WAJIB]
+------------------------------------------------------------------------
+- Minimal 3 karakter
+- Maksimal 100 karakter
+- Tidak boleh mencantumkan gelar:
+  Dilarang: H, Hj, Haji, Hajah, Dr, Dra, Drs, Prof, Kyai, KH,
+            Ust, Ustadz, S.Pd, M.Pd, S.Ag, M.Ag, S.H, M.H, dst.
+- Tidak boleh menggunakan tanda:
+  Dilarang: tanda petik ('), tanda kurung (), tanda apostrof
+- Karakter yang diizinkan: huruf A-Z (a-z), spasi, tanda hubung (-)
+- Gunakan nama sesuai dokumen resmi (KK/Akta Lahir/KTP)
+
+------------------------------------------------------------------------
+6.6 ATURAN FORMAT NOMOR HP
+------------------------------------------------------------------------
+- Diawali 08 atau +62
+- Panjang: 10–14 digit
+- Hanya angka (kecuali awalan +)
+- Tidak mengandung spasi atau tanda hubung
+
+------------------------------------------------------------------------
+6.7 ATURAN FORMAT NOMOR KK (Kartu Keluarga)
+------------------------------------------------------------------------
+- Panjang: 16 digit numerik
+- Format sama dengan NIK (sistem kependudukan Indonesia)
+
+------------------------------------------------------------------------
+6.8 ATURAN FORMAT NOMOR KIP / PIP
+------------------------------------------------------------------------
+- Panjang: bervariasi (biasanya 16 atau 19 digit)
+- Hanya angka
+
+================================================================================
+  BAB 7 — REFERENSI KODE WILAYAH (SKEMA UMUM)
+================================================================================
+
+------------------------------------------------------------------------
+7.1 KODE PROVINSI (Digit 1-2 NIK) — Ringkasan
+------------------------------------------------------------------------
+Kode | Provinsi                           | Kode | Provinsi
+-----|------------------------------------|----- |--------------------
+11   | Aceh                               | 52   | Nusa Tenggara Barat
+12   | Sumatera Utara                     | 53   | Nusa Tenggara Timur
+13   | Sumatera Barat                     | 61   | Kalimantan Barat
+14   | Riau                               | 62   | Kalimantan Tengah
+15   | Jambi                              | 63   | Kalimantan Selatan
+16   | Sumatera Selatan                   | 64   | Kalimantan Timur
+17   | Bengkulu                           | 65   | Kalimantan Utara
+18   | Lampung                            | 71   | Sulawesi Utara
+19   | Kep. Bangka Belitung               | 72   | Sulawesi Tengah
+21   | Kep. Riau                          | 73   | Sulawesi Selatan
+31   | DKI Jakarta                        | 74   | Sulawesi Tenggara
+32   | Jawa Barat                         | 75   | Gorontalo
+33   | Jawa Tengah                        | 76   | Sulawesi Barat
+34   | DI Yogyakarta                      | 81   | Maluku
+35   | Jawa Timur                         | 82   | Maluku Utara
+36   | Banten                             | 91   | Papua Barat
+51   | Bali                               | 94   | Papua
+
+Catatan: Kode 91–94 dapat berkembang mengikuti pemekaran provinsi Papua.
+         Selalu verifikasi dengan referensi Dukcapil terbaru.
+
+================================================================================
+  BAB 8 — REFERENSI DATA PERIODIS SANTRI
+================================================================================
+
+------------------------------------------------------------------------
+8.1 TINGGI DAN BERAT BADAN
+------------------------------------------------------------------------
+Field          | Tipe Data | Satuan | Keterangan
+---------------|-----------|--------|---------------------------
+tinggi_badan   | Integer   | cm     | Wajib untuk data periodik
+berat_badan    | Integer   | kg     | Wajib untuk data periodik
+
+------------------------------------------------------------------------
+8.2 GOLONGAN DARAH
+------------------------------------------------------------------------
+Kode | Label
+-----|------
+A    | A
+B    | B
+AB   | AB
+O    | O
+A+   | A Rhesus Positif
+A-   | A Rhesus Negatif
+B+   | B Rhesus Positif
+B-   | B Rhesus Negatif
+AB+  | AB Rhesus Positif
+AB-  | AB Rhesus Negatif
+O+   | O Rhesus Positif
+O-   | O Rhesus Negatif
+TT   | Tidak Tahu / Belum Diperiksa
+
+------------------------------------------------------------------------
+8.3 DATA PRESTASI SANTRI
+------------------------------------------------------------------------
+Jenis Prestasi:
+Kode | Label
+-----|-------------------------------
+1    | Sains / Akademik
+2    | Seni
+3    | Olahraga
+4    | Keagamaan / Tahfidz
+5    | Lain-lain
+
+Tingkat Prestasi:
+Kode | Label
+-----|-------------------------------
+1    | Tingkat Lembaga / Pesantren
+2    | Tingkat Kecamatan
+3    | Tingkat Kabupaten / Kota
+4    | Tingkat Provinsi
+5    | Tingkat Nasional
+6    | Tingkat Internasional
+
+================================================================================
+  BAB 9 — PERBANDINGAN: FILE LAMA vs STANDAR EMIS
+================================================================================
+
+Dokumen ini merangkum perbedaan file emisOptions.ts dengan standar resmi EMIS:
+
+------------------------------------------------------------------------
+9.1 PARENT_STATUS_OPTIONS
+------------------------------------------------------------------------
+File Lama                  | Standar EMIS Resmi
+---------------------------|---------------------------
+value: "MASIH_HIDUP"       | value: "HIDUP"
+value: "MENINGGAL"         | value: "MENINGGAL" (sama)
+value: "TIDAK_DIKETAHUI"   | value: "TANPA KETERANGAN"
+
+TINDAKAN: Ubah value "MASIH_HIDUP" → "HIDUP"
+          Ubah value "TIDAK_DIKETAHUI" → "TANPA KETERANGAN"
+
+------------------------------------------------------------------------
+9.2 JOB_OPTIONS
+------------------------------------------------------------------------
+File Lama                  | Standar EMIS Resmi
+---------------------------|---------------------------
+"PNS" (terpisah)           | "PNS/TNI/POLRI" (SATU kode: 05)
+"TNI" (terpisah)           | (tidak ada kode terpisah)
+"Polri" (terpisah)         | (tidak ada kode terpisah)
+"Swasta"                   | "Karyawan Swasta" (kode 06)
+[tidak ada]                | "Pedagang Kecil" (kode 07)
+[tidak ada]                | "Pedagang Besar" (kode 08)
+[tidak ada]                | "Wirausaha" (kode 10) — beda dgn Wiraswasta
+"Buruh" di posisi ke-5     | "Buruh" di posisi ke-11 (kode 11)
+
+TINDAKAN: Gabungkan PNS/TNI/POLRI jadi satu opsi
+          Tambahkan Pedagang Kecil, Pedagang Besar, Wirausaha
+          Ubah "Swasta" → "Karyawan Swasta"
+
+------------------------------------------------------------------------
+9.3 EDUCATION_OPTIONS
+------------------------------------------------------------------------
+File Lama                  | Standar EMIS Resmi
+---------------------------|---------------------------
+Semua opsi sudah benar     | Cocok 100%
+Urutan sudah benar         | Sesuai kode 01–11
+
+TINDAKAN: Tidak perlu perubahan.
+
+------------------------------------------------------------------------
+9.4 INCOME_OPTIONS
+------------------------------------------------------------------------
+File Lama                  | Standar EMIS Resmi
+---------------------------|---------------------------
+Nominal sudah benar        | Cocok (6 bracket sama)
+Format label berbeda       | EMIS: "1 juta - 1.999.999"
+                           | File : "1.000.000 - 1.999.999"
+
+TINDAKAN: Perbedaan hanya pada format tampilan label.
+          Jika value menggunakan kode numerik 1–6, tidak ada masalah sinkronisasi.
+
+------------------------------------------------------------------------
+9.5 YANG HARUS DITAMBAHKAN (belum ada di file lama)
+------------------------------------------------------------------------
+Export / Constant          | Keterangan
+---------------------------|------------------------------------------
+SPECIAL_NEEDS_OPTIONS      | 18 kategori ABK — wajib di semua santri
+DOMISILI_SANTRI_OPTIONS    | Tempat tinggal santri saat belajar
+STATUS_KEPEMILIKAN_RUMAH   | Status rumah tinggal orang tua
+JARAK_TINGGAL_OPTIONS      | Jarak rumah ke lembaga
+TRANSPORTASI_OPTIONS       | Moda transportasi ke lembaga
+JENIS_KELUAR_OPTIONS       | Alasan santri tidak aktif/keluar
+GOLONGAN_DARAH_OPTIONS     | Untuk data periodik santri
+STATUS_MUKIM_OPTIONS       | Mukim / Non-mukim / Kalong
+JENIS_PROGRAM_OPTIONS      | PDF, SPM, Tahfidz, Kitab, dst.
+JENJANG_PESANTREN_OPTIONS  | Ula, Wustha, Ulya, Ma'had Aly
+BEASISWA_OPTIONS           | KIP, PIP, PBSB, dst.
+ALASAN_PIP_OPTIONS         | Alasan layak PIP
+STATUS_SANTRI_OPTIONS      | Aktif, cuti, lulus, mutasi, dst.
+JENIS_DAFTAR_OPTIONS       | Santri baru, pindahan, aktif kembali
+
+================================================================================
+  BAB 10 — CATATAN INTEGRASI DAN SINKRONISASI
+================================================================================
+
+------------------------------------------------------------------------
+10.1 ALUR SINKRONISASI EMIS
+------------------------------------------------------------------------
+1. Input data di sistem internal pesantren (dengan kode referensi ini)
+2. Validasi format lokal (NIK 16 digit, NISN 10 digit, dst.)
+3. Dekripsi data terenkripsi di edge function (untuk field sensitif)
+4. Pemetaan (mapping) kode internal ke kode EMIS resmi
+5. Upload ke EMIS 4.0 via portal atau API yang tersedia
+6. Verifikasi data oleh Kemenag Kab/Kota
+7. BAP (Berita Acara Pendataan) ditandatangani dan diunggah kembali
+8. Status data menjadi "Sudah BAP" — siap untuk:
+   - Dana BOS
+   - Penerbitan NISN
+   - Rekomendasi beasiswa (PBSB, dll.)
+   - Akreditasi lembaga
+
+------------------------------------------------------------------------
+10.2 VALIDASI KRUSIAL SEBELUM SINKRONISASI
+------------------------------------------------------------------------
+[ ] NIK santri tervalidasi Dukcapil (16 digit, format benar)
+[ ] NISN terverifikasi di VervalPD (10 digit, bukan fiktif)
+[ ] Status orang tua menggunakan nilai: HIDUP / MENINGGAL / TANPA KETERANGAN
+[ ] Pekerjaan orang tua menggunakan kode 01–12 atau 99
+[ ] Pendidikan orang tua menggunakan kode 01–11
+[ ] Penghasilan menggunakan kode 1–6
+[ ] Field ABK diisi (minimal kode 01 = Tidak Berkebutuhan Khusus)
+[ ] NSP pesantren valid (12 digit) dan terdaftar di IJOP/SITREN
+[ ] Santri mukim minimal 15 orang untuk lembaga terdaftar
+
+------------------------------------------------------------------------
+10.3 PEMUTAKHIRAN DATA (UPDATING SEMESTERAN)
+------------------------------------------------------------------------
+Semester Ganjil : Update dimulai 1 Juli, cut-off sekitar 30 Desember
+Semester Genap  : Update dimulai 1 Januari, cut-off sekitar 30 Juni
+Jadwal resmi    : Selalu cek surat edaran dari Ditjen Pendis terbaru
+                  (biasanya diumumkan via Kanwil Kemenag masing-masing)
+
+Data yang wajib diperbarui tiap semester:
+- Status aktif/lulus/mutasi santri
+- Rombongan belajar (rombel)
+- Data GTK (guru/ustadz) yang masuk atau keluar
+- Sarana dan prasarana lembaga
+
+------------------------------------------------------------------------
+10.4 REFERENSI PORTAL RESMI
+------------------------------------------------------------------------
+Portal Utama EMIS    : https://emis.kemenag.go.id
+Info Publik EMIS     : https://infopublik-emis.kemenag.go.id
+SITREN (Pesantren)   : https://sitren.kemenag.go.id
+VervalPD (NISN)      : https://vervalpd.data.kemdikbud.go.id
+Pendis Kemenag       : https://pendis.kemenag.go.id
+FAQ EMIS PD Pontren  : Cek kanal resmi Kemenag Kab/Kota masing-masing
+
+================================================================================
+  LAMPIRAN — RINGKASAN CEPAT UNTUK DEVELOPER
+================================================================================
+
+// STATUS ORANG TUA
+"HIDUP" | "MENINGGAL" | "TANPA KETERANGAN"
+
+// PENDIDIKAN (kode 01-11)
+01=Tidak Sekolah | 02=Putus SD | 03=SD | 04=SMP | 05=SMA
+06=D1 | 07=D2 | 08=D3 | 09=D4/S1 | 10=S2 | 11=S3
+
+// PEKERJAAN (kode 01-12, 99)
+01=Tidak Bekerja | 02=Nelayan | 03=Petani | 04=Peternak
+05=PNS/TNI/POLRI | 06=Karyawan Swasta | 07=Pedagang Kecil
+08=Pedagang Besar | 09=Wiraswasta | 10=Wirausaha | 11=Buruh
+12=Pensiunan | 99=Lain-lain
+
+// PENGHASILAN (kode 1-6)
+1=<500rb | 2=500rb-999rb | 3=1jt-1,9jt | 4=2jt-4,9jt
+5=5jt-20jt | 6=>20jt
+
+// AGAMA (kode 01-06, 99)
+01=Islam | 02=Kristen | 03=Katolik | 04=Hindu | 05=Budha
+06=Khonghucu | 99=Lainnya
+
+// BERKEBUTUHAN KHUSUS (kode 01-18)
+01=Tidak | 02=Netra | 03=Rungu | 04=Grahita Ringan | 05=Grahita Sedang
+06=Daksa Ringan | 07=Daksa Sedang | 08=Laras | 09=Wicara | 10=Tuna Ganda
+11=Hiperaktif | 12=Cerdas Istimewa | 13=Bakat Istimewa | 14=Kesulitan Belajar
+15=Narkoba | 16=Indigo | 17=Down Syndrome | 18=Autis
+
+// TEMPAT TINGGAL SANTRI (kode 1-5, 9)
+1=Orang Tua | 2=Wali | 3=Kos | 4=Asrama Pesantren | 5=Panti | 9=Lainnya
+
+// TRANSPORTASI (kode 01-08, 99)
+01=Jalan Kaki | 02=Kendaraan Pribadi | 03=Angkutan Umum | 04=Jemputan
+05=Kereta | 06=Ojek | 07=Andong/Becak | 08=Perahu | 99=Lainnya
+
+// FORMAT IDENTITAS
+NIK  : 16 digit numerik (^\d{16}$)
+NISN : 10 digit numerik (^\d{10}$)
+NSP  : 12 digit numerik (pesantren)
+NPSN : 8 digit numerik (satuan pendidikan)
+
+================================================================================
+  PENUTUP
+================================================================================
+
+Dokumen ini disusun berdasarkan:
+1. Formulir F-PD resmi Pendataan Peserta Didik (Dapodik/EMIS)
+2. Panduan EMIS 4.0 Menu Siswa (Kemenag)
+3. Juknis Pendataan Pesantren — SK Dirjen Pendis No. 511 Tahun 2021
+4. PMA No. 30 Tahun 2020 tentang Pendirian dan Penyelenggaraan Pesantren
+5. UU No. 18 Tahun 2019 tentang Pesantren
+6. Formulir Pendataan EMIS Pondok Pesantren (berbagai versi 2023-2025)
+7. FAQ dan panduan teknis Kemenag Kab/Kota yang dipublikasikan
+
+Catatan Akhir:
+EMIS 4.0 terus diperbarui oleh Kemenag. Selalu verifikasi perubahan terbaru
+melalui portal resmi emis.kemenag.go.id dan surat edaran Ditjen Pendis
+sebelum setiap periode pemutakhiran semesteran.
+
+================================================================================
+  END OF DOCUMENT
+================================================================================

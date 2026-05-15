@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useRef } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { useTable } from "@refinedev/antd";
 import { ProTable } from "@ant-design/pro-components";
 import type { ProColumns } from "@ant-design/pro-components";
@@ -21,6 +21,8 @@ import {
 import { useNavigation, CrudFilters } from "@refinedev/core";
 import { ISantri } from "../../types";
 import { formatMasehi } from "../../utility/dateHelper";
+import { supabaseClient } from "../../utility/supabaseClient";
+import { santriAlias } from "../../utility/privacy";
 import dayjs from "dayjs";
 
 const { Text } = Typography;
@@ -230,6 +232,18 @@ interface FilterState {
 
 const EMPTY_FILTER: FilterState = { nama: "", kelas: undefined, jurusan: undefined, status: undefined };
 
+type EmisValidationResult = {
+    nis: string;
+    nama: string;
+    ready_emis: boolean;
+    sensitive_complete: boolean;
+    geocode_ok: boolean;
+    geocode_status: string;
+    errors: string[];
+    warnings: string[];
+    mapped?: Record<string, string | null>;
+};
+
 // ═══════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════
@@ -252,6 +266,9 @@ export const SantriList = () => {
     const [filters, setFilters] = useState<FilterState>(EMPTY_FILTER);
     const [pendingFilters, setPendingFilters] = useState<FilterState>(EMPTY_FILTER);
     const [isExporting, setIsExporting] = useState(false);
+    const [isGeocodingPending, setIsGeocodingPending] = useState(false);
+    const [emisValidation, setEmisValidation] = useState<Record<string, EmisValidationResult>>({});
+    const [isValidatingEmis, setIsValidatingEmis] = useState(false);
 
     // ── Build CrudFilters dari state ─────────────────────────
     const buildCrudFilters = useCallback((f: FilterState): CrudFilters => {
@@ -276,6 +293,9 @@ export const SantriList = () => {
         resource: "santri",
         syncWithLocation: false,
         sorters: { initial: [{ field: "created_at", order: "desc" }] },
+        meta: {
+            select: "nama, nis, kelas, jurusan, jenis_kelamin, status_santri, total_hafalan, hafalan_kitab, created_at, foto_url",
+        },
         filters: {
             initial: buildCrudFilters(EMPTY_FILTER),
         },
@@ -285,6 +305,50 @@ export const SantriList = () => {
     const allData    = tableQueryResult?.data?.data    || [];
     const totalData  = tableQueryResult?.data?.total   || 0;
     const isFetching = tableQueryResult?.isFetching    || false;
+    const currentPageNis = useMemo(
+        () => allData.map((item) => item.nis).filter(Boolean),
+        [allData],
+    );
+
+    useEffect(() => {
+        if (currentPageNis.length === 0) {
+            setEmisValidation({});
+            return;
+        }
+
+        let cancelled = false;
+        const loadValidation = async () => {
+            setIsValidatingEmis(true);
+            try {
+                const { data, error } = await supabaseClient.functions.invoke("validate-santri-emis", {
+                    body: {
+                        nis_list: currentPageNis,
+                        status: filters.status || null,
+                    },
+                });
+
+                if (error) throw error;
+                if (data?.success === false) throw new Error(data.error || "Validasi EMIS gagal.");
+
+                const next = Object.fromEntries(
+                    ((data?.data || []) as EmisValidationResult[]).map((item) => [item.nis, item]),
+                );
+                if (!cancelled) setEmisValidation(next);
+            } catch (error: any) {
+                if (!cancelled) {
+                    setEmisValidation({});
+                    message.warning(error.message || "Indikator EMIS belum bisa dimuat.");
+                }
+            } finally {
+                if (!cancelled) setIsValidatingEmis(false);
+            }
+        };
+
+        loadValidation();
+        return () => {
+            cancelled = true;
+        };
+    }, [currentPageNis.join("|"), filters.status]);
 
     // ── Stats dari data halaman (approximate) ───────────────
     // Untuk stat akurat perlu fetch semua data. Kita gunakan total dari response
@@ -317,7 +381,7 @@ export const SantriList = () => {
         .filter(Boolean).length;
 
     // ═══════════════════════════════════════════════════════════
-    // EXPORT EXCEL — WORLD CLASS CORPORATE
+    // EXPORT EXCEL EMIS PESANTREN — lewat RPC aman agar decrypt tercatat di audit log
     // ═══════════════════════════════════════════════════════════
     const exportToExcel = async () => {
         setIsExporting(true);
@@ -329,14 +393,26 @@ export const SantriList = () => {
                 import("exceljs"),
                 import("file-saver"),
             ]);
-            const rawData = tableQueryResult?.data?.data || [];
+            const { data: exportPayload, error: exportError } = await supabaseClient.functions.invoke(
+                "export-santri-emis",
+                {
+                    body: {
+                        status: filters.status || null,
+                        tahun_masuk: null,
+                    },
+                },
+            );
+
+            if (exportError) throw exportError;
+            if (exportPayload?.success === false) throw new Error(exportPayload.error || "Export EMIS gagal.");
+            const rows = exportPayload?.data || [];
 
             const wb = new ExcelJS.Workbook();
             wb.creator  = "Sistem Informasi Al-Hasanah";
             wb.created  = new Date();
             wb.modified = new Date();
 
-            const ws = wb.addWorksheet("Data Santri", {
+            const ws = wb.addWorksheet("EMIS Santri", {
                 properties:  { tabColor: { argb: "FFC9A84C" } },
                 pageSetup:   { paperSize: 9, orientation: "landscape", fitToPage: true },
                 headerFooter: {
@@ -346,12 +422,12 @@ export const SantriList = () => {
             });
 
             // ── Kolom width ───────────────────────────────────
-            [4, 16, 38, 14, 30, 14, 10, 16].forEach((w, i) => {
+            [4, 18, 18, 34, 22, 12, 18, 14, 12, 14, 14, 42, 8, 8, 22, 18, 20, 18, 10, 28, 20, 18, 18, 18, 28, 20, 18, 18, 18, 28, 20, 16, 18, 12, 10, 18, 14, 12, 18, 12, 18, 18].forEach((w, i) => {
                 ws.getColumn(i + 1).width = w;
             });
 
             // ── 1. KOP SURAT ──────────────────────────────────
-            ws.mergeCells("A1:H1");
+            ws.mergeCells("A1:AP1");
             Object.assign(ws.getCell("A1"), {
                 value: "PONDOK PESANTREN AL-HASANAH",
                 font: { name: "Arial", size: 18, bold: true, color: { argb: "FF5C430A" } },
@@ -360,7 +436,7 @@ export const SantriList = () => {
             });
             ws.getRow(1).height = 38;
 
-            ws.mergeCells("A2:H2");
+            ws.mergeCells("A2:AP2");
             Object.assign(ws.getCell("A2"), {
                 value: "Jl. Raya Cibeuti Km.3 Rt.01/01, Kel. Cibeuti, Kec. Kawalu, Tasikmalaya 46182",
                 font: { name: "Arial", size: 9.5, italic: true, color: { argb: "FF6B5F50" } },
@@ -369,7 +445,7 @@ export const SantriList = () => {
             });
             ws.getRow(2).height = 18;
 
-            ws.mergeCells("A3:H3");
+            ws.mergeCells("A3:AP3");
             Object.assign(ws.getCell("A3"), {
                 value: "Telp: (0265) 1234567  |  Email: admin@alhasanah.id  |  alhasanah.id",
                 font: { name: "Arial", size: 8.5, color: { argb: "FF9E9080" } },
@@ -379,13 +455,13 @@ export const SantriList = () => {
             ws.getRow(3).height = 16;
 
             // Gold separator
-            ws.mergeCells("A4:H4");
+            ws.mergeCells("A4:AP4");
             ws.getCell("A4").fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFC9A84C" } };
             ws.getRow(4).height  = 4;
 
             // ── 2. JUDUL LAPORAN ──────────────────────────────
             ws.addRow([]);
-            ws.mergeCells("A6:H6");
+            ws.mergeCells("A6:AP6");
             const filterDesc = [
                 filters.status  ? `Status: ${filters.status}` : "",
                 filters.jurusan ? `Takhasus: ${filters.jurusan}` : "",
@@ -394,15 +470,15 @@ export const SantriList = () => {
             ].filter(Boolean).join(" | ");
 
             Object.assign(ws.getCell("A6"), {
-                value: `DATABASE SANTRI — ${filterDesc || "SEMUA DATA"} — Per ${dayjs().format("DD MMMM YYYY").toUpperCase()}`,
+                value: `EXPORT EMIS PESANTREN SANTRI — ${filterDesc || "SEMUA DATA"} — Per ${dayjs().format("DD MMMM YYYY").toUpperCase()}`,
                 font: { name: "Arial", size: 11, bold: true, color: { argb: "FF111827" } },
                 alignment: { vertical: "middle", horizontal: "left" },
             });
             ws.getRow(6).height = 22;
 
-            ws.mergeCells("A7:H7");
+            ws.mergeCells("A7:AP7");
             Object.assign(ws.getCell("A7"), {
-                value: `Total Data Diekspor: ${rawData.length} santri  |  Aktif: ${rawData.filter(d=>d.status_santri==="AKTIF").length}  |  Keluar: ${rawData.filter(d=>d.status_santri==="KELUAR").length}  |  Alumni: ${rawData.filter(d=>d.status_santri==="ALUMNI").length}`,
+                value: `Total Data Diekspor: ${rows.length} santri  |  Aktif: ${rows.filter((d: any)=>d.status_santri==="AKTIF").length}  |  Keluar: ${rows.filter((d: any)=>d.status_santri==="KELUAR").length}  |  Alumni: ${rows.filter((d: any)=>d.status_santri==="ALUMNI").length}`,
                 font: { name: "Arial", size: 9, color: { argb: "FF9E9080" } },
                 alignment: { vertical: "middle", horizontal: "left" },
             });
@@ -411,10 +487,17 @@ export const SantriList = () => {
             ws.addRow([]);
 
             // ── 3. HEADER ─────────────────────────────────────
-            const hdr = ws.addRow([
-                "NO", "NIS", "NAMA LENGKAP", "GENDER",
-                "TEMPAT, TANGGAL LAHIR", "TAKHASUS", "KELAS", "STATUS",
-            ]);
+            const emisHeaders = [
+                "NO", "NSP", "NO INDUK SANTRI", "NISN", "NAMA LENGKAP", "NIK", "JK",
+                "TEMPAT LAHIR", "TANGGAL LAHIR", "AGAMA", "KEWARGANEGARAAN", "STATUS MUKIM",
+                "ALAMAT LENGKAP", "RT", "RW", "DESA/KELURAHAN", "KECAMATAN", "KAB/KOTA",
+                "PROVINSI", "KODE POS", "NAMA AYAH", "NIK AYAH", "PENDIDIKAN AYAH",
+                "PEKERJAAN AYAH", "PENGHASILAN AYAH", "NAMA IBU", "NIK IBU", "PENDIDIKAN IBU",
+                "PEKERJAAN IBU", "PENGHASILAN IBU", "NAMA WALI", "NIK WALI", "HUBUNGAN WALI",
+                "NO HP WALI", "TAHUN MASUK", "KELAS", "PROGRAM", "STATUS SANTRI",
+                "PENERIMA PIP", "NO KIP", "PENERIMA BEASISWA", "JENIS BEASISWA", "KEBUTUHAN KHUSUS",
+            ];
+            const hdr = ws.addRow(emisHeaders);
             hdr.height = 28;
             hdr.eachCell(cell => {
                 cell.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: "FFC9A84C" } };
@@ -429,24 +512,52 @@ export const SantriList = () => {
             });
 
             // ── 4. DATA ROWS ──────────────────────────────────
-            const statusArgb: Record<string, string> = {
-                AKTIF:  "FF059669",
-                KELUAR: "FFDC2626",
-                ALUMNI: "FFC9A84C",
-                LULUS:  "FF2563EB",
-            };
-
-            rawData.forEach((item, idx) => {
+            rows.forEach((item: any, idx: number) => {
                 const isEven = idx % 2 === 0;
                 const row    = ws.addRow([
                     idx + 1,
-                    item.nis,
-                    item.nama.toUpperCase(),
-                    item.jenis_kelamin === "L" ? "LAKI-LAKI" : "PEREMPUAN",
-                    `${item.tempat_lahir || "—"}, ${item.tanggal_lahir ? dayjs(item.tanggal_lahir).format("DD/MM/YYYY") : "—"}`,
-                    item.jurusan || "—",
-                    `${item.kelas}`,
+                    item.nsp || "",
+                    item.no_induk_santri || "",
+                    item.nisn || "",
+                    (item.nama_lengkap || "").toUpperCase(),
+                    item.nik || "",
+                    item.jenis_kelamin || "",
+                    item.tempat_lahir || "",
+                    item.tanggal_lahir ? dayjs(item.tanggal_lahir).format("YYYY-MM-DD") : "",
+                    item.agama || "ISLAM",
+                    item.kewarganegaraan || "WNI",
+                    item.status_mukim || "",
+                    item.alamat_lengkap || "",
+                    item.rt || "",
+                    item.rw || "",
+                    item.desa_kelurahan || "",
+                    item.kecamatan_id || "",
+                    item.kabupaten_kota || "",
+                    item.provinsi || "",
+                    item.kode_pos || "",
+                    item.nama_ayah || "",
+                    item.nik_ayah || "",
+                    item.pendidikan_ayah || "",
+                    item.pekerjaan_ayah || "",
+                    item.penghasilan_ayah || "",
+                    item.nama_ibu || "",
+                    item.nik_ibu || "",
+                    item.pendidikan_ibu || "",
+                    item.pekerjaan_ibu || "",
+                    item.penghasilan_ibu || "",
+                    item.nama_wali || "",
+                    item.nik_wali || "",
+                    item.hubungan_wali || "",
+                    item.no_hp_wali || "",
+                    item.tahun_masuk || "",
+                    item.kelas || "",
+                    item.program_pesantren || "",
                     item.status_santri,
+                    item.penerima_pip ? "YA" : "TIDAK",
+                    item.no_kip || "",
+                    item.penerima_beasiswa ? "YA" : "TIDAK",
+                    item.jenis_beasiswa || "",
+                    item.kebutuhan_khusus || "",
                 ]);
                 row.height = 20;
                 row.eachCell((cell, col) => {
@@ -461,11 +572,7 @@ export const SantriList = () => {
                     if (!isEven) {
                         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF9F0" } };
                     }
-                    if ([1,4,7].includes(col)) cell.alignment = { ...cell.alignment, horizontal: "center" };
-                    if (col === 8) {
-                        const argb = statusArgb[item.status_santri];
-                        if (argb) cell.font = { ...cell.font, bold: true, color: { argb } };
-                    }
+                    if ([1,7,14,15,35,36,39,41].includes(col)) cell.alignment = { ...cell.alignment, horizontal: "center" };
                 });
             });
 
@@ -473,11 +580,11 @@ export const SantriList = () => {
             ws.addRow([]);
             const sumRow = ws.addRow([
                 "", "", "", "", "", "",
-                "TOTAL SANTRI :", rawData.length.toString(),
+                "TOTAL SANTRI :", rows.length.toString(),
             ]);
             sumRow.font = { name: "Arial", size: 10, bold: true };
-            sumRow.getCell(7).alignment = { horizontal: "right" };
-            sumRow.getCell(8).font = { name: "Arial", size: 11, bold: true, color: { argb: "FFC9A84C" } };
+            sumRow.getCell(41).alignment = { horizontal: "right" };
+            sumRow.getCell(42).font = { name: "Arial", size: 11, bold: true, color: { argb: "FFC9A84C" } };
 
             ws.addRow([]);
             const printRow = ws.addRow([
@@ -487,22 +594,112 @@ export const SantriList = () => {
             printRow.font = { name: "Arial", size: 8.5, italic: true, color: { argb: "FF9E9080" } };
 
             // ── 6. FINALIZE ───────────────────────────────────
-            ws.autoFilter = "A9:H9";
+            ws.autoFilter = "A9:AP9";
             ws.views      = [{ state: "frozen", ySplit: 9 }];
 
             // Print area
-            ws.pageSetup.printArea = `A1:H${9 + rawData.length + 4}`;
+            ws.pageSetup.printArea = `A1:AP${9 + rows.length + 4}`;
 
             const buffer  = await wb.xlsx.writeBuffer();
             const dateStr = dayjs().format("YYYY-MM-DD");
             const sfx     = activeFilterCount > 0 ? `_${[filters.status, filters.jurusan, filters.kelas].filter(Boolean).join("_")}` : "";
-            saveAs(new Blob([buffer]), `Data_Santri_AlHasanah${sfx}_${dateStr}.xlsx`);
+            saveAs(new Blob([buffer]), `EMIS_Pesantren_Santri_AlHasanah${sfx}_${dateStr}.xlsx`);
 
-            message.success({ content: `✅ ${rawData.length} data berhasil diekspor!`, key, duration: 3 });
+            message.success({ content: `${rows.length} data EMIS berhasil diekspor.`, key, duration: 3 });
         } catch (err: any) {
             message.error({ content: `Gagal export: ${err.message}`, key });
         } finally {
             setIsExporting(false);
+        }
+    };
+
+    const buildGeocodeAddress = (item: any) => [
+        item.alamat_lengkap,
+        item.rt ? `RT ${item.rt}` : null,
+        item.rw ? `RW ${item.rw}` : null,
+        item.desa_kelurahan,
+        item.kecamatan_id,
+        item.kabupaten_kota,
+        item.provinsi,
+        item.kode_pos,
+        "Indonesia",
+    ].filter(Boolean).join(", ");
+
+    const geocodePendingSantri = async () => {
+        setIsGeocodingPending(true);
+        const key = "geocode_pending_santri";
+        message.loading({ content: "Memproses geocode pending...", key, duration: 0 });
+
+        try {
+            const { data: candidates, error: candidateError } = await supabaseClient
+                .from("santri")
+                .select("nis,nama,geocode_status")
+                .or("geocode_status.is.null,geocode_status.eq.PENDING,geocode_status.eq.not_geocoded,geocode_status.eq.failed,geocode_status.eq.FAILED")
+                .limit(10);
+
+            if (candidateError) throw candidateError;
+            if (!candidates?.length) {
+                message.success({ content: "Tidak ada data geocode pending.", key, duration: 3 });
+                return;
+            }
+
+            let success = 0;
+            let failed = 0;
+
+            for (const candidate of candidates) {
+                try {
+                    const { data: detail, error: detailError } = await supabaseClient.rpc("get_santri_detail_secure", {
+                        p_nis: candidate.nis,
+                        p_reason: "admin_panel_batch_geocode_load",
+                    });
+                    if (detailError) throw detailError;
+
+                    const address = buildGeocodeAddress(detail);
+                    if (!address || address === "Indonesia") throw new Error("Alamat tidak cukup lengkap.");
+
+                    const { data: geocode, error: geocodeError } = await supabaseClient.functions.invoke("geocode-single", {
+                        body: { address },
+                    });
+                    if (geocodeError) throw geocodeError;
+                    if (geocode?.found === false) throw new Error(geocode.message || "Alamat tidak ditemukan.");
+                    if (!geocode?.lat || !geocode?.lon) throw new Error("Koordinat tidak ditemukan.");
+
+                    const emisExtra = {
+                        ...(detail?.emis_extra || {}),
+                        geocode_display_name: geocode.display_name,
+                        geocode_matched_query: geocode.matched_query,
+                    };
+
+                    const { error: updateError } = await supabaseClient.rpc("update_santri_secure", {
+                        p_nis: candidate.nis,
+                        p_payload: {
+                            latitude: Number(geocode.lat),
+                            longitude: Number(geocode.lon),
+                            geocode_status: "GEOCODED",
+                            geocode_provider: "nominatim",
+                            geocode_confidence: geocode.confidence ?? 1,
+                            emis_extra: emisExtra,
+                        },
+                        p_reason: "admin_panel_batch_geocode_save",
+                    });
+                    if (updateError) throw updateError;
+                    success += 1;
+                } catch {
+                    failed += 1;
+                    await supabaseClient.rpc("update_santri_secure", {
+                        p_nis: candidate.nis,
+                        p_payload: { geocode_status: "FAILED" },
+                        p_reason: "admin_panel_batch_geocode_failed",
+                    });
+                }
+            }
+
+            message.success({ content: `Geocode selesai: ${success} berhasil, ${failed} gagal.`, key, duration: 4 });
+            tableQueryResult?.refetch?.();
+        } catch (err: any) {
+            message.error({ content: `Gagal geocode pending: ${err.message}`, key });
+        } finally {
+            setIsGeocodingPending(false);
         }
     };
 
@@ -579,7 +776,7 @@ export const SantriList = () => {
                                 textOverflow: "ellipsis", maxWidth: 180,
                                 fontFamily: "'DM Sans', sans-serif",
                             }}>
-                                {record.nama}
+                                {record.nama || santriAlias(record.nis)}
                             </span>
 
                             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
@@ -666,21 +863,19 @@ export const SantriList = () => {
             },
         },
         {
-            title: "Asal Daerah",
-            dataIndex: "tempat_lahir",
+            title: "Data Ringkas",
+            dataIndex: "nis",
             width: 155,
             search: false,
             render: (_, record) => (
                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                     <span style={{ fontSize: 12.5, fontWeight: 600, color: token.colorText }}>
-                        {record.tempat_lahir || "—"}
+                        NIS {record.nis || "—"}
                     </span>
-                    {record.tanggal_lahir && (
-                        <span style={{ fontSize: 10.5, color: token.colorTextSecondary,
-                            fontFamily: "'DM Mono', monospace" }}>
-                            {dayjs(record.tanggal_lahir).format("DD MMM YYYY")}
-                        </span>
-                    )}
+                    <span style={{ fontSize: 10.5, color: token.colorTextSecondary,
+                        fontFamily: "'DM Mono', monospace" }}>
+                        Masuk data: {record.created_at ? dayjs(record.created_at).format("DD MMM YYYY") : "—"}
+                    </span>
                 </div>
             ),
         },
@@ -708,6 +903,52 @@ export const SantriList = () => {
                             {cfg.label}
                         </span>
                     </div>
+                );
+            },
+        },
+        {
+            title: "Kesiapan EMIS",
+            key: "emis_ready",
+            width: 230,
+            search: false,
+            render: (_, record) => {
+                const validation = emisValidation[record.nis];
+                if (isValidatingEmis && !validation) {
+                    return <Skeleton active paragraph={false} title={{ width: 130 }} />;
+                }
+
+                const errors = validation?.errors || [];
+                const warnings = validation?.warnings || [];
+                const tooltip = [...errors, ...warnings].length
+                    ? [...errors, ...warnings].join(" ")
+                    : "Data ini lolos validasi awal EMIS.";
+
+                return (
+                    <Tooltip title={tooltip}>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                            <Tag
+                                icon={validation?.ready_emis ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
+                                color={validation?.ready_emis ? "success" : "warning"}
+                                style={{ marginInlineEnd: 0 }}
+                            >
+                                {validation?.ready_emis ? "Siap EMIS" : "Perlu Perbaikan"}
+                            </Tag>
+                            <Tag
+                                icon={validation?.sensitive_complete ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
+                                color={validation?.sensitive_complete ? "success" : "error"}
+                                style={{ marginInlineEnd: 0 }}
+                            >
+                                Data Sensitif {validation?.sensitive_complete ? "Lengkap" : "Kurang"}
+                            </Tag>
+                            <Tag
+                                icon={validation?.geocode_ok ? <AimOutlined /> : <SyncOutlined />}
+                                color={validation?.geocode_ok ? "processing" : "default"}
+                                style={{ marginInlineEnd: 0 }}
+                            >
+                                Geocode {validation?.geocode_ok ? "OK" : validation?.geocode_status || "Pending"}
+                            </Tag>
+                        </div>
+                    </Tooltip>
                 );
             },
         },
@@ -821,6 +1062,25 @@ export const SantriList = () => {
                 {/* Right actions */}
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     {/* Export PDF */}
+                    <button
+                        onClick={geocodePendingSantri}
+                        disabled={isGeocodingPending}
+                        style={{
+                            display: "flex", alignItems: "center", gap: 7,
+                            padding: "0 16px", height: 38, borderRadius: 10,
+                            border: `1px solid rgba(37,99,235,0.28)`,
+                            background: isDark ? "rgba(37,99,235,0.08)" : "rgba(37,99,235,0.06)",
+                            color: INFO, cursor: "pointer", fontSize: 12.5, fontWeight: 700,
+                            transition: "all 0.2s", fontFamily: "'DM Sans', sans-serif",
+                        }}
+                    >
+                        {isGeocodingPending
+                            ? <SyncOutlined spin />
+                            : <AimOutlined />
+                        }
+                        Geocode Pending
+                    </button>
+
                     <button
                         onClick={() => {
                             const filterDesc = [

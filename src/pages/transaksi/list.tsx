@@ -24,6 +24,7 @@ import "dayjs/locale/id";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import { formatHijri, formatMasehi } from "../../utility/dateHelper";
+import { santriAlias } from "../../utility/privacy";
 import { supabaseClient } from "../../utility/supabaseClient";
 
 dayjs.locale("id");
@@ -215,7 +216,7 @@ export const TransaksiList: React.FC = () => {
         resource: "transaksi_keuangan",
         syncWithLocation: false,
         meta: {
-            select: "*, wali:wali_id(full_name, no_hp), admin:admin_pencatat_id(full_name), santri:santri_nis(nama, kelas, jurusan)"
+            select: "*, wali:wali_id(full_name, no_hp), admin:admin_pencatat_id(full_name), santri:santri_nis(nama, nis, kelas, jurusan)"
         },
         filters: {
             permanent: [
@@ -314,7 +315,7 @@ export const TransaksiList: React.FC = () => {
             // Fetch full period data (tidak hanya page aktif)
             const { data: fullData, error } = await supabaseClient
                 .from("transaksi_keuangan")
-                .select("*, wali:wali_id(full_name), admin:admin_pencatat_id(full_name), santri:santri_nis(nama, kelas)")
+                .select("*, wali:wali_id(full_name), admin:admin_pencatat_id(full_name), santri:santri_nis(nama, nis, kelas)")
                 .gte("tanggal_transaksi", dateRange[0].startOf("day").toISOString())
                 .lte("tanggal_transaksi", dateRange[1].endOf("day").toISOString())
                 .order("tanggal_transaksi", { ascending: false });
@@ -486,7 +487,7 @@ export const TransaksiList: React.FC = () => {
                     dayjs(r.tanggal_transaksi).format("DD/MM/YYYY HH:mm"),
                     formatHijri(r.tanggal_transaksi),
                     r.jenis_transaksi === "masuk" ? "MASUK" : "KELUAR",
-                    r.santri?.nama?.toUpperCase() || "UMUM / MASYARAKAT",
+                    (r.santri?.nama || santriAlias(r.santri?.nis))?.toUpperCase() || "UMUM / MASYARAKAT",
                     r.santri?.kelas ? `Kelas ${r.santri.kelas}` : "-",
                     r.wali?.full_name || r.keterangan || "-",
                     r.admin?.full_name || "SISTEM (DIGITAL)",
@@ -588,7 +589,7 @@ export const TransaksiList: React.FC = () => {
                     const row = ws3.addRow([
                         i+1,
                         dayjs(r.tanggal_transaksi).format("DD MMM YYYY HH:mm"),
-                        r.wali?.full_name || r.santri?.nama || "Donatur Umum",
+                        r.wali?.full_name || r.santri?.nama || santriAlias(r.santri?.nis) || "Donatur Umum",
                         r.keterangan || "-",
                         (r.metode_pembayaran || "CASH").toUpperCase(),
                         Number(r.jumlah),

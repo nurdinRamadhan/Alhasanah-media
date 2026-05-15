@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { logActivity } from "../../utility/logger";
+import { santriAlias } from "../../utility/privacy";
 import { useTable, useSelect } from "@refinedev/antd";
 import { ProTable, ProColumns } from "@ant-design/pro-components";
 import {
@@ -99,6 +100,7 @@ export const KesehatanList = () => {
         resource: "santri",
         optionLabel: "nama",
         optionValue: "nis",
+        meta: { select: "nama, nis, kelas, jurusan, status_santri" },
         onSearch: (v) => [
             { field: "nama", operator: "contains", value: v },
             { field: "nis",  operator: "contains", value: v },
@@ -109,7 +111,7 @@ export const KesehatanList = () => {
     const { tableProps, tableQueryResult } = useTable<IKesehatanSantri>({
         resource: "kesehatan_santri",
         syncWithLocation: false,
-        meta: { select: "*, santri!inner(nama, nis, kelas, jurusan, foto_url)" },
+        meta: { select: "*, santri!inner(nama, nis, kelas, jurusan)" },
         sorters: { initial: [{ field: "tanggal", order: "desc" }] },
         pagination: { pageSize: 10 },
     });
@@ -162,7 +164,7 @@ export const KesehatanList = () => {
         allData.forEach((d) => {
             const k = d.santri_nis;
             if (!freqMap[k])
-                freqMap[k] = { nama: d.santri?.nama || "-", count: 0 };
+                freqMap[k] = { nama: d.santri?.nama || santriAlias(d.santri?.nis) || "-", count: 0 };
             freqMap[k].count += 1;
         });
         const frequentPatients = Object.entries(freqMap)
@@ -210,13 +212,17 @@ export const KesehatanList = () => {
             if (exportMode === "personal") {
                 // ── REKAM MEDIS PERSONAL ──────────────────────
                 const { data: santri } = await supabaseClient
-                    .from("santri").select("*").eq("nis", selectedSantriNis).single();
+                    .from("santri")
+                    .select("nama, nis, kelas, jurusan")
+                    .eq("nis", selectedSantriNis)
+                    .single();
+                if (!santri) throw new Error("Data santri tidak ditemukan.");
                 const { data: history } = await supabaseClient
                     .from("kesehatan_santri").select("*")
                     .eq("santri_nis", selectedSantriNis)
                     .order("tanggal", { ascending: false });
 
-                const ws = workbook.addWorksheet(`Rekam Medis - ${santri.nama}`);
+                const ws = workbook.addWorksheet(`Rekam Medis - ${santri.nama || santriAlias(santri.nis)}`);
 
                 ws.mergeCells("A1:F1");
                 ws.getCell("A1").value = instansi.nama;
@@ -230,7 +236,7 @@ export const KesehatanList = () => {
 
                 ws.addRow([]);
                 ws.addRow(["REKAM JEJAK KESEHATAN SANTRI (UKS)"]).font = { bold: true, size: 12 };
-                ws.addRow([`NAMA   : ${santri.nama.toUpperCase()}`]).font = { bold: true };
+                ws.addRow([`NAMA   : ${(santri.nama || santriAlias(santri.nis)).toUpperCase()}`]).font = { bold: true };
                 ws.addRow([`NIS    : ${santri.nis}`]);
                 ws.addRow([`KELAS  : ${santri.kelas} (${santri.jurusan})`]);
                 ws.addRow([`CETAK  : ${dayjs().format("DD MMMM YYYY HH:mm")}`]).font = { italic: true, size: 9 };
@@ -265,7 +271,7 @@ export const KesehatanList = () => {
                 [20, 25, 35, 35, 40, 18].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
                 const buf = await workbook.xlsx.writeBuffer();
-                saveAs(new Blob([buf]), `Rekam_Medis_${santri.nama.replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.xlsx`);
+                saveAs(new Blob([buf]), `Rekam_Medis_${(santri.nama || santriAlias(santri.nis)).replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.xlsx`);
                 message.success("Rekam medis personal berhasil diunduh.");
 
             } else {
@@ -308,7 +314,7 @@ export const KesehatanList = () => {
                         idx + 1,
                         formatMasehi(item.tanggal),
                         formatHijri(item.tanggal),
-                        item.santri?.nama?.toUpperCase(),
+                        (item.santri?.nama || santriAlias(item.santri?.nis))?.toUpperCase(),
                         item.santri?.kelas,
                         item.santri?.jurusan,
                         item.keluhan,
@@ -463,7 +469,7 @@ export const KesehatanList = () => {
                             fontWeight: 800, fontSize: 13.5, color: token.colorText,
                             lineHeight: 1.25, letterSpacing: "-0.2px",
                         }}>
-                            {record.santri?.nama || "Tanpa Nama"}
+                            {record.santri?.nama || santriAlias(record.santri?.nis) || "Tanpa Nama"}
                         </div>
                         <div style={{
                             fontSize: 10, color: token.colorTextTertiary,

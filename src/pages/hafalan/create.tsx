@@ -19,8 +19,12 @@ export const HafalanCreate = () => {
         resource: "santri",
         optionLabel: "nama",
         optionValue: "nis",
+        meta: { select: "nama, nis, kelas, jurusan, status_santri" },
         filters: [{ field: "jurusan", operator: "eq", value: "TAHFIDZ" }],
-        onSearch: (value) => [{ field: "nama", operator: "contains", value }],
+        onSearch: (value) => [
+            { field: "nama", operator: "contains", value },
+            { field: "nis", operator: "contains", value },
+        ],
     });
 
     const handleSuratChange = (value: string) => {

@@ -35,6 +35,7 @@ import {
 } from "@ant-design/icons";
 import { Scanner } from "@yudiel/react-qr-scanner";
 import { supabaseClient } from "../../utility/supabaseClient";
+import { santriAlias } from "../../utility/privacy";
 import { ISantri, IPesertaDiklat } from "../../types";
 import { useColorMode } from "../../contexts/color-mode";
 import { motion, AnimatePresence } from "framer-motion";
@@ -171,13 +172,17 @@ export const ScanQR: React.FC = () => {
 
     try {
       const [{ data: santri, error: e1 }, { data: tagihan }] = await Promise.all([
-        supabaseClient.from("santri").select("*").eq("nis", nis).single(),
+        supabaseClient.rpc("get_santri_detail_secure", {
+          p_nis: nis,
+          p_audit_reason: "Admin QR scan detail santri",
+        }).single(),
         supabaseClient.from("tagihan_santri").select("*")
           .eq("santri_nis", nis).order("tanggal_jatuh_tempo", { ascending:false }).limit(5),
       ]);
       if (e1 || !santri) throw new Error(`NIS ${nis} tidak ditemukan dalam database.`);
+      const santriRecord = santri as ISantri;
 
-      setSantriData(santri as ISantri);
+      setSantriData(santriRecord);
       setTagihanData(tagihan || []);
       setScanState("success");
       feedback("success");
@@ -188,10 +193,10 @@ export const ScanQR: React.FC = () => {
         id: Date.now().toString(),
         rawValue: nis,
         mode: "santri" as ScanMode,
-        name: santri.nama,
+        name: santriRecord.nama || santriAlias(santriRecord.nis),
         timestamp: new Date(),
         success: true,
-        data: santri as ISantri,
+        data: santriRecord,
         tagihan: tagihan || [],
       };
       setHistory(h => [entry, ...h].slice(0, 10));
@@ -245,7 +250,7 @@ export const ScanQR: React.FC = () => {
     try {
       const { data, error } = await supabaseClient
         .from("tagihan_santri")
-        .select("*, santri(*)")
+        .select("*, santri(nama, nis, kelas, jurusan, foto_url)")
         .eq("id", id)
         .single();
       
@@ -258,7 +263,7 @@ export const ScanQR: React.FC = () => {
 
       setHistory(h => [{
         id: Date.now().toString(), rawValue: id, mode: "tagihan" as ScanMode,
-        name: `#INV-${id.substring(0,8).toUpperCase()} (${data.santri?.nama || "Unknown"})`,
+        name: `#INV-${id.substring(0,8).toUpperCase()} (${data.santri?.nama || santriAlias(data.santri?.nis) || "Unknown"})`,
         timestamp: new Date(), success: true,
         data: data,
       }, ...h].slice(0, 10));
@@ -1061,7 +1066,7 @@ export const ScanQR: React.FC = () => {
                           margin:"0 0 10px",fontSize:"clamp(16px,2vw,22px)",
                           fontWeight:800,color:"#F5EDD8",lineHeight:1.2,
                         }}>
-                          {santriData.nama}
+                          {santriData.nama || santriAlias(santriData.nis)}
                         </h2>
                         <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
                           {[
@@ -1362,7 +1367,7 @@ export const ScanQR: React.FC = () => {
                       <Avatar src={invoiceData.santri?.foto_url} size={54} icon={<UserOutlined/>} style={{border:`2px solid ${GOLD}40`,background:t.surface}}/>
                       <div>
                         <div style={{fontSize:10,fontWeight:800,color:t.textMuted,letterSpacing:".5px",textTransform:"uppercase"}}>PEMBAYAR (SANTRI)</div>
-                        <div style={{fontSize:15,fontWeight:800,color:t.text}}>{invoiceData.santri?.nama || "Unknown"}</div>
+                        <div style={{fontSize:15,fontWeight:800,color:t.text}}>{invoiceData.santri?.nama || santriAlias(invoiceData.santri?.nis) || "Unknown"}</div>
                         <div style={{fontSize:12,color:t.textSub}}>NIS: {invoiceData.santri_nis} · Kelas {invoiceData.santri?.kelas}</div>
                       </div>
                     </div>

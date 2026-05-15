@@ -18,6 +18,7 @@ import {
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import { supabaseClient } from "../../utility/supabaseClient";
+import { santriAlias } from "../../utility/privacy";
 import { IPelanggaranSantri } from "../../types";
 import { useNavigation, useDelete } from "@refinedev/core";
 import { formatHijri, formatMasehi } from "../../utility/dateHelper";
@@ -101,7 +102,7 @@ export const PelanggaranList = () => {
     const { tableProps, tableQueryResult } = useTable<IPelanggaranSantri>({
         resource: "pelanggaran_santri",
         syncWithLocation: false,
-        meta: { select: "*, santri!inner(nama, nis, kelas, jurusan, foto_url)" },
+        meta: { select: "*, santri!inner(nama, nis, kelas, jurusan)" },
         sorters: { initial: [{ field: "tanggal", order: "desc" }] },
     });
 
@@ -142,7 +143,7 @@ export const PelanggaranList = () => {
         allData.forEach((d) => {
             const nis = d.santri_nis;
             if (!pelanggarPerNIS[nis]) {
-                pelanggarPerNIS[nis] = { nama: d.santri?.nama || "-", count: 0, poin: 0 };
+                pelanggarPerNIS[nis] = { nama: d.santri?.nama || santriAlias(d.santri?.nis) || "-", count: 0, poin: 0 };
             }
             pelanggarPerNIS[nis].count += 1;
             pelanggarPerNIS[nis].poin += Number(d.poin || 0);
@@ -231,7 +232,7 @@ export const PelanggaranList = () => {
                     formatMasehi(item.tanggal),
                     formatHijri(item.tanggal),
                     item.santri?.nis,
-                    item.santri?.nama?.toUpperCase(),
+                    (item.santri?.nama || santriAlias(item.santri?.nis))?.toUpperCase(),
                     item.santri?.kelas,
                     item.santri?.jurusan,
                     item.jenis_pelanggaran,
@@ -468,7 +469,7 @@ export const PelanggaranList = () => {
                             fontWeight: 800, fontSize: 13.5, color: token.colorText,
                             lineHeight: 1.25, letterSpacing: "-0.2px",
                         }}>
-                            {record.santri?.nama || "—"}
+                            {record.santri?.nama || santriAlias(record.santri?.nis) || "—"}
                         </div>
                         <div style={{ display: "flex", gap: 5, marginTop: 5, flexWrap: "wrap" }}>
                             <span style={{

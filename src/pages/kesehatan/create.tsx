@@ -24,7 +24,11 @@ export const KesehatanCreate = () => {
         resource: "santri",
         optionLabel: "nama",
         optionValue: "nis",
-        onSearch: (value) => [{ field: "nama", operator: "contains", value }, { field: "nis", operator: "contains", value }],
+        meta: { select: "nama, nis, kelas, jurusan, status_santri" },
+        onSearch: (value) => [
+            { field: "nama", operator: "contains", value },
+            { field: "nis", operator: "contains", value },
+        ],
     });
 
     return (

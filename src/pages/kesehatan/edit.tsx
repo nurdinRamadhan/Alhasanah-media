@@ -3,6 +3,7 @@ import { Edit, useForm } from "@refinedev/antd";
 import { Form, Input, DatePicker, Card, Row, Col, Alert } from "antd";
 import dayjs from "dayjs";
 import { IKesehatanSantri } from "../../types";
+import { santriAlias } from "../../utility/privacy";
 
 export const KesehatanEdit = () => {
     const { formProps, saveButtonProps, queryResult } = useForm<IKesehatanSantri>();
@@ -18,7 +19,7 @@ export const KesehatanEdit = () => {
                     tanggal: formProps.initialValues?.tanggal ? dayjs(formProps.initialValues.tanggal) : "",
                 }}
             >
-                <Alert message={`Santri: ${record?.santri?.nama || '...'}`} type="error" showIcon className="mb-6 bg-red-50 border-red-200 text-red-800" />
+                <Alert message={`Santri: ${record?.santri?.nama || santriAlias(record?.santri?.nis) || '...'}`} type="error" showIcon className="mb-6 bg-red-50 border-red-200 text-red-800" />
 
                 <Row gutter={24}>
                     <Col xs={24} md={12}>

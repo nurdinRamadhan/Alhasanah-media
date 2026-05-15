@@ -31,8 +31,12 @@ export const MurojaahCreate = () => {
         resource: "santri",
         optionLabel: "nama",
         optionValue: "nis",
+        meta: { select: "nama, nis, kelas, jurusan, status_santri" },
         filters: [{ field: "jurusan", operator: "eq", value: "TAHFIDZ" }],
-        onSearch: (value) => [{ field: "nama", operator: "contains", value }],
+        onSearch: (value) => [
+            { field: "nama", operator: "contains", value },
+            { field: "nis", operator: "contains", value },
+        ],
     });
 
     const juzOptions = Array.from({length: 30}, (_, i) => ({ label: `Juz ${i + 1}`, value: i + 1 }));

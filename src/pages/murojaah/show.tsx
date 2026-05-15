@@ -7,6 +7,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import dayjs from "dayjs";
 import { supabaseClient } from "../../utility/supabaseClient";
 import { formatDualDate } from "../../utility/dateHelper";
+import { santriAlias } from "../../utility/privacy";
 
 const { Title, Text } = Typography;
 
@@ -17,7 +18,7 @@ export const MurojaahShow = () => {
     const { data: santriData, isLoading } = useOne<ISantri>({
         resource: "santri",
         id: id as string,
-        meta: { idColumnName: "nis" }
+        meta: { idColumnName: "nis", select: "nama, nis, kelas, jurusan, jenis_kelamin, status_santri, foto_url" }
     });
 
     const [riwayat, setRiwayat] = React.useState<any[]>([]);
@@ -46,7 +47,7 @@ export const MurojaahShow = () => {
                 <Col xs={24} md={8}>
                     <Card className="text-center shadow-sm rounded-xl border-purple-100">
                         <Avatar size={100} src={record.foto_url} icon={<SyncOutlined />} className="bg-purple-100 text-purple-600 mb-4" />
-                        <Title level={3} style={{ margin: 0 }}>{record.nama}</Title>
+                        <Title level={3} style={{ margin: 0 }}>{record.nama || santriAlias(record.nis)}</Title>
                         <Text type="secondary">{record.nis}</Text>
                         <div className="mt-6 flex justify-around">
                             <Statistic title="Total Murojaah" value={riwayat.length} valueStyle={{ fontSize: 18 }} />

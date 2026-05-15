@@ -214,8 +214,12 @@ export const TransaksiCreate: React.FC = () => {
         resource: "santri",
         optionLabel: "nama",
         optionValue: "nis",
+        meta: { select: "nama, nis, kelas, jurusan, status_santri" },
         filters: [{ field:"status_santri", operator:"eq", value:"AKTIF" }],
-        onSearch: (v) => [{ field:"nama", operator:"contains", value:v }],
+        onSearch: (v) => [
+            { field:"nama", operator:"contains", value:v },
+            { field:"nis", operator:"contains", value:v },
+        ],
     });
 
     // ── Computed preview values ──────────────────────────

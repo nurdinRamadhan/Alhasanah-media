@@ -27,8 +27,10 @@ export const PelanggaranCreate = () => {
         resource: "santri",
         optionLabel: "nama", // Menampilkan Nama di dropdown
         optionValue: "nis",  // Menyimpan NIS ke database sesuai schema FK
+        meta: { select: "nama, nis, kelas, jurusan, status_santri" },
         onSearch: (value) => [
             { field: "nama", operator: "contains", value },
+            { field: "nis", operator: "contains", value },
         ],
         sorters: [
             { field: "nama", order: "asc" },

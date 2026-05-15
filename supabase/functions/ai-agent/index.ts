@@ -922,6 +922,26 @@ function formatRp(n: number): string {
   return `Rp ${n.toLocaleString("id-ID")}`;
 }
 
+function santriAlias(nis?: string | null): string {
+  const safeNis = String(nis || "").replace(/[^0-9A-Za-z]/g, "");
+  return `Santri-${safeNis.slice(-4) || "XXXX"}`;
+}
+
+// deno-lint-ignore no-explicit-any
+function sanitizeAuditPayload(value: any): any {
+  if (Array.isArray(value)) return value.map(sanitizeAuditPayload);
+  if (!value || typeof value !== "object") return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (/(nama|nik|nisn|alamat|kontak|no_hp|phone|email|ayah|ibu|wali|tanggal_lahir|tempat_lahir|no_kk|no_kip|rekening|password)/i.test(key)) {
+      out[key] = "[REDACTED]";
+    } else {
+      out[key] = sanitizeAuditPayload(child);
+    }
+  }
+  return out;
+}
+
 // ══════════════════════════════════════════════════════════════════
 // QUERY TOOL EXECUTORS
 // ══════════════════════════════════════════════════════════════════
@@ -943,7 +963,7 @@ async function executeQueryTool(supabase: any, toolName: string, args: any, call
       let q = supabase
         .from("santri")
         .select(
-          "nis, nama, kelas, jurusan, status_santri, jenis_kelamin, total_hafalan, hafalan_kitab, pembimbing, no_kontak_wali, ayah, ibu"
+          "nama, nis, kelas, jurusan, status_santri, jenis_kelamin, total_hafalan, hafalan_kitab, pembimbing"
         );
       if (args.kelas) q = q.eq("kelas", args.kelas);
       if (args.jurusan) q = q.eq("jurusan", args.jurusan);
@@ -955,7 +975,7 @@ async function executeQueryTool(supabase: any, toolName: string, args: any, call
       q = q.order("nama").limit(args.limit || 100);
       const { data, error } = await q;
       if (error) throw error;
-      return { data, total: data?.length };
+      return { data: data || [], total: data?.length };
     }
 
     // ── query_tagihan ────────────────────────────────────────
@@ -978,7 +998,7 @@ async function executeQueryTool(supabase: any, toolName: string, args: any, call
       let q = supabase
         .from("tagihan_santri")
         .select(
-          "*, santri:santri_nis(nama, kelas, jurusan, jenis_kelamin), jenis_bayar:jenis_pembayaran_id(nama_pembayaran, tipe)"
+          "*, santri:santri_nis(nama, nis, kelas, jurusan, jenis_kelamin), jenis_bayar:jenis_pembayaran_id(nama_pembayaran, tipe)"
         )
         .order("created_at", { ascending: false });
 
@@ -1077,7 +1097,7 @@ async function executeQueryTool(supabase: any, toolName: string, args: any, call
 
       let q = supabase
         .from("pelanggaran_santri")
-        .select("*, santri:santri_nis(nama, kelas, jurusan)")
+        .select("*, santri:santri_nis(nama, nis, kelas, jurusan)")
         .order("tanggal", { ascending: false });
       if (args.santri_nis) q = q.eq("santri_nis", args.santri_nis);
       if (args.jenis_pelanggaran) q = q.ilike("jenis_pelanggaran", `%${args.jenis_pelanggaran}%`);
@@ -1099,7 +1119,7 @@ async function executeQueryTool(supabase: any, toolName: string, args: any, call
     case "query_kesehatan": {
       let q = supabase
         .from("kesehatan_santri")
-        .select("*, santri:santri_nis(nama, kelas, jurusan)")
+        .select("*, santri:santri_nis(nama, nis, kelas, jurusan)")
         .order("tanggal", { ascending: false });
       if (args.santri_nis) q = q.eq("santri_nis", args.santri_nis);
       if (args.tanggal_dari) q = q.gte("tanggal", args.tanggal_dari);
@@ -1115,7 +1135,7 @@ async function executeQueryTool(supabase: any, toolName: string, args: any, call
     case "query_perizinan": {
       let q = supabase
         .from("perizinan_santri")
-        .select("*, santri:santri_nis(nama, kelas, jurusan)")
+        .select("*, santri:santri_nis(nama, nis, kelas, jurusan)")
         .order("tanggal", { ascending: false });
       if (args.santri_nis) q = q.eq("santri_nis", args.santri_nis);
       if (args.status) q = q.eq("status", args.status);
@@ -1150,7 +1170,7 @@ async function executeQueryTool(supabase: any, toolName: string, args: any, call
 
       let q = supabase
         .from(table)
-        .select("*, santri:santri_nis(nama, kelas, jurusan)")
+        .select("*, santri:santri_nis(nama, nis, kelas, jurusan)")
         .order("tanggal", { ascending: false });
       if (args.santri_nis) q = q.eq("santri_nis", args.santri_nis);
       if (args.tanggal_dari) q = q.gte("tanggal", args.tanggal_dari);
@@ -1178,7 +1198,7 @@ async function executeQueryTool(supabase: any, toolName: string, args: any, call
 
       let q = supabase
         .from("prestasi_santri")
-        .select("*, santri:santri_nis(nama, kelas, jurusan)")
+        .select("*, santri:santri_nis(nama, nis, kelas, jurusan)")
         .order("tanggal_prestasi", { ascending: false });
       if (args.santri_nis) q = q.eq("santri_nis", args.santri_nis);
       if (args.kategori) q = q.eq("kategori", args.kategori);
@@ -1214,7 +1234,7 @@ async function executeQueryTool(supabase: any, toolName: string, args: any, call
     case "query_dompet": {
       const { data: dompet, error: dErr } = await supabase
         .from("dompet_santri")
-        .select("*, santri:santri_nis(nama, kelas, jurusan)")
+        .select("*, santri:santri_nis(nama, nis, kelas, jurusan)")
         .eq("santri_nis", args.santri_nis)
         .single();
       if (dErr && dErr.code !== "PGRST116") throw dErr;
@@ -1247,7 +1267,7 @@ async function executeActionTool(supabase: any, toolName: string, args: any, cal
   switch (toolName) {
     // ── generate_tagihan_massal ──────────────────────────────
     case "generate_tagihan_massal": {
-      let q = supabase.from("santri").select("nis, nama");
+      let q = supabase.from("santri").select("nis");
       q = q.eq("status_santri", args.filter_status_santri || "AKTIF");
       if (args.filter_kelas && args.filter_kelas !== "ALL") q = q.eq("kelas", args.filter_kelas);
       if (args.filter_jurusan && args.filter_jurusan !== "ALL") q = q.eq("jurusan", args.filter_jurusan);
@@ -1261,7 +1281,7 @@ async function executeActionTool(supabase: any, toolName: string, args: any, cal
         return { success: false, message: "Tidak ada santri yang memenuhi filter.", affected: 0 };
       }
 
-      const rows = santriList.map((s: { nis: string; nama: string }) => ({
+      const rows = santriList.map((s: { nis: string }) => ({
         santri_nis: s.nis,
         jenis_pembayaran_id: args.jenis_pembayaran_id,
         deskripsi_tagihan: args.deskripsi_tagihan,
@@ -1341,10 +1361,7 @@ async function executeActionTool(supabase: any, toolName: string, args: any, cal
     // ── update_santri_data ───────────────────────────────────
     case "update_santri_data": {
       // Whitelist field yang aman untuk diupdate (cegah privilege escalation)
-      const SAFE_FIELDS = [
-        "pembimbing", "no_kontak_wali", "alamat_lengkap",
-        "nama", "ayah", "ibu", "tempat_lahir", "tanggal_lahir", "anak_ke",
-      ];
+      const SAFE_FIELDS = ["pembimbing", "anak_ke"];
       const safeUpdate: Record<string, unknown> = { updated_at: new Date().toISOString() };
       const rejectedFields: string[] = [];
 
@@ -1589,7 +1606,7 @@ async function executeActionTool(supabase: any, toolName: string, args: any, cal
         if (!args.santri_nis) throw new Error("santri_nis wajib jika target=wali_santri");
         const { data: santri } = await supabase
           .from("santri")
-          .select("wali_id, nama")
+          .select("wali_id")
           .eq("nis", args.santri_nis)
           .single();
         if (santri?.wali_id) userIds = [santri.wali_id];
@@ -1644,7 +1661,7 @@ async function logAudit(
       details: {
         ai_agent: true,
         tool: toolName,
-        args,
+        args: sanitizeAuditPayload(args),
         result: {
           status,
           affected: result?.affected,

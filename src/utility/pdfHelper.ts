@@ -11,6 +11,11 @@ import dayjs from "dayjs";
 const GOLD = "#C9A84C";
 const GOLD_DEEP = "#8B6914";
 
+const santriAlias = (nis?: string | null) => {
+  const safe = String(nis || "").replace(/[^0-9A-Za-z]/g, "");
+  return `Santri-${safe.slice(-4) || "XXXX"}`;
+};
+
 export const exportSantriToPdf = (data: any[], filterDesc: string = "") => {
   const doc = new jsPDF("l", "mm", "a4"); // Landscape
   const dateStr = dayjs().format("DD/MM/YYYY HH:mm");
@@ -40,7 +45,7 @@ export const exportSantriToPdf = (data: any[], filterDesc: string = "") => {
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(14);
   doc.setFont("helvetica", "bold");
-  doc.text("LAPORAN DATABASE SANTRI", 14, 52);
+  doc.text("LAPORAN RINGKAS SANTRI", 14, 52);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
@@ -54,9 +59,8 @@ export const exportSantriToPdf = (data: any[], filterDesc: string = "") => {
   const tableData = data.map((item, index) => [
     index + 1,
     item.nis,
-    item.nama.toUpperCase(),
+    santriAlias(item.nis),
     item.jenis_kelamin === "L" ? "Laki-laki" : "Perempuan",
-    `${item.tempat_lahir || "-"}, ${item.tanggal_lahir ? dayjs(item.tanggal_lahir).format("DD/MM/YYYY") : "-"}`,
     item.jurusan || "-",
     `Kelas ${item.kelas}`,
     item.status_santri
@@ -64,7 +68,7 @@ export const exportSantriToPdf = (data: any[], filterDesc: string = "") => {
 
   autoTable(doc, {
     startY: 70,
-    head: [["NO", "NIS", "NAMA LENGKAP", "JK", "TTL", "TAKHASUS", "KELAS", "STATUS"]],
+    head: [["NO", "NIS", "ALIAS", "JK", "TAKHASUS", "KELAS", "STATUS"]],
     body: tableData,
     theme: "striped",
     headStyles: {

@@ -17,6 +17,7 @@ import {
 import { ITagihanSantri, ISantri, IUserIdentity } from "../../types";
 import { useNavigation, useDelete, useUpdate, useCreate, useGetIdentity } from "@refinedev/core";
 import { formatHijri, formatMasehi } from "../../utility/dateHelper";
+import { santriAlias } from "../../utility/privacy";
 import dayjs from "dayjs";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
@@ -93,7 +94,7 @@ export const TagihanList = () => {
                 },
             ],
         },
-        meta: { select: "*, santri!inner(nama, nis, kelas, jurusan, foto_url, wali_id)" },
+        meta: { select: "*, santri!inner(nama, nis, kelas, jurusan, wali_id)" },
         sorters: { initial: [{ field: "created_at", order: "desc" }] },
     });
 
@@ -138,8 +139,12 @@ export const TagihanList = () => {
         resource: "santri",
         optionLabel: "nama",
         optionValue: "nis",
+        meta: { select: "nama, nis, kelas, jurusan, status_santri" },
         filters: [{ field: "status_santri", operator: "eq", value: "AKTIF" }],
-        onSearch: (value) => [{ field: "nama", operator: "contains", value }],
+        onSearch: (value) => [
+            { field: "nama", operator: "contains", value },
+            { field: "nis", operator: "contains", value },
+        ],
     });
 
     // ── Statistics ───────────────────────────
@@ -172,7 +177,7 @@ export const TagihanList = () => {
                 values: { status: "LUNAS", sisa_tagihan: 0 },
                 successNotification: {
                     message: "Pembayaran Tunai Berhasil",
-                    description: `Tagihan atas nama ${selectedTagihan.santri?.nama} telah lunas.`,
+                    description: `Tagihan atas nama ${selectedTagihan?.santri?.nama || santriAlias(selectedTagihan?.santri?.nis)} telah lunas.`,
                     type: "success",
                 },
             },
@@ -205,7 +210,7 @@ export const TagihanList = () => {
                     santri_nis: selectedTagihan.santri_nis,
                     wali_id: selectedTagihan.santri?.wali_id,
                     customer_details: {
-                        first_name: selectedTagihan.santri?.nama,
+                        first_name: selectedTagihan?.santri?.nama || santriAlias(selectedTagihan?.santri?.nis),
                         email: "admin@alhasanah.com",
                         phone: "08123456789",
                     },
@@ -378,7 +383,7 @@ export const TagihanList = () => {
                         formatMasehi(item.created_at),
                         formatHijri(item.created_at),
                         item.santri?.nis,
-                        item.santri?.nama?.toUpperCase(),
+                        (item.santri?.nama || santriAlias(item.santri?.nis))?.toUpperCase(),
                         item.santri?.kelas,
                         item.santri?.jurusan,
                         item.deskripsi_tagihan,
@@ -426,9 +431,10 @@ export const TagihanList = () => {
                 if (!selectedSantriNIS) throw new Error("Pilih santri terlebih dahulu");
                 const { data: santri } = await supabaseClient
                     .from("santri")
-                    .select("*")
+                    .select("nama, nis, kelas, jurusan")
                     .eq("nis", selectedSantriNIS)
                     .single();
+                if (!santri) throw new Error("Data santri tidak ditemukan.");
                 const { data: logs } = await supabaseClient
                     .from("tagihan_santri")
                     .select("*")
@@ -437,7 +443,7 @@ export const TagihanList = () => {
                     .lte("created_at", endDate)
                     .order("created_at", { ascending: true });
 
-                const worksheet = workbook.addWorksheet(`Kartu Syahriah - ${santri.nama}`);
+                const worksheet = workbook.addWorksheet(`Kartu Syahriah - ${santri.nama || santriAlias(santri.nis)}`);
                 worksheet.mergeCells("A1:G1");
                 worksheet.getCell("A1").value = instansi.nama;
                 worksheet.getCell("A1").font = {
@@ -450,7 +456,7 @@ export const TagihanList = () => {
                 worksheet
                     .addRow(["KARTU KONTROL PEMBAYARAN SYAHRIAH (KARTU SPP)"])
                     .font = { bold: true };
-                worksheet.addRow([`NAMA : ${santri.nama.toUpperCase()}`]);
+                worksheet.addRow([`NAMA : ${(santri.nama || santriAlias(santri.nis)).toUpperCase()}`]);
                 worksheet.addRow([`NIS  : ${santri.nis}`]);
                 worksheet.addRow([`KELAS: ${santri.kelas} (${santri.jurusan})`]);
                 worksheet.addRow([]);
@@ -514,7 +520,7 @@ export const TagihanList = () => {
                 const buffer = await workbook.xlsx.writeBuffer();
                 saveAs(
                     new Blob([buffer]),
-                    `Kartu_Syahriah_${santri.nama.replace(/\s+/g, "_")}_${dayjs().format("YYYY")}.xlsx`
+                    `Kartu_Syahriah_${(santri.nama || santriAlias(santri.nis)).replace(/\s+/g, "_")}_${dayjs().format("YYYY")}.xlsx`
                 );
             }
 
@@ -562,7 +568,7 @@ export const TagihanList = () => {
         doc.setFontSize(11);
         doc.setTextColor(0, 0, 0);
         doc.setFont("helvetica", "bold");
-        doc.text(record.santri?.nama?.toUpperCase() || "-", 10, 50);
+        doc.text((record.santri?.nama || santriAlias(record.santri?.nis))?.toUpperCase() || "-", 10, 50);
         doc.setFontSize(9);
         doc.setFont("helvetica", "normal");
         doc.text(`NIS: ${record.santri?.nis || "-"}`, 10, 55);
@@ -624,7 +630,7 @@ export const TagihanList = () => {
             { align: "center" }
         );
         doc.save(
-            `Struk_Bayar_${record.santri?.nama?.replace(/\s+/g, "_")}_${dayjs().format("DDMMYY")}.pdf`
+            `Struk_Bayar_${(record.santri?.nama || santriAlias(record.santri?.nis))?.replace(/\s+/g, "_")}_${dayjs().format("DDMMYY")}.pdf`
         );
     };
 
@@ -678,7 +684,7 @@ export const TagihanList = () => {
                     />
                     <div>
                         <div style={{ fontWeight: 700, fontSize: 14, color: token.colorText, lineHeight: 1.25 }}>
-                            {record.santri?.nama}
+                            {record.santri?.nama || santriAlias(record.santri?.nis)}
                         </div>
                         <Space size={5} style={{ marginTop: 5 }}>
                             <span style={{
@@ -1340,7 +1346,7 @@ export const TagihanList = () => {
                         Pilih Metode Pembayaran
                     </div>
                     <div style={{ fontSize: 13, color: "rgba(255,255,255,0.82)", marginTop: 5, fontWeight: 500 }}>
-                        {selectedTagihan?.santri?.nama}
+                        {selectedTagihan?.santri?.nama || santriAlias(selectedTagihan?.santri?.nis)}
                         {" · "}
                         <span style={{ fontFamily: "monospace", fontWeight: 700 }}>
                             {formatRupiah(selectedTagihan?.sisa_tagihan || 0)}
@@ -1862,7 +1868,7 @@ export const TagihanList = () => {
                                             Diterima Dari
                                         </div>
                                         <div style={{ fontSize: 18, fontWeight: 900, color: "#111827", marginBottom: 4 }}>
-                                            {selectedTagihan?.santri?.nama}
+                                            {selectedTagihan?.santri?.nama || santriAlias(selectedTagihan?.santri?.nis)}
                                         </div>
                                         <div style={{
                                             fontSize: 12, color: "#4B5563",

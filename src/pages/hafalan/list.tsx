@@ -16,6 +16,7 @@ import { useNavigation } from "@refinedev/core";
 import { formatHijri } from "../../utility/dateHelper";
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+import { santriAlias } from "../../utility/privacy";
 
 const { Text } = Typography;
 
@@ -24,6 +25,7 @@ export const HafalanList = () => {
     const { tableProps, tableQueryResult } = useTable<ISantri>({
         resource: "santri",
         syncWithLocation: true,
+        meta: { select: "nama, nis, kelas, jurusan, jenis_kelamin, status_santri, total_hafalan, hafalan_kitab, foto_url" },
         // Kita sorting berdasarkan Kelas dulu biar rapi
         sorters: { initial: [{ field: "kelas", order: "asc" }] },
     });
@@ -88,7 +90,7 @@ export const HafalanList = () => {
             const row = worksheet.addRow([
                 index + 1,
                 item.nis,
-                item.nama.toUpperCase(),
+                (item.nama || santriAlias(item.nis)).toUpperCase(),
                 item.kelas,
                 item.jurusan,
                 item.pembimbing || '-',
@@ -113,7 +115,7 @@ export const HafalanList = () => {
     const columns: ProColumns<ISantri>[] = [
         {
             title: "Santri",
-            dataIndex: "nama",
+            dataIndex: "nis",
             width: 250,
             fixed: "left",
             render: (_, record) => (
@@ -126,7 +128,7 @@ export const HafalanList = () => {
                     />
                     <div className="flex flex-col">
                         <Text strong className="text-gray-800 dark:text-gray-100 text-[14px]">
-                            {record.nama}
+                            {record.nama || santriAlias(record.nis)}
                         </Text>
                         <Space size={4} className="mt-0.5">
                             <Tag bordered={false} className="m-0 text-[10px] bg-gray-100 text-gray-500 font-mono">

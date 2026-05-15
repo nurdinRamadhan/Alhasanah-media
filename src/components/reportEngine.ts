@@ -76,7 +76,7 @@ export const REPORT_DEFINITIONS: ReportDefinition[] = [
     statusOptions: ["AKTIF", "LULUS", "KELUAR", "ALUMNI"],
     columns: [
       { key: "nis", label: "NIS" },
-      { key: "nama", label: "Nama" },
+      { key: "nama", label: "Alias" },
       { key: "jenis_kelamin", label: "Gender" },
       { key: "kelas", label: "Kelas" },
       { key: "jurusan", label: "Takhasus" },
@@ -100,7 +100,7 @@ export const REPORT_DEFINITIONS: ReportDefinition[] = [
     statusOptions: ["LUNAS", "BELUM", "CICILAN"],
     columns: [
       { key: "santri_nis", label: "NIS" },
-      { key: "nama_santri", label: "Nama" },
+      { key: "nama_santri", label: "Alias" },
       { key: "kelas", label: "Kelas" },
       { key: "jurusan", label: "Takhasus" },
       { key: "deskripsi_tagihan", label: "Tagihan" },
@@ -164,7 +164,7 @@ export const REPORT_DEFINITIONS: ReportDefinition[] = [
     columns: [
       { key: "tanggal", label: "Tanggal", format: "date" },
       { key: "santri_nis", label: "NIS" },
-      { key: "nama_santri", label: "Nama" },
+      { key: "nama_santri", label: "Alias" },
       { key: "kelas", label: "Kelas" },
       { key: "jurusan", label: "Takhasus" },
       { key: "jenis_pelanggaran", label: "Pelanggaran" },
@@ -185,7 +185,7 @@ export const REPORT_DEFINITIONS: ReportDefinition[] = [
     columns: [
       { key: "tanggal", label: "Tanggal", format: "date" },
       { key: "santri_nis", label: "NIS" },
-      { key: "nama_santri", label: "Nama" },
+      { key: "nama_santri", label: "Alias" },
       { key: "kelas", label: "Kelas" },
       { key: "jurusan", label: "Takhasus" },
       { key: "keluhan", label: "Keluhan" },
@@ -208,7 +208,7 @@ export const REPORT_DEFINITIONS: ReportDefinition[] = [
     columns: [
       { key: "tanggal", label: "Tanggal", format: "date" },
       { key: "santri_nis", label: "NIS" },
-      { key: "nama_santri", label: "Nama" },
+      { key: "nama_santri", label: "Alias" },
       { key: "jenis_izin", label: "Jenis Izin" },
       { key: "tanggal_kembali", label: "Kembali", format: "date" },
       { key: "status", label: "Status", format: "status" },
@@ -230,7 +230,7 @@ export const REPORT_DEFINITIONS: ReportDefinition[] = [
     columns: [
       { key: "tanggal", label: "Tanggal", format: "date" },
       { key: "santri_nis", label: "NIS" },
-      { key: "nama_santri", label: "Nama" },
+      { key: "nama_santri", label: "Alias" },
       { key: "surat", label: "Surat" },
       { key: "ayat_awal", label: "Ayat Awal" },
       { key: "ayat_akhir", label: "Ayat Akhir" },
@@ -254,7 +254,7 @@ export const REPORT_DEFINITIONS: ReportDefinition[] = [
     columns: [
       { key: "tanggal", label: "Tanggal", format: "date" },
       { key: "santri_nis", label: "NIS" },
-      { key: "nama_santri", label: "Nama" },
+      { key: "nama_santri", label: "Alias" },
       { key: "jenis_murojaah", label: "Jenis" },
       { key: "juz", label: "Juz" },
       { key: "surat", label: "Surat" },
@@ -277,7 +277,7 @@ export const REPORT_DEFINITIONS: ReportDefinition[] = [
     columns: [
       { key: "tanggal", label: "Tanggal", format: "date" },
       { key: "santri_nis", label: "NIS" },
-      { key: "nama_santri", label: "Nama" },
+      { key: "nama_santri", label: "Alias" },
       { key: "nama_kitab", label: "Kitab" },
       { key: "bab_materi", label: "Materi" },
       { key: "predikat", label: "Predikat" },
@@ -299,7 +299,7 @@ export const REPORT_DEFINITIONS: ReportDefinition[] = [
     columns: [
       { key: "tanggal_prestasi", label: "Tanggal", format: "date" },
       { key: "santri_nis", label: "NIS" },
-      { key: "nama_santri", label: "Nama" },
+      { key: "nama_santri", label: "Alias" },
       { key: "kategori", label: "Kategori" },
       { key: "judul_prestasi", label: "Prestasi" },
       { key: "poin_prestasi", label: "Poin" },
@@ -453,12 +453,20 @@ const getScopedNisList = async (filters: ReportFilters, caller: ReportCaller) =>
   return (data || []).map((s: { nis: string }) => s.nis);
 };
 
+const santriAlias = (nis?: string | null) => {
+  const safe = String(nis || "").replace(/[^0-9A-Za-z]/g, "");
+  return `Santri-${safe.slice(-4) || "XXXX"}`;
+};
+
 export const generateReportData = async (
   definition: ReportDefinition,
   filters: ReportFilters,
   caller: ReportCaller,
 ): Promise<GeneratedReport> => {
-  let query = supabaseClient.from(definition.table).select("*").limit(5000);
+  const selectColumns: string = definition.table === "santri"
+    ? "nama,nis,kelas,jurusan,jenis_kelamin,status_santri,pembimbing,total_hafalan,hafalan_kitab,created_at"
+    : "*";
+  let query = supabaseClient.from(definition.table).select(selectColumns).limit(5000);
 
   if (definition.dateField && filters.dateRange) {
     query = query
@@ -498,7 +506,7 @@ export const generateReportData = async (
   const { data, error } = await query;
   if (error) throw error;
 
-  const rows = (data || []) as Record<string, unknown>[];
+  const rows = (data || []) as unknown as Record<string, unknown>[];
   const nisKeys = definition.santriField
     ? [...new Set(rows.map((r) => r[definition.santriField!]).filter(Boolean).map(String))]
     : [];
@@ -507,7 +515,7 @@ export const generateReportData = async (
   if (nisKeys.length > 0) {
     const { data: santriRows } = await supabaseClient
       .from("santri")
-      .select("nis,nama,kelas,jurusan,jenis_kelamin")
+      .select("nama,nis,kelas,jurusan,jenis_kelamin")
       .in("nis", nisKeys);
     santriMap = Object.fromEntries((santriRows || []).map((s: Record<string, unknown>) => [String(s.nis), s]));
   }
@@ -515,9 +523,15 @@ export const generateReportData = async (
   const enhancedRows = rows.map((row) => {
     const nis = definition.santriField ? String(row[definition.santriField] || "") : "";
     const santri = nis ? santriMap[nis] : null;
+    if (definition.table === "santri") {
+      return {
+        ...row,
+        nama: row.nama || santriAlias(String(row.nis || "")),
+      };
+    }
     return {
       ...row,
-      nama_santri: santri?.nama || row.nama_santri,
+      nama_santri: santri?.nama || santriAlias(nis || String(row.santri_nis || "")),
       kelas: santri?.kelas || row.kelas,
       jurusan: santri?.jurusan || row.jurusan,
       jenis_kelamin: santri?.jenis_kelamin || row.jenis_kelamin,
