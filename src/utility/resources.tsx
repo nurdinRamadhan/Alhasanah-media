@@ -8,7 +8,7 @@ import {
   SettingOutlined, FormOutlined, ProjectOutlined,
   DashboardOutlined, BankOutlined, ShoppingCartOutlined,
   SafetyCertificateOutlined, HistoryOutlined,
-  DatabaseOutlined, MessageOutlined,
+  DatabaseOutlined, MessageOutlined, ShopOutlined,
 } from "@ant-design/icons";
 
 export const resources: ResourceProps[] = [
@@ -48,6 +48,10 @@ export const resources: ResourceProps[] = [
     meta:{ label:"Keuangan & SPP", icon:<WalletOutlined /> } },
   { name:"transaksi_keuangan", list:"/transaksi", create:"/transaksi/create",
     meta:{ label:"Riwayat Transaksi", icon:<HistoryOutlined /> } },
+  { name:"dompet_santri", list:"/dompet-santri",
+    meta:{ label:"Dompet Santri", icon:<WalletOutlined /> } },
+  { name:"kantin_management", list:"/kantin-management",
+    meta:{ label:"Manajemen Kantin", icon:<ShopOutlined /> } },
   { name:"diklat", meta:{ label:"Diklat & Pasaran", icon:<RocketOutlined /> } },
   { name:"diklat_list",   list:"/diklat",        meta:{ label:"Daftar Peserta",     parent:"diklat", icon:<TeamOutlined /> } },
   { name:"diklat_master", list:"/diklat/master", meta:{ label:"Master Data Diklat", parent:"diklat", icon:<SettingOutlined /> } },

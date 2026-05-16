@@ -42,6 +42,14 @@ const JENIS_OPTIONS = [
     { label: "✦ Pasaran Dzulhijjah", value: "DZULHIJJAH" },
 ];
 
+const formatDicatatOlehForPrint = (value?: string | null) => {
+    if (!value || value.trim().toLowerCase() === "self registration") {
+        return "Bag. Administrasi";
+    }
+
+    return value;
+};
+
 // ─────────────────────────────────────────────
 //  COMPONENT
 // ─────────────────────────────────────────────
@@ -96,6 +104,30 @@ export const DiklatList = () => {
             }
         })();
     }, []);
+
+    useEffect(() => {
+        if (!filterTahun) return;
+        setActiveConfig(null);
+
+        (async () => {
+            const { data, error } = await supabaseClient
+                .from("config_diklat")
+                .select("*")
+                .eq("tahun_hijriah", filterTahun)
+                .order("is_active", { ascending: false })
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (error) {
+                console.error("Fetch Config Diklat by year error:", error);
+                setActiveConfig(null);
+                return;
+            }
+
+            setActiveConfig((data || null) as IConfigDiklat | null);
+        })();
+    }, [filterTahun]);
 
     // ── Table ──────────────────────────────────
     const { tableProps, tableQueryResult } = useTable<IPesertaDiklat>({
@@ -215,6 +247,9 @@ export const DiklatList = () => {
 
     const handlePrint = (record: IPesertaDiklat) => { setPrintData(record); setIsPrintOpen(true); };
     const handlePrintAction = useReactToPrint({ contentRef: componentRef, documentTitle: `Formulir_${printData?.nama_lengkap || "Peserta"}` });
+    const printProgramYear = printData?.tahun_diklat ?? filterTahun;
+    const printConfig = activeConfig?.tahun_hijriah === printProgramYear ? activeConfig : null;
+    const printProgramTitle = `PROGRAM PASARAN ${printData?.jenis_diklat || filterJenis} ${printConfig?.tahun_hijriah ?? printProgramYear} H${printConfig?.periode ? ` PERIODE - ${printConfig.periode}` : ""}`;
 
     // ══════════════════════════════════════════
     //  COLUMNS
@@ -559,7 +594,7 @@ export const DiklatList = () => {
                         {/* JUDUL */}
                         <div style={{ textAlign: "center", marginBottom: "30px" }}>
                             <div style={{ fontSize: "18px", fontWeight: 900, textDecoration: "underline", letterSpacing: "1px" }}>FORMULIR PENDAFTARAN & BUKTI PEMBAYARAN</div>
-                            <div style={{ fontSize: "13px", fontWeight: 700, color: "#B45309", marginTop: "5px" }}>PROGRAM PASARAN {printData?.jenis_diklat} {printData?.tahun_diklat} H</div>
+                            <div style={{ fontSize: "13px", fontWeight: 700, color: "#B45309", marginTop: "5px" }}>{printProgramTitle}</div>
                         </div>
 
                         {/* IDENTITAS */}
@@ -640,7 +675,7 @@ export const DiklatList = () => {
                                 <div style={{ textAlign: "center", width: "170px" }}>
                                     <div style={{ fontSize: "12px", color: "#4B5563", marginBottom: "10px" }}>Tasikmalaya, {dayjs().format("DD/MM/YYYY")}</div>
                                     <div style={{ fontSize: "12px", color: "#4B5563", marginBottom: "35px" }}>Panitia Pendaftaran,</div>
-                                    <div style={{ fontWeight: 800, fontSize: "14px", borderBottom: "1.5px solid #111827", paddingBottom: "3px" }}>{printData?.dicatat_oleh || "Bag. Administrasi"}</div>
+                                    <div style={{ fontWeight: 800, fontSize: "14px", borderBottom: "1.5px solid #111827", paddingBottom: "3px" }}>{formatDicatatOlehForPrint(printData?.dicatat_oleh)}</div>
                                     <div style={{ fontSize: "10px", color: "#9CA3AF", marginTop: "4px" }}>Stempel & Tanda Tangan</div>
                                 </div>
                             </div>
@@ -655,7 +690,7 @@ export const DiklatList = () => {
                                     </div>
                                 </div>
                                 <div style={{ textAlign: "right" }}>
-                                    <div style={{ fontSize: "10px", color: "#B45309", fontWeight: 800, letterSpacing: "0.5px" }}>AL-HASANAH DIGITAL ECOSYSTEM</div>
+                                    <div style={{ fontSize: "10px", color: "#B45309", fontWeight: 800, letterSpacing: "0.5px" }}>BUKTI PENDAFTARAN RESMI PROGRAM DIKLAT</div>
                                     <div style={{ fontSize: "8px", color: "#D1D5DB", marginTop: "2px" }}>OFFICIAL VERIFIED ARCHIVE</div>
                                 </div>
                             </div>

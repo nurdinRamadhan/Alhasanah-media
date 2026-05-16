@@ -30,15 +30,24 @@ export const authProvider: AuthBindings = {
 
         const { data: profile } = await supabaseClient
           .from("profiles")
-          .select("role")
+          .select("role, is_active")
           .eq("id", data.session.user.id)
           .single();
+
+        if (!profile?.is_active) {
+          await supabaseClient.auth.signOut();
+          return {
+            success: false,
+            error: { message: "Akun ini sudah dinonaktifkan.", name: "Inactive Account" },
+          };
+        }
 
         let targetUrl = "/";
         const role = profile?.role || "dewan";
 
         if (role === "kesantrian") targetUrl = "/santri";
         else if (role === "bendahara") targetUrl = "/tagihan";
+        else if (role === "kantin") targetUrl = "/dompet-santri";
 
         return { success: true, redirectTo: targetUrl };
       }
@@ -61,6 +70,20 @@ export const authProvider: AuthBindings = {
     try {
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) return { authenticated: false, redirectTo: "/login" };
+
+        const { data: profile } = await supabaseClient
+          .from("profiles")
+          .select("is_active")
+          .eq("id", session.user.id)
+          .maybeSingle();
+
+        if (!profile?.is_active) {
+          await supabaseClient.auth.signOut();
+          identityCache = null;
+          identityPromise = null;
+          return { authenticated: false, redirectTo: "/login" };
+        }
+
         return { authenticated: true };
     } catch (e) {
         return { authenticated: false, redirectTo: "/login" };
@@ -96,12 +119,18 @@ export const authProvider: AuthBindings = {
 
         const { data, error } = await supabaseClient
           .from("profiles")
-          .select("full_name, foto_url, role, akses_gender, akses_jurusan")
+          .select("full_name, foto_url, role, akses_gender, akses_jurusan, is_active")
           .eq("id", user.id)
           .single();
 
         if (error) {
           console.warn("Gagal mengambil data profil identity:", error.message);
+        }
+
+        if (!data?.is_active) {
+          await supabaseClient.auth.signOut();
+          identityCache = null;
+          return null;
         }
 
         const result: IUserIdentity = {

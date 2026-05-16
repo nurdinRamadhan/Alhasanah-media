@@ -117,6 +117,7 @@ export const AdminList = () => {
                 super_admin: { text: 'Super Admin', status: 'Error' },
                 rois: { text: 'Rois', status: 'Processing' },
                 bendahara: { text: 'Bendahara', status: 'Warning' },
+                kantin: { text: 'Kantin', status: 'Processing' },
                 kesantrian: { text: 'Kesantrian', status: 'Success' },
                 dewan: { text: 'Dewan', status: 'Default' },
             },
@@ -125,6 +126,7 @@ export const AdminList = () => {
                     super_admin: "volcano",
                     rois: "geekblue",
                     bendahara: "gold",
+                    kantin: "lime",
                     kesantrian: "cyan",
                     dewan: "green"
                 };

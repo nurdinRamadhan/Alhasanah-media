@@ -221,6 +221,7 @@ export const CreateAdminPage = () => {
                                                 { label: 'Super Admin', value: 'super_admin' },
                                                 { label: 'Rois / Kepala', value: 'rois' },
                                                 { label: 'Bendahara', value: 'bendahara' },
+                                                { label: 'Kantin', value: 'kantin' },
                                                 { label: 'Kesantrian', value: 'kesantrian' },
                                                 { label: 'Dewan Guru', value: 'dewan' },
                                             ]}

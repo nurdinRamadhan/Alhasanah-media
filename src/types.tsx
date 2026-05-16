@@ -20,7 +20,7 @@ export type TGenderScope = 'L' | 'P' | 'ALL';
 export type TJurusanScope = 'KITAB' | 'TAHFIDZ' | 'ALL';
 
 // Role sesuai request (huruf kecil)
-export type TRole = 'super_admin' | 'rois' | 'bendahara' | 'kesantrian' | 'dewan' | 'alumni';
+export type TRole = 'super_admin' | 'rois' | 'bendahara' | 'kesantrian' | 'dewan' | 'alumni' | 'wali' | 'kantin';
 
 // --- INTERFACES ---
 
