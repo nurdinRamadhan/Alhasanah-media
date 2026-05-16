@@ -10,7 +10,7 @@ Status per 2026-05-16: event notifikasi sudah dipondasi di database melalui migr
 - Sumber kebenaran tetap `transaksi_dompet` append-only; `dompet_santri.saldo` hanya cached balance.
 - Notifikasi tidak boleh dianggap sebagai bukti transaksi final. Android wajib fetch ulang detail transaksi dari backend.
 - Semua event high/critical wajib punya audit trail.
-- SMS fallback belum berarti SMS sudah terkirim; database hanya memberi flag agar worker SMS mengirim lewat provider resmi.
+- SMS/email belum diaktifkan. Database hanya memberi flag untuk kebutuhan fitur update, sedangkan admin panel menampilkan event kritis di halaman operasional.
 
 ## Event Notifikasi Wajib
 
@@ -18,7 +18,7 @@ Status per 2026-05-16: event notifikasi sudah dipondasi di database melalui migr
 | --- | --- | --- | --- |
 | Pembayaran kantin berhasil | Wali dan kantin | normal/high | Wali menerima deep link dispute. Kantin menerima konfirmasi pembayaran. |
 | Saldo warning `< Rp30.000` | Wali | high | Push FCM. |
-| Saldo kritis `< Rp10.000` | Wali | critical | Push FCM dan `sms_fallback_required = true`. |
+| Saldo kritis `< Rp10.000` | Wali dan admin panel | critical | Push FCM, tampil merah di admin panel, dan `sms_fallback_required = true` untuk fitur update SMS nanti. |
 | Transaksi `>= Rp100.000` | Bendahara | high | Monitoring rutin. |
 | Transaksi `>= Rp500.000` | Rois | critical | Anomali signifikan. |
 | Transaksi `>= Rp1.000.000` atau 3 transaksi besar/jam | Super admin | critical | Menghindari alert fatigue pada super admin. |
@@ -35,7 +35,7 @@ Status per 2026-05-16: event notifikasi sudah dipondasi di database melalui migr
 | PIN salah >10x/jam | Auditor | critical | Indikasi serangan brute force. |
 | Top-up gagal | Wali | high | Penting jika webhook Midtrans timeout/gagal. |
 | Weekly digest Minggu | Wali | low | Ringkasan transaksi, total belanja, saldo, dan top pengeluaran. |
-| Hash-chain verification sukses | Auditor | low/email digest | Bukti sistem berjalan normal. |
+| Hash-chain verification sukses | Auditor | low/log admin | Bukti sistem berjalan normal. Email digest ditunda sebagai fitur update. |
 | Hash-chain verification gagal | Auditor | critical | Freeze atau investigasi. |
 | Freeze/unfreeze dompet | Auditor, wali terkait, kantin | normal/critical | Kantin perlu tahu real-time agar kartu tidak diproses. |
 | Maintenance/downtime | Semua role aktif terkait dompet | high | Kantin diminta menyiapkan pencatatan manual sementara. |
@@ -107,6 +107,11 @@ Function penting:
 - `wallet_escalate_overdue_disputes()`: eskalasi dispute yang lewat 48 jam.
 - `wallet_run_weekly_digest()`: membuat digest mingguan wali.
 - `wallet_broadcast_maintenance(...)`: broadcast downtime/maintenance.
+- `wallet_acknowledge_risk_event(...)`: menandai peringatan keamanan sedang ditangani.
+- `wallet_resolve_risk_event(...)`: menyelesaikan peringatan keamanan sebagai valid atau false alarm.
+- `wallet_start_dispute_investigation(...)`: menandai laporan wali sedang diperiksa.
+- `wallet_review_reconciliation_run(...)`: menyimpan catatan admin untuk hasil cek saldo.
+- `wallet_review_integrity_run(...)`: menyimpan catatan admin untuk hasil cek ledger.
 
 Cron aktif:
 
@@ -121,4 +126,20 @@ Cron aktif:
 - Implementasikan certificate pinning untuk endpoint Supabase dan Midtrans.
 - Implementasikan deep link dispute dan lock account.
 - Jangan jadikan push notification sebagai otorisasi transaksi.
-- SMS fallback harus dibuat sebagai worker server-side; jangan kirim SMS dari client Android.
+- SMS/email fallback ditunda. Jika nanti dibuat, worker harus server-side; jangan kirim SMS/email dari client Android.
+
+## Catatan Admin Panel
+
+Halaman operasional admin ada di `/dompet-operasional` dengan nama menu `Operasional Dompet`.
+
+Tab yang tersedia:
+
+- `Peringatan Keamanan`: admin menekan `Tangani`, `Periksa`, `Eskalasi`, dan `Selesaikan` sesuai kondisi.
+- `Laporan Wali`: bendahara dapat menekan `Periksa` dan `Putuskan`; jika saldo dikembalikan, sistem membuat ledger refund baru.
+- `Cek Saldo`: jalankan cek manual, review hasil rekonsiliasi, dan beri tindak lanjut formal agar selisih tidak diabaikan.
+- `Cek Ledger`: jalankan cek manual, review hasil hash-chain verification, dan beri tindak lanjut formal.
+- `Notifikasi`: melihat antrean FCM dan error pengiriman. Notifikasi `critical` yang belum selesai tampil merah agar admin segera melihat masalah.
+
+Istilah UI sengaja memakai bahasa non-teknis supaya bendahara atau pengurus yang bukan programmer tetap bisa memahami tindakan yang harus dilakukan.
+
+Checklist uji produksi internal sebelum Kotlin ada di `referensi/Dompet-santri/production_readiness_admin_database.md`.

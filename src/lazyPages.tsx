@@ -36,6 +36,7 @@ export const TagihanEdit        = React.lazy(() => import("./pages/tagihan/edit"
 export const TransaksiList      = React.lazy(() => import("./pages/transaksi/list").then(m => ({ default: m.TransaksiList })));
 export const TransaksiCreate    = React.lazy(() => import("./pages/transaksi/create").then(m => ({ default: m.TransaksiCreate })));
 export const DompetSantriList   = React.lazy(() => import("./pages/dompet-santri/list").then(m => ({ default: m.DompetSantriList })));
+export const DompetOperasionalList = React.lazy(() => import("./pages/dompet-operasional/list").then(m => ({ default: m.DompetOperasionalList })));
 export const KantinManagementList = React.lazy(() => import("./pages/kantin-management/list").then(m => ({ default: m.KantinManagementList })));
 export const MurojaahList       = React.lazy(() => import("./pages/murojaah/list").then(m => ({ default: m.MurojaahList })));
 export const MurojaahCreate     = React.lazy(() => import("./pages/murojaah/create").then(m => ({ default: m.MurojaahCreate })));

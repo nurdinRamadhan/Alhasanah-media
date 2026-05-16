@@ -341,6 +341,10 @@ export interface IConfigDiklat {
     biaya_listrik: number;
     kos_makan: number;
     tafaruqon: number;
+    uang_miftah_putri?: number | null;
+    biaya_listrik_putri?: number | null;
+    kos_makan_putri?: number | null;
+    tafaruqon_putri?: number | null;
     is_active: boolean;
     created_at: string;
     periode: number;
@@ -351,6 +355,9 @@ export interface IMasterKitab {
     nama_kitab: string;
     harga: number;
     jenis_diklat: 'MAULID' | 'SYABAN' | 'RAMADHAN' | 'DZULHIJJAH';
+    jenis_kelamin?: 'L' | 'P' | 'ALL';
+    kategori?: 'KITAB' | 'PERLENGKAPAN' | 'BUKU';
+    is_wajib?: boolean;
     is_active: boolean;
 }
 
@@ -358,6 +365,7 @@ export interface IPesertaDiklat {
     id: number;
     created_at: string;
     nama_lengkap: string;
+    jenis_kelamin?: 'L' | 'P' | null;
     nama_wali: string;
     pekerjaan_wali: string;
     alamat_pesantren: string;

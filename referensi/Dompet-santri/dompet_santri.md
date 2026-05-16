@@ -697,9 +697,11 @@ Status implementasi awal per 16 Mei 2026:
 
 - Halaman admin awal: `src/pages/dompet-santri/list.tsx`.
 - Resource frontend: `dompet_santri` dengan route `/dompet-santri`.
+- Halaman operasional admin: `src/pages/dompet-operasional/list.tsx` dengan route `/dompet-operasional`.
+- Halaman manajemen kantin: `src/pages/kantin-management/list.tsx` dengan route `/kantin-management`.
 - Edge Function server-side: `wallet-admin` dengan `verify_jwt = true`.
 - Role `kantin` sudah ditambahkan ke access control frontend.
-- Operasi yang sudah boleh lewat `wallet-admin`: lookup QR, lock/unlock, reissue QR kartu, dan koreksi ledger oleh role pengelola.
+- Operasi yang sudah boleh lewat `wallet-admin`: lookup QR, lock/unlock, reissue QR kartu, koreksi ledger, device kantin, freeze switch, rekonsiliasi, hash-chain check, penanganan peringatan keamanan, penyelesaian dispute, review hasil pemeriksaan, dan broadcast maintenance.
 - Pembuatan akun dompet tidak boleh tersedia di admin panel. Pembuatan akun harus lewat aplikasi Android/Kotlin wali santri dan Edge Function provisioning khusus wali.
 - Role `kantin` pada tahap ini hanya boleh lookup QR dan melihat data minimum setelah scan. Debit kantin belum boleh diposting langsung sampai flow challenge, PIN/signature, nonce, dan authorization session selesai di Android/Kotlin atau aplikasi kantin.
 
@@ -709,6 +711,11 @@ Resource yang disarankan:
 - `transaksi_dompet`: ledger read-only.
 - `wallet_payment_intents`: intent top-up/kantin/admin correction.
 - `wallet_audit_logs`: audit aktivitas.
+- `wallet_risk_events`: peringatan keamanan/anomali yang perlu ditangani.
+- `wallet_disputes`: laporan wali yang perlu investigasi.
+- `wallet_reconciliation_runs`: hasil rekonsiliasi saldo.
+- `wallet_ledger_integrity_runs`: hasil pemeriksaan hash chain ledger.
+- `notification_queue`: audit antrean notifikasi.
 - `wallet_reports`: laporan cetak wali.
 
 Access control frontend harus diperbarui:
@@ -729,6 +736,20 @@ Hal yang dilarang di admin panel:
 - menghapus ledger
 - memproses debit kantin tanpa authorization session
 - mengubah limit wali tanpa prosedur recovery resmi
+
+### 9.1 Pusat Operasional Dompet
+
+Halaman `Pusat Operasional Dompet` memakai bahasa kerja yang mudah dipahami admin non-teknis:
+
+- `Peringatan Keamanan`: daftar aktivitas mencurigakan, tingkat risiko, penyebab, batas respons, tombol `Tangani`, dan tombol `Selesaikan`.
+- `Laporan Wali`: daftar dispute dari wali, alasan laporan, nominal transaksi terkait, SLA, tombol `Periksa`, dan tombol `Putuskan`.
+- `Cek Saldo`: hasil rekonsiliasi ledger vs cached balance, selisih, status cocok/bermasalah, dan catatan review.
+- `Cek Ledger`: hasil verifikasi hash chain, akun yang diperiksa, ledger rusak jika ada, dan catatan review.
+- `Notifikasi`: antrean push FCM, penerima, isi, prioritas, status kirim, dan error bila gagal. SMS/email belum aktif dan disimpan sebagai catatan fitur update.
+- `Umumkan Maintenance`: broadcast downtime dompet ke wali, kantin, dan role pengawas aktif.
+- Jika ada notifikasi `critical` yang belum terkirim/selesai, halaman menampilkan banner merah kuat dan baris tabel merah agar admin langsung melihat masalah kritis saldo/dompet.
+
+Semua aksi penting dari halaman ini wajib melewati `wallet-admin`, bukan update langsung dari browser. Setiap aksi menyimpan audit log dengan actor, role, resource, target, dan catatan.
 
 ## 10. Android/Kotlin
 
@@ -1003,8 +1024,8 @@ Notifikasi dompet adalah bagian dari kontrol keamanan, audit, dan operasional. P
 Target channel:
 
 - Push FCM: channel utama untuk wali, kantin, bendahara, rois, dewan, dan super_admin.
-- SMS fallback: hanya untuk event kritis tertentu, terutama saldo kritis atau eskalasi keamanan. Saat ini database memberi flag `sms_fallback_required`; integrasi provider SMS masih harus dibuat di worker terpisah.
-- Email digest: untuk bukti operasional berkala seperti hash-chain verification sukses mingguan.
+- SMS fallback: ditunda sebagai fitur update karena membutuhkan layanan pihak ketiga berbayar/berakun. Saat ini database hanya memberi flag `sms_fallback_required` dan admin panel menampilkan event kritis di tab `Notifikasi`.
+- Email digest: ditunda sebagai fitur update karena membutuhkan SMTP/provider email. Untuk fase sekarang, bukti operasional dilihat dari log database dan halaman operasional admin.
 
 Threshold default:
 
@@ -1093,7 +1114,7 @@ Syarat Android:
 - Aplikasi wali harus menyediakan form dispute yang bisa dibuka dari deep link notifikasi pembayaran kantin.
 - Aplikasi kantin harus menampilkan riwayat transaksi dari `view_kantin_transaction_history`, bukan dari cache notifikasi.
 - Aplikasi Android harus mendukung certificate pinning saat komunikasi ke Supabase Edge Functions dan Midtrans.
-- Worker SMS fallback harus membaca `notification_queue.data->>'sms_fallback_required' = 'true'` atau event critical setara, lalu mengirim via provider SMS resmi.
+- Worker SMS fallback nanti harus membaca `notification_queue.data->>'sms_fallback_required' = 'true'` atau event critical setara, lalu mengirim via provider SMS resmi. Fitur ini belum diaktifkan.
 
 Syarat environment produksi:
 
@@ -1101,7 +1122,7 @@ Syarat environment produksi:
 - Jika secret ini belum diisi, antrean tetap terbentuk tetapi pengiriman FCM tidak akan terkirim sampai secret dikonfigurasi.
 - Firebase project harus sama dengan aplikasi Android wali/kantin.
 - Untuk hardening, gunakan certificate pinning di Android saat registrasi token dan fetch detail notifikasi.
-- Untuk SMS fallback, tambahkan secret provider SMS dan worker pengirim SMS terpisah agar tidak mencampur kredensial SMS ke client Android.
+- Untuk SMS/email fallback di masa depan, tambahkan secret provider dan worker server-side terpisah. Jangan pernah menaruh kredensial SMS/email di client Android.
 
 ## 14. Batasan Closed-Loop Pesantren
 
@@ -1441,6 +1462,16 @@ Status per 2026-05-16:
 - `wallet_broadcast_maintenance` menyiapkan broadcast downtime/maintenance ke wali, kantin, dan auditor aktif.
 - Notifikasi pembayaran kantin sekarang membawa `dispute_deeplink` agar wali bisa langsung membuka form laporan transaksi.
 - Saldo kritis membawa flag `sms_fallback_required`; implementasi pengirim SMS masih perlu worker/provider tambahan.
+- Migration `20260516134006_wallet_admin_operations_workflow.sql` menambah workflow operasional admin untuk produksi.
+- Function `wallet_acknowledge_risk_event` dan `wallet_resolve_risk_event` dipakai untuk menandai peringatan keamanan sedang ditangani atau selesai.
+- Function `wallet_start_dispute_investigation` dipakai bendahara/rois/super_admin untuk memulai investigasi dispute.
+- Function `wallet_review_reconciliation_run` dan `wallet_review_integrity_run` menyimpan catatan review hasil pemeriksaan saldo dan ledger.
+- Edge Function `wallet-admin` sudah mengekspose action operasional tersebut, termasuk `broadcast_wallet_maintenance`.
+- Admin panel memiliki halaman `Pusat Operasional Dompet` di `/dompet-operasional` dengan tab bahasa Indonesia: `Peringatan Keamanan`, `Laporan Wali`, `Cek Saldo`, `Cek Ledger`, dan `Notifikasi`.
+- Migration `20260516140739_wallet_production_readiness_workflow.sql` menutup gap workflow produksi: risk event bisa `investigating` dan `escalated`, rekonsiliasi/integritas punya `resolution_status`, `resolved_by`, `resolved_at`, dan `resolution_note`.
+- `wallet_investigate_risk_event`, `wallet_escalate_risk_event`, `wallet_resolve_reconciliation_run`, dan `wallet_resolve_integrity_run` menjadi action resmi untuk tindak lanjut operasional.
+- Halaman operasional sekarang memiliki tombol run manual `Jalankan Cek Saldo`, `Jalankan Cek Ledger`, tombol `Periksa`, `Eskalasi`, dan `Tindak Lanjut`.
+- Dokumen test plan produksi internal ada di `referensi/Dompet-santri/production_readiness_admin_database.md`.
 
 Canonical message untuk signature device kantin pada `wallet-kantin-authorize`:
 
@@ -1473,8 +1504,8 @@ Catatan penting untuk Android: `device_signature` harus dibuat oleh private key 
 
 Yang masih harus dikerjakan sebelum Kotlin:
 
-- UI admin dispute resolution.
-- UI admin detail/acknowledge risk event.
+- Jalankan checklist production readiness internal di `production_readiness_admin_database.md`.
+- Detail drill-down lanjutan untuk dispute dan risk event jika data operasional sudah besar.
 - Worker SMS fallback untuk saldo kritis dan event keamanan kritikal.
 - Email/weekly silent digest untuk bukti hash-chain verification sukses.
 - AI scoring di atas `wallet_risk_events`.

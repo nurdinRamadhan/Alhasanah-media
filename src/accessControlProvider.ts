@@ -66,7 +66,7 @@ export const accessControlProvider: AccessControlProvider = {
     // 3. BENDAHARA
     if (role === "bendahara") {
         const allowedBendahara = [
-            "tagihan_santri", "transaksi_keuangan", "dompet_santri", "kantin_management", "pengeluaran", "santri", "diklat", "inventaris"
+            "tagihan_santri", "transaksi_keuangan", "dompet_menu", "dompet_santri", "dompet_operasional", "kantin_management", "pengeluaran", "santri", "diklat", "inventaris"
         ];
 
         if (allowedBendahara.includes(resource || "")) {
@@ -80,7 +80,7 @@ export const accessControlProvider: AccessControlProvider = {
 
     // 4. KANTIN
     if (role === "kantin") {
-        const allowedKantin = ["dompet_santri"];
+        const allowedKantin = ["dompet_menu", "dompet_santri"];
         if (allowedKantin.includes(resource || "")) {
             if (["create", "edit", "delete"].includes(action || "")) {
                 return { can: false, reason: "Kantin hanya dapat melihat dan memproses transaksi melalui alur QR." };

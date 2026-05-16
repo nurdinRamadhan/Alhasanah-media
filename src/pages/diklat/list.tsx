@@ -50,6 +50,18 @@ const formatDicatatOlehForPrint = (value?: string | null) => {
     return value;
 };
 
+const formatJenisKelamin = (value?: "L" | "P" | null) => {
+    if (value === "L") return "Putra";
+    if (value === "P") return "Putri";
+    return "-";
+};
+
+const TextMoney = ({ value, color }: { value: number; color: string }) => (
+    <div style={{ fontFamily: "ui-monospace, 'Courier New', monospace", fontWeight: 800, fontSize: 13, color }}>
+        {formatRp(value)}
+    </div>
+);
+
 // ─────────────────────────────────────────────
 //  COMPONENT
 // ─────────────────────────────────────────────
@@ -191,13 +203,13 @@ export const DiklatList = () => {
             const workbook = new ExcelJS.Workbook();
             const worksheet = workbook.addWorksheet(`Rekap Peserta ${filterJenis}`);
 
-            worksheet.mergeCells("A1:J1");
+            worksheet.mergeCells("A1:K1");
             const t = worksheet.getCell("A1");
             t.value = "PONDOK PESANTREN AL-HASANAH";
             t.font = { name: "Arial", size: 16, bold: true, color: { argb: "FFB45309" } };
             t.alignment = { vertical: "middle", horizontal: "center" };
 
-            worksheet.mergeCells("A2:J2");
+            worksheet.mergeCells("A2:K2");
             const a = worksheet.getCell("A2");
             a.value = "Jl. Raya Cibeuti No.13, Cibeuti, Kec. Kawalu, Tasikmalaya, Jawa Barat 46182";
             a.font = { name: "Arial", size: 10, italic: true };
@@ -208,7 +220,7 @@ export const DiklatList = () => {
             worksheet.addRow([`Dicetak pada: ${dayjs().format("DD MMMM YYYY HH:mm")}`]).font = { italic: true, size: 9 };
             worksheet.addRow([]);
 
-            const headerRow = worksheet.addRow(["NO", "NAMA LENGKAP", "ASAL PESANTREN", "STATUS BAYAR", "MIFTAH", "LISTRIK", "KONSUMSI", "TAFARUQON", "KOP. KITAB", "TOTAL BAYAR"]);
+            const headerRow = worksheet.addRow(["NO", "NAMA LENGKAP", "JENIS KELAMIN", "ASAL PESANTREN", "STATUS BAYAR", "MIFTAH", "LISTRIK", "KONSUMSI", "TAFARUQON", "KOP. KITAB", "TOTAL BAYAR"]);
             headerRow.eachCell((cell) => {
                 cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF59E0B" } };
                 cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
@@ -218,21 +230,21 @@ export const DiklatList = () => {
 
             allData.forEach((item, index) => {
                 const total = Number(item.biaya_pendaftaran) + Number(item.belanja_kitab_nominal);
-                const row = worksheet.addRow([index + 1, item.nama_lengkap.toUpperCase(), item.pesantren_asal, item.status_pembayaran, Number(item.uang_miftah || 0), Number(item.biaya_listrik || 0), Number(item.kos_makan || 0), Number(item.tafaruqon || 0), Number(item.belanja_kitab_nominal || 0), total]);
+                const row = worksheet.addRow([index + 1, item.nama_lengkap.toUpperCase(), formatJenisKelamin(item.jenis_kelamin), item.pesantren_asal, item.status_pembayaran, Number(item.uang_miftah || 0), Number(item.biaya_listrik || 0), Number(item.kos_makan || 0), Number(item.tafaruqon || 0), Number(item.belanja_kitab_nominal || 0), total]);
                 row.eachCell((cell, colNumber) => {
                     cell.border = { top: { style: "thin", color: { argb: "FFE5E7EB" } }, left: { style: "thin", color: { argb: "FFE5E7EB" } }, bottom: { style: "thin", color: { argb: "FFE5E7EB" } }, right: { style: "thin", color: { argb: "FFE5E7EB" } } };
                     if (index % 2 !== 0) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFDF6E3" } };
-                    if (colNumber >= 5) { cell.numFmt = "#,##0"; cell.alignment = { horizontal: "right" }; }
+                    if (colNumber >= 6) { cell.numFmt = "#,##0"; cell.alignment = { horizontal: "right" }; }
                 });
             });
 
             worksheet.addRow([]);
             const gT = allData.reduce((acc, curr) => acc + Number(curr.biaya_pendaftaran) + Number(curr.belanja_kitab_nominal), 0);
-            const footerRow = worksheet.addRow(["", "", "", "", "", "", "", "", "TOTAL KESELURUHAN", gT]);
+            const footerRow = worksheet.addRow(["", "", "", "", "", "", "", "", "", "TOTAL KESELURUHAN", gT]);
             footerRow.font = { bold: true, size: 12 };
-            footerRow.getCell(10).numFmt = "#,##0";
-            [5, 35, 25, 15, 12, 12, 12, 12, 15, 18].forEach((w, i) => { worksheet.getColumn(i + 1).width = w; });
-            worksheet.autoFilter = "A6:J6";
+            footerRow.getCell(11).numFmt = "#,##0";
+            [5, 35, 16, 25, 15, 12, 12, 12, 12, 15, 18].forEach((w, i) => { worksheet.getColumn(i + 1).width = w; });
+            worksheet.autoFilter = "A6:K6";
             worksheet.views = [{ state: "frozen", xSplit: 0, ySplit: 6 }];
 
             const buffer = await workbook.xlsx.writeBuffer();
@@ -271,6 +283,21 @@ export const DiklatList = () => {
                     </div>
                 </Space>
             ),
+        },
+        {
+            title: "JENIS KELAMIN",
+            dataIndex: "jenis_kelamin",
+            width: 135,
+            align: "center",
+            render: (val) => {
+                const value = val as "L" | "P" | null;
+                const color = value === "P" ? "magenta" : value === "L" ? "blue" : "default";
+                return (
+                    <Tag color={color} style={{ borderRadius: 14, fontWeight: 800, padding: "3px 10px" }}>
+                        {formatJenisKelamin(value).toUpperCase()}
+                    </Tag>
+                );
+            },
         },
         {
             title: "ASAL PESANTREN",
@@ -324,6 +351,34 @@ export const DiklatList = () => {
                     </div>
                 </Tooltip>
             ),
+        },
+        {
+            title: "MIFTAH",
+            dataIndex: "uang_miftah",
+            align: "right",
+            width: 135,
+            render: (val) => <TextMoney value={Number(val || 0)} color={token.colorText} />,
+        },
+        {
+            title: "LISTRIK",
+            dataIndex: "biaya_listrik",
+            align: "right",
+            width: 135,
+            render: (val) => <TextMoney value={Number(val || 0)} color={token.colorText} />,
+        },
+        {
+            title: "KOS MAKAN",
+            dataIndex: "kos_makan",
+            align: "right",
+            width: 145,
+            render: (val) => <TextMoney value={Number(val || 0)} color={token.colorText} />,
+        },
+        {
+            title: "TAFARUQON",
+            dataIndex: "tafaruqon",
+            align: "right",
+            width: 145,
+            render: (val) => <TextMoney value={Number(val || 0)} color={token.colorText} />,
         },
         {
             title: "KOP. KITAB",
@@ -522,7 +577,7 @@ export const DiklatList = () => {
                     rowKey="id"
                     search={false}
                     className="diklat-table"
-                    scroll={{ x: 1300 }}
+                    scroll={{ x: 1850 }}
                     headerTitle={
                         <Space size={10} align="center">
                             <div style={{ width: 36, height: 36, borderRadius: 9, background: G.gradient, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, color: "#fff" }}>
@@ -576,34 +631,35 @@ export const DiklatList = () => {
                 {/* Dark Preview Wrapper */}
                 <div style={{ background: isDark ? "#0A0A0A" : "#374151", padding: "28px 20px", maxHeight: "80vh", overflowY: "auto", display: "flex", justifyContent: "center" }}>
                     {/* WHITE A4 */}
-                    <div ref={componentRef} style={{ width: "21cm", minHeight: "29.7cm", background: "white", padding: "1cm 1.5cm", fontFamily: "'Inter', Arial, sans-serif", color: "#1F2937", position: "relative", boxShadow: "0 20px 60px rgba(0,0,0,0.4)" }}>
+                    <div ref={componentRef} style={{ width: "21cm", height: "29.7cm", boxSizing: "border-box", background: "white", padding: "0.75cm 1.15cm", fontFamily: "'Inter', Arial, sans-serif", color: "#1F2937", position: "relative", boxShadow: "0 20px 60px rgba(0,0,0,0.4)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
                         {/* KOP SURAT */}
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", borderBottom: "3px solid #111827", paddingBottom: "20px", marginBottom: "30px", position: "relative", minHeight: "100px" }}>
-                            <img src="/logo.png" alt="Logo" style={{ width: "80px", height: "80px", objectFit: "contain", position: "absolute", left: 0 }} />
-                            <div style={{ textAlign: "center", width: "100%", padding: "0 120px" }}>
-                                <div style={{ fontSize: "20px", fontWeight: 900, color: "#B45309", lineHeight: 1.1, whiteSpace: "nowrap" }}>PONDOK PESANTREN AL-HASANAH</div>
-                                <div style={{ fontSize: "12px", fontWeight: 700, color: "#4B5563", marginTop: "4px" }}>CIBEUTI - KAWALU - KOTA TASIKMALAYA - JAWA BARAT</div>
-                                <div style={{ fontSize: "10px", color: "#6B7280", marginTop: "2px" }}>Jl. Raya Cibeuti No.13, Kec. Kawalu, Tasikmalaya 46182 | Telp: 0812-XXXX-XXXX</div>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", borderBottom: "3px solid #111827", paddingBottom: "12px", marginBottom: "16px", position: "relative", minHeight: "82px", flexShrink: 0 }}>
+                            <img src="/logo.png" alt="Logo" style={{ width: "66px", height: "66px", objectFit: "contain", position: "absolute", left: 0 }} />
+                            <div style={{ textAlign: "center", width: "100%", padding: "0 105px" }}>
+                                <div style={{ fontSize: "18px", fontWeight: 900, color: "#B45309", lineHeight: 1.1, whiteSpace: "nowrap" }}>PONDOK PESANTREN AL-HASANAH</div>
+                                <div style={{ fontSize: "11px", fontWeight: 700, color: "#4B5563", marginTop: "3px" }}>CIBEUTI - KAWALU - KOTA TASIKMALAYA - JAWA BARAT</div>
+                                <div style={{ fontSize: "9px", color: "#6B7280", marginTop: "2px" }}>Jl. Raya Cibeuti No.13, Kec. Kawalu, Tasikmalaya 46182 | Telp: 0812-XXXX-XXXX</div>
                             </div>
                             <div style={{ textAlign: "right", position: "absolute", right: 0 }}>
-                                <div style={{ fontSize: "10px", color: "#9CA3AF", fontWeight: 800 }}>NOMOR DOKUMEN</div>
-                                <div style={{ fontSize: "15px", fontWeight: 800, fontFamily: "monospace" }}>#DIK-{printData?.qr_code_id?.slice(0, 8).toUpperCase()}</div>
+                                <div style={{ fontSize: "9px", color: "#9CA3AF", fontWeight: 800 }}>NOMOR DOKUMEN</div>
+                                <div style={{ fontSize: "13px", fontWeight: 800, fontFamily: "monospace" }}>#DIK-{printData?.qr_code_id?.slice(0, 8).toUpperCase()}</div>
                             </div>
                         </div>
 
                         {/* JUDUL */}
-                        <div style={{ textAlign: "center", marginBottom: "30px" }}>
-                            <div style={{ fontSize: "18px", fontWeight: 900, textDecoration: "underline", letterSpacing: "1px" }}>FORMULIR PENDAFTARAN & BUKTI PEMBAYARAN</div>
-                            <div style={{ fontSize: "13px", fontWeight: 700, color: "#B45309", marginTop: "5px" }}>{printProgramTitle}</div>
+                        <div style={{ textAlign: "center", marginBottom: "12px", flexShrink: 0 }}>
+                            <div style={{ fontSize: "16px", fontWeight: 900, textDecoration: "underline", letterSpacing: "0.8px" }}>FORMULIR PENDAFTARAN & BUKTI PEMBAYARAN</div>
+                            <div style={{ fontSize: "12px", fontWeight: 700, color: "#B45309", marginTop: "4px" }}>{printProgramTitle}</div>
                         </div>
 
                         {/* IDENTITAS */}
-                        <div style={{ marginBottom: "30px" }}>
-                            <div style={{ fontSize: "12px", fontWeight: 900, color: "white", backgroundColor: "#111827", padding: "6px 15px", borderRadius: "4px", marginBottom: "15px", display: "inline-block" }}>I. IDENTITAS PESERTA</div>
-                            <table style={{ width: "100%", fontSize: "13px", borderCollapse: "collapse" }}>
+                        <div style={{ marginBottom: "10px", flexShrink: 0 }}>
+                            <div style={{ fontSize: "11px", fontWeight: 900, color: "white", backgroundColor: "#111827", padding: "5px 13px", borderRadius: "4px", marginBottom: "8px", display: "inline-block" }}>I. IDENTITAS PESERTA</div>
+                            <table style={{ width: "100%", fontSize: "12px", borderCollapse: "collapse", tableLayout: "fixed" }}>
                                 <tbody>
                                     {[
                                         { label: "Nama Lengkap", val: <strong style={{ fontSize: "15px" }}>{printData?.nama_lengkap?.toUpperCase()}</strong> },
+                                        { label: "Jenis Kelamin", val: formatJenisKelamin(printData?.jenis_kelamin) },
                                         { label: "Tempat, Tanggal Lahir", val: `${printData?.tempat_lahir || "-"}, ${printData?.tanggal_lahir ? dayjs(printData.tanggal_lahir).format("DD MMMM YYYY") : "-"}` },
                                         { label: "No. WhatsApp / HP", val: printData?.no_telepon },
                                         { label: "Asal Pesantren", val: printData?.pesantren_asal },
@@ -612,43 +668,59 @@ export const DiklatList = () => {
                                         { label: "Alamat Lengkap Rumah", val: printData?.alamat_lengkap },
                                     ].map((row) => (
                                         <tr key={row.label} style={{ borderBottom: "1px solid #F3F4F6" }}>
-                                            <td style={{ width: "180px", padding: "8px 0", fontWeight: 600, verticalAlign: "top" }}>{row.label}</td>
-                                            <td style={{ padding: "8px 0", lineHeight: 1.5 }}>: {row.val}</td>
+                                            <td style={{ width: "165px", padding: "4px 0", fontWeight: 600, verticalAlign: "top" }}>{row.label}</td>
+                                            <td style={{ padding: "4px 0", lineHeight: 1.28, overflowWrap: "break-word" }}>: {row.val}</td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
                         </div>
 
+                        {/* PERSYARATAN */}
+                        <div style={{ marginBottom: "10px", flexShrink: 0 }}>
+                            <div style={{ fontSize: "11px", fontWeight: 900, color: "white", backgroundColor: "#111827", padding: "5px 13px", borderRadius: "4px", marginBottom: "7px", display: "inline-block" }}>II. PERSYARATAN PESERTA</div>
+                            <div style={{ border: "1.5px solid #F3F4F6", borderRadius: "9px", padding: "8px 12px", backgroundColor: "#FCFCFD" }}>
+                                <div style={{ fontSize: "11px", fontWeight: 800, color: "#111827", marginBottom: "5px" }}>
+                                    Dengan mendaftar pada Program Pasaran Ma'had Al-Hasanah, peserta menyatakan sanggup memenuhi ketentuan berikut:
+                                </div>
+                                <ol style={{ margin: 0, paddingLeft: "18px", fontSize: "10px", color: "#4B5563", lineHeight: 1.35 }}>
+                                    <li>Menyerahkan pas foto ukuran 3x4 sebanyak 2 lembar.</li>
+                                    <li>Bersedia menaati seluruh peraturan yang berlaku di Ma'had Al-Hasanah.</li>
+                                    <li>Menandatangani surat pernyataan peserta/wali sesuai ketentuan panitia.</li>
+                                    <li>Memenuhi dan membayar biaya administrasi serta biaya lain yang ditetapkan.</li>
+                                </ol>
+                            </div>
+                        </div>
+
                         {/* PEMBAYARAN */}
-                        <div style={{ marginBottom: "40px" }}>
-                            <div style={{ fontSize: "12px", fontWeight: 900, color: "white", backgroundColor: "#111827", padding: "6px 15px", borderRadius: "4px", marginBottom: "15px", display: "inline-block" }}>II. RINCIAN PEMBAYARAN</div>
-                            <div style={{ border: "2px solid #F3F4F6", borderRadius: "12px", overflow: "hidden" }}>
-                                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                        <div style={{ marginBottom: "12px", flexShrink: 0 }}>
+                            <div style={{ fontSize: "11px", fontWeight: 900, color: "white", backgroundColor: "#111827", padding: "5px 13px", borderRadius: "4px", marginBottom: "7px", display: "inline-block" }}>III. RINCIAN PEMBAYARAN</div>
+                            <div style={{ border: "2px solid #F3F4F6", borderRadius: "9px", overflow: "hidden" }}>
+                                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px", tableLayout: "fixed" }}>
                                     <thead>
                                         <tr style={{ backgroundColor: "#F9FAFB", borderBottom: "2px solid #F3F4F6" }}>
-                                            <th style={{ textAlign: "left", padding: "12px 20px" }}>Deskripsi Pembayaran</th>
-                                            <th style={{ textAlign: "right", padding: "12px 20px", width: "200px" }}>Subtotal</th>
+                                            <th style={{ textAlign: "left", padding: "7px 14px" }}>Deskripsi Pembayaran</th>
+                                            <th style={{ textAlign: "right", padding: "7px 14px", width: "180px" }}>Subtotal</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <tr style={{ borderBottom: "1px solid #F3F4F6" }}>
-                                            <td style={{ padding: "12px 20px" }}>
+                                            <td style={{ padding: "7px 14px" }}>
                                                 <div style={{ fontWeight: 700 }}>Administrasi & Akomodasi Pasaran</div>
-                                                <div style={{ fontSize: "11px", color: "#6B7280", marginTop: "4px" }}>Miftah, Listrik, Konsumsi, dan Tafaruqon</div>
+                                                <div style={{ fontSize: "10px", color: "#6B7280", marginTop: "3px" }}>Miftah, Listrik, Konsumsi, dan Tafaruqon</div>
                                             </td>
-                                            <td style={{ textAlign: "right", padding: "12px 20px", fontWeight: 700 }}>Rp {Number(printData?.biaya_pendaftaran || 0).toLocaleString()}</td>
+                                            <td style={{ textAlign: "right", padding: "7px 14px", fontWeight: 700 }}>Rp {Number(printData?.biaya_pendaftaran || 0).toLocaleString()}</td>
                                         </tr>
                                         <tr style={{ borderBottom: "1px solid #F3F4F6" }}>
-                                            <td style={{ padding: "12px 20px" }}>
+                                            <td style={{ padding: "7px 14px" }}>
                                                 <div style={{ fontWeight: 700 }}>Pembelian Kitab Pasaran</div>
-                                                <div style={{ fontSize: "11px", color: "#6B7280", marginTop: "4px" }}>Item: {printData?.rincian_belanja || "-"}</div>
+                                                <div style={{ fontSize: "10px", color: "#6B7280", marginTop: "3px", lineHeight: 1.3, overflowWrap: "break-word" }}>Item: {printData?.rincian_belanja || "-"}</div>
                                             </td>
-                                            <td style={{ textAlign: "right", padding: "12px 20px", fontWeight: 700 }}>Rp {Number(printData?.belanja_kitab_nominal || 0).toLocaleString()}</td>
+                                            <td style={{ textAlign: "right", padding: "7px 14px", fontWeight: 700 }}>Rp {Number(printData?.belanja_kitab_nominal || 0).toLocaleString()}</td>
                                         </tr>
                                         <tr style={{ backgroundColor: "#FFFBEB" }}>
-                                            <td style={{ padding: "15px 20px", fontWeight: 900, color: "#B45309", fontSize: "14px" }}>TOTAL DIBAYARKAN (LUNAS)</td>
-                                            <td style={{ textAlign: "right", padding: "15px 20px", fontWeight: 900, fontSize: "20px", color: "#111827" }}>
+                                            <td style={{ padding: "9px 14px", fontWeight: 900, color: "#B45309", fontSize: "12px" }}>TOTAL DIBAYARKAN (LUNAS)</td>
+                                            <td style={{ textAlign: "right", padding: "9px 14px", fontWeight: 900, fontSize: "16px", color: "#111827" }}>
                                                 Rp {(Number(printData?.biaya_pendaftaran || 0) + Number(printData?.belanja_kitab_nominal || 0)).toLocaleString()}
                                             </td>
                                         </tr>
@@ -658,39 +730,39 @@ export const DiklatList = () => {
                         </div>
 
                         {/* SIGNATURE & QR */}
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginTop: "30px", paddingBottom: "70px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: "12px", flexShrink: 0 }}>
                             <div style={{ textAlign: "center" }}>
-                                <div style={{ fontSize: "11px", fontWeight: 700, marginBottom: "8px", color: "#4B5563" }}>VALIDASI SISTEM</div>
-                                <div style={{ backgroundColor: "white", padding: "8px", borderRadius: "8px", display: "inline-block", border: "1px solid #F3F4F6" }}>
-                                    <QRCode value={`VERIFIED_DIKLAT_${printData?.qr_code_id}`} size={95} bordered={false} bgColor="#ffffff" color="#000000" />
+                                <div style={{ fontSize: "10px", fontWeight: 700, marginBottom: "5px", color: "#4B5563" }}>VALIDASI SISTEM</div>
+                                <div style={{ backgroundColor: "white", padding: "6px", borderRadius: "8px", display: "inline-block", border: "1px solid #F3F4F6" }}>
+                                    <QRCode value={`VERIFIED_DIKLAT_${printData?.qr_code_id}`} size={78} bordered={false} bgColor="#ffffff" color="#000000" />
                                 </div>
-                                <div style={{ fontSize: "9px", color: "#9CA3AF", marginTop: "6px", fontWeight: 800, letterSpacing: "0.5px" }}>SCAN UNTUK VERIFIKASI</div>
+                                <div style={{ fontSize: "8px", color: "#9CA3AF", marginTop: "4px", fontWeight: 800, letterSpacing: "0.5px" }}>SCAN UNTUK VERIFIKASI</div>
                             </div>
-                            <div style={{ display: "flex", gap: "60px" }}>
+                            <div style={{ display: "flex", gap: "56px", alignItems: "flex-end" }}>
                                 <div style={{ textAlign: "center", width: "170px" }}>
-                                    <div style={{ fontSize: "12px", color: "#4B5563", marginBottom: "60px" }}>Peserta / Wali Santri,</div>
-                                    <div style={{ fontWeight: 800, fontSize: "14px", borderBottom: "1.5px solid #111827", paddingBottom: "3px" }}>{printData?.nama_lengkap?.toUpperCase()}</div>
-                                    <div style={{ fontSize: "10px", color: "#9CA3AF", marginTop: "4px" }}>Tanda tangan & Nama peserta </div>
+                                    <div style={{ fontSize: "11px", color: "#4B5563", marginBottom: "54px" }}>Peserta / Wali Santri,</div>
+                                    <div style={{ fontWeight: 800, fontSize: "12px", borderBottom: "1.5px solid #111827", paddingBottom: "3px", overflowWrap: "break-word" }}>{printData?.nama_lengkap?.toUpperCase()}</div>
+                                    <div style={{ fontSize: "9px", color: "#9CA3AF", marginTop: "3px" }}>Tanda tangan & Nama peserta </div>
                                 </div>
                                 <div style={{ textAlign: "center", width: "170px" }}>
-                                    <div style={{ fontSize: "12px", color: "#4B5563", marginBottom: "10px" }}>Tasikmalaya, {dayjs().format("DD/MM/YYYY")}</div>
-                                    <div style={{ fontSize: "12px", color: "#4B5563", marginBottom: "35px" }}>Panitia Pendaftaran,</div>
-                                    <div style={{ fontWeight: 800, fontSize: "14px", borderBottom: "1.5px solid #111827", paddingBottom: "3px" }}>{formatDicatatOlehForPrint(printData?.dicatat_oleh)}</div>
-                                    <div style={{ fontSize: "10px", color: "#9CA3AF", marginTop: "4px" }}>Stempel & Tanda Tangan</div>
+                                    <div style={{ fontSize: "11px", color: "#4B5563", marginBottom: "8px" }}>Tasikmalaya, {dayjs().format("DD/MM/YYYY")}</div>
+                                    <div style={{ fontSize: "11px", color: "#4B5563", marginBottom: "42px" }}>Panitia Pendaftaran,</div>
+                                    <div style={{ fontWeight: 800, fontSize: "12px", borderBottom: "1.5px solid #111827", paddingBottom: "3px", overflowWrap: "break-word" }}>{formatDicatatOlehForPrint(printData?.dicatat_oleh)}</div>
+                                    <div style={{ fontSize: "9px", color: "#9CA3AF", marginTop: "3px" }}>Stempel & Tanda Tangan</div>
                                 </div>
                             </div>
                         </div>
 
                         {/* FOOTER */}
-                        <div style={{ position: "absolute", bottom: "1cm", left: "1.5cm", right: "1.5cm" }}>
-                            <div style={{ borderTop: "1px solid #E5E7EB", paddingTop: "12px", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+                        <div style={{ marginTop: "auto", flexShrink: 0 }}>
+                            <div style={{ borderTop: "1px solid #E5E7EB", paddingTop: "9px", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
                                 <div style={{ width: "60%" }}>
-                                    <div style={{ fontSize: "9px", color: "#9CA3AF", fontStyle: "italic", lineHeight: 1.4 }}>
+                                    <div style={{ fontSize: "8px", color: "#9CA3AF", fontStyle: "italic", lineHeight: 1.35 }}>
                                         * Dokumen ini sah dan diterbitkan secara elektronik oleh sistem manajemen operasional pesantren sebagai bukti pendaftaran resmi.
                                     </div>
                                 </div>
                                 <div style={{ textAlign: "right" }}>
-                                    <div style={{ fontSize: "10px", color: "#B45309", fontWeight: 800, letterSpacing: "0.5px" }}>BUKTI PENDAFTARAN RESMI PROGRAM DIKLAT</div>
+                                    <div style={{ fontSize: "9px", color: "#B45309", fontWeight: 800, letterSpacing: "0.5px" }}>BUKTI PENDAFTARAN RESMI PROGRAM DIKLAT</div>
                                     <div style={{ fontSize: "8px", color: "#D1D5DB", marginTop: "2px" }}>OFFICIAL VERIFIED ARCHIVE</div>
                                 </div>
                             </div>

@@ -281,6 +281,195 @@ serve(async (req) => {
       return json({ data });
     }
 
+    if (action === "acknowledge_risk_event") {
+      const riskEventId = cleanText(body.risk_event_id);
+      const note = cleanText(body.note) || null;
+      if (!riskEventId) throw new Error("risk_event_id wajib diisi.");
+
+      const { data, error } = await service.rpc("wallet_acknowledge_risk_event", {
+        p_risk_event_id: riskEventId,
+        p_actor_id: profile.id,
+        p_actor_role: role,
+        p_note: note,
+      });
+      if (error) throw error;
+      return json({ data });
+    }
+
+    if (action === "investigate_risk_event") {
+      const riskEventId = cleanText(body.risk_event_id);
+      const note = cleanText(body.note) || null;
+      if (!riskEventId) throw new Error("risk_event_id wajib diisi.");
+
+      const { data, error } = await service.rpc("wallet_investigate_risk_event", {
+        p_risk_event_id: riskEventId,
+        p_actor_id: profile.id,
+        p_actor_role: role,
+        p_note: note,
+      });
+      if (error) throw error;
+      return json({ data });
+    }
+
+    if (action === "escalate_risk_event") {
+      const riskEventId = cleanText(body.risk_event_id);
+      const note = cleanText(body.note);
+      if (!riskEventId) throw new Error("risk_event_id wajib diisi.");
+
+      const { data, error } = await service.rpc("wallet_escalate_risk_event", {
+        p_risk_event_id: riskEventId,
+        p_actor_id: profile.id,
+        p_actor_role: role,
+        p_note: note,
+      });
+      if (error) throw error;
+      return json({ data });
+    }
+
+    if (action === "resolve_risk_event") {
+      const riskEventId = cleanText(body.risk_event_id);
+      const status = cleanText(body.status);
+      const note = cleanText(body.note);
+      if (!riskEventId) throw new Error("risk_event_id wajib diisi.");
+      if (!["resolved", "false_positive"].includes(status)) throw new Error("Status penyelesaian tidak valid.");
+
+      const { data, error } = await service.rpc("wallet_resolve_risk_event", {
+        p_risk_event_id: riskEventId,
+        p_actor_id: profile.id,
+        p_actor_role: role,
+        p_status: status,
+        p_note: note,
+      });
+      if (error) throw error;
+      return json({ data });
+    }
+
+    if (action === "start_dispute_investigation") {
+      const disputeId = cleanText(body.dispute_id);
+      const note = cleanText(body.note) || null;
+      if (!disputeId) throw new Error("dispute_id wajib diisi.");
+
+      const { data, error } = await service.rpc("wallet_start_dispute_investigation", {
+        p_dispute_id: disputeId,
+        p_actor_id: profile.id,
+        p_actor_role: role,
+        p_note: note,
+      });
+      if (error) throw error;
+      return json({ data });
+    }
+
+    if (action === "resolve_dispute") {
+      const disputeId = cleanText(body.dispute_id);
+      const status = cleanText(body.status);
+      const note = cleanText(body.note);
+      if (!disputeId) throw new Error("dispute_id wajib diisi.");
+      if (!["resolved_valid", "resolved_reversed", "rejected", "cancelled"].includes(status)) {
+        throw new Error("Status penyelesaian dispute tidak valid.");
+      }
+
+      const { data, error } = await service.rpc("wallet_resolve_dispute", {
+        p_dispute_id: disputeId,
+        p_resolved_by: profile.id,
+        p_status: status,
+        p_resolution_note: note,
+        p_reversal_idempotency_key: status === "resolved_reversed" ? idempotencyKey("wallet-dispute-reversal", profile.id) : null,
+      });
+      if (error) throw error;
+      return json({ data });
+    }
+
+    if (action === "review_reconciliation_run") {
+      const runId = cleanText(body.run_id);
+      const note = cleanText(body.note);
+      if (!runId) throw new Error("run_id wajib diisi.");
+
+      const { data, error } = await service.rpc("wallet_review_reconciliation_run", {
+        p_run_id: runId,
+        p_actor_id: profile.id,
+        p_actor_role: role,
+        p_note: note,
+      });
+      if (error) throw error;
+      return json({ data });
+    }
+
+    if (action === "resolve_reconciliation_run") {
+      const runId = cleanText(body.run_id);
+      const status = cleanText(body.status);
+      const note = cleanText(body.note);
+      if (!runId) throw new Error("run_id wajib diisi.");
+      if (!["resolved", "accepted_risk", "false_alarm", "monitoring"].includes(status)) {
+        throw new Error("Status penyelesaian rekonsiliasi tidak valid.");
+      }
+
+      const { data, error } = await service.rpc("wallet_resolve_reconciliation_run", {
+        p_run_id: runId,
+        p_actor_id: profile.id,
+        p_actor_role: role,
+        p_resolution_status: status,
+        p_note: note,
+      });
+      if (error) throw error;
+      return json({ data });
+    }
+
+    if (action === "review_integrity_run") {
+      const runId = cleanText(body.run_id);
+      const note = cleanText(body.note);
+      if (!runId) throw new Error("run_id wajib diisi.");
+
+      const { data, error } = await service.rpc("wallet_review_integrity_run", {
+        p_run_id: runId,
+        p_actor_id: profile.id,
+        p_actor_role: role,
+        p_note: note,
+      });
+      if (error) throw error;
+      return json({ data });
+    }
+
+    if (action === "resolve_integrity_run") {
+      const runId = cleanText(body.run_id);
+      const status = cleanText(body.status);
+      const note = cleanText(body.note);
+      if (!runId) throw new Error("run_id wajib diisi.");
+      if (!["resolved", "accepted_risk", "false_alarm", "monitoring"].includes(status)) {
+        throw new Error("Status penyelesaian pemeriksaan ledger tidak valid.");
+      }
+
+      const { data, error } = await service.rpc("wallet_resolve_integrity_run", {
+        p_run_id: runId,
+        p_actor_id: profile.id,
+        p_actor_role: role,
+        p_resolution_status: status,
+        p_note: note,
+      });
+      if (error) throw error;
+      return json({ data });
+    }
+
+    if (action === "broadcast_wallet_maintenance") {
+      const title = cleanText(body.title);
+      const message = cleanText(body.message);
+      const startAt = cleanText(body.start_at);
+      const durationMinutes = Number(body.duration_minutes);
+      if (!title) throw new Error("Judul wajib diisi.");
+      if (!message) throw new Error("Isi pemberitahuan wajib diisi.");
+      if (!startAt) throw new Error("Waktu mulai wajib diisi.");
+      if (!Number.isInteger(durationMinutes) || durationMinutes < 1) throw new Error("Durasi harus diisi dalam menit.");
+
+      const { data, error } = await service.rpc("wallet_broadcast_maintenance", {
+        p_title: title,
+        p_body: message,
+        p_start_at: startAt,
+        p_duration_minutes: durationMinutes,
+        p_actor_id: profile.id,
+      });
+      if (error) throw error;
+      return json({ data });
+    }
+
     return json({ error: "Action tidak dikenali." }, 400);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Wallet admin function failed.";

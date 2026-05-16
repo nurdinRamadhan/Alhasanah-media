@@ -66,7 +66,7 @@ import {
   BarcodeOutlined, WalletOutlined, UserOutlined,
   TeamOutlined, BookOutlined, SyncOutlined, RocketOutlined,
   SettingOutlined, FormOutlined, ProjectOutlined,
-  DashboardOutlined, BankOutlined, ShoppingCartOutlined,
+  DashboardOutlined, BankOutlined, ShoppingCartOutlined, ShopOutlined,
   SafetyCertificateOutlined, MailOutlined, LockOutlined,
   HistoryOutlined,
 } from "@ant-design/icons";
@@ -81,7 +81,8 @@ import {
   KesehatanEdit, HafalanList, HafalanCreate, HafalanEdit, HafalanShow, 
   BeritaList, BeritaCreate, BeritaEdit, InventarisList, InventarisCreate, 
   InventarisShow, TagihanList, TagihanCreate, TagihanEdit, TransaksiList, 
-  TransaksiCreate, MurojaahList, MurojaahCreate, MurojaahShow, HafalanKitabList, 
+  TransaksiCreate, DompetSantriList, DompetOperasionalList, KantinManagementList,
+  MurojaahList, MurojaahCreate, MurojaahShow, HafalanKitabList, 
   HafalanKitabCreate, HafalanKitabShow, PengeluaranList, DiklatList, 
   MasterDataPage, AuditLogList, AkademikPage, ScanQR, CreateAdminPage, 
   AdminList, AlumniList, WeeklyTestList, WeeklyTestCreate, WeeklyTestArsip, 
@@ -1108,6 +1109,13 @@ const InnerApp: React.FC = () => {
                 meta:{ label:"Keuangan & SPP", icon:<WalletOutlined /> } },
               { name:"transaksi_keuangan", list:"/transaksi", create:"/transaksi/create",
                 meta:{ label:"Riwayat Transaksi", icon:<HistoryOutlined /> } },
+              { name:"dompet_menu", meta:{ label:"Dompet Santri", icon:<WalletOutlined /> } },
+              { name:"dompet_santri", list:"/dompet-santri",
+                meta:{ label:"Akun & Saldo", parent:"dompet_menu", icon:<WalletOutlined /> } },
+              { name:"dompet_operasional", list:"/dompet-operasional",
+                meta:{ label:"Operasional & Peringatan", parent:"dompet_menu", icon:<SafetyCertificateOutlined /> } },
+              { name:"kantin_management", list:"/kantin-management",
+                meta:{ label:"Manajemen Kantin", parent:"dompet_menu", icon:<ShopOutlined /> } },
               { name:"diklat", meta:{ label:"Diklat & Pasaran", icon:<RocketOutlined /> } },
               { name:"diklat_list",   list:"/diklat",        meta:{ label:"Daftar Peserta",     parent:"diklat", icon:<TeamOutlined /> } },
               { name:"diklat_master", list:"/diklat/master", meta:{ label:"Master Data Diklat", parent:"diklat", icon:<SettingOutlined /> } },
@@ -1209,6 +1217,9 @@ const InnerApp: React.FC = () => {
                   <Route index element={<TransaksiList />} />
                   <Route path="create" element={<TransaksiCreate />} />
                 </Route>
+                <Route path="/dompet-santri" element={<DompetSantriList />} />
+                <Route path="/dompet-operasional" element={<DompetOperasionalList />} />
+                <Route path="/kantin-management" element={<KantinManagementList />} />
                 <Route path="/pengeluaran" element={<PengeluaranList />} />
 
                 <Route path="/diklat">
