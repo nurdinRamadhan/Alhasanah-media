@@ -114,3 +114,34 @@ export async function generateAnswer(systemPrompt: string, userPrompt: string) {
 
   return truncate(data.candidates?.[0]?.content?.parts?.[0]?.text || "", 6000);
 }
+
+export async function generateJsonAnswer(systemPrompt: string, userPrompt: string) {
+  const apiKey = getGeminiKey();
+  const model = completionModel();
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+        generationConfig: {
+          temperature: 0.1,
+          topK: 10,
+          topP: 0.8,
+          maxOutputTokens: 8192,
+          responseMimeType: "application/json",
+        },
+      }),
+    },
+  );
+
+  const data = await response.json();
+  if (!response.ok) {
+    console.error("Gemini JSON completion error:", JSON.stringify(data));
+    throw new Error("Gagal membuat analisis AI JSON.");
+  }
+
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+}

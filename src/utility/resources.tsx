@@ -53,6 +53,8 @@ export const resources: ResourceProps[] = [
     meta:{ label:"Akun & Saldo", parent:"dompet_menu", icon:<WalletOutlined /> } },
   { name:"dompet_operasional", list:"/dompet-operasional",
     meta:{ label:"Operasional & Peringatan", parent:"dompet_menu", icon:<SafetyCertificateOutlined /> } },
+  { name:"dompet_security_audit", list:"/dompet-security-audit",
+    meta:{ label:"Audit Keamanan", parent:"dompet_menu", icon:<DatabaseOutlined /> } },
   { name:"kantin_management", list:"/kantin-management",
     meta:{ label:"Manajemen Kantin", parent:"dompet_menu", icon:<ShopOutlined /> } },
   { name:"diklat", meta:{ label:"Diklat & Pasaran", icon:<RocketOutlined /> } },

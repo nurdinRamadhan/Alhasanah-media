@@ -57,6 +57,7 @@ interface IRiskEvent {
 interface IDispute {
   id: string;
   ledger_id: number;
+  reported_by?: string | null;
   santri_nis: string;
   status: DisputeStatus;
   reason: string;
@@ -115,6 +116,9 @@ interface INotificationQueue {
   channel: string;
   error_message?: string | null;
   reference_id?: string | null;
+  wallet_review_status?: "open" | "reviewed" | "resolved" | "ignored_dummy" | null;
+  wallet_reviewed_at?: string | null;
+  wallet_review_note?: string | null;
   user_id: string;
   profiles?: { full_name?: string | null; role?: string | null } | null;
 }
@@ -158,6 +162,13 @@ const priorityColor = (priority?: string) => {
   return "default";
 };
 
+const reviewStatusLabel: Record<string, string> = {
+  open: "Belum diperiksa",
+  reviewed: "Sudah diperiksa",
+  resolved: "Selesai",
+  ignored_dummy: "Data uji",
+};
+
 const statusColor = (status?: string) => {
   if (["success", "sent", "resolved", "resolved_valid", "resolved_reversed"].includes(status || "")) return "green";
   if (["failed", "open", "critical"].includes(status || "")) return "red";
@@ -186,10 +197,11 @@ export const DompetOperasionalList = () => {
       | "reconciliation_resolve"
       | "integrity_review"
       | "integrity_resolve"
+      | "notification_review"
       | "maintenance"
       | "run_reconciliation"
       | "run_integrity";
-    record?: IRiskEvent | IDispute | IReconciliationRun | IIntegrityRun;
+    record?: IRiskEvent | IDispute | IReconciliationRun | IIntegrityRun | INotificationQueue;
   } | null>(null);
   const [form] = Form.useForm();
 
@@ -204,7 +216,7 @@ export const DompetOperasionalList = () => {
           .limit(80),
         supabaseClient
           .from("wallet_disputes")
-          .select("id,ledger_id,santri_nis,status,reason,response_due_at,resolution_note,reversal_ledger_id,created_at,resolved_at,profiles:reported_by(full_name,email),transaksi_dompet(amount,category,created_at,balance_after),santri(nama,kelas,jurusan)")
+          .select("id,ledger_id,reported_by,santri_nis,status,reason,response_due_at,resolution_note,reversal_ledger_id,created_at,resolved_at")
           .order("created_at", { ascending: false })
           .limit(80),
         supabaseClient
@@ -219,22 +231,74 @@ export const DompetOperasionalList = () => {
           .limit(60),
         supabaseClient
           .from("notification_queue")
-          .select("id,created_at,sent_at,title,body,status,event_type,priority,channel,error_message,reference_id,user_id,profiles:user_id(full_name,role)")
+          .select("id,created_at,sent_at,title,body,status,event_type,priority,channel,error_message,reference_id,wallet_review_status,wallet_reviewed_at,wallet_review_note,user_id")
+          .or("source_table.like.wallet%,event_type.like.wallet.%,event_type.like.dompet.%")
           .order("created_at", { ascending: false })
           .limit(100),
       ]);
 
-      if (riskRes.error) throw riskRes.error;
-      if (disputeRes.error) throw disputeRes.error;
-      if (reconciliationRes.error) throw reconciliationRes.error;
-      if (integrityRes.error) throw integrityRes.error;
-      if (notificationRes.error) throw notificationRes.error;
+      if (riskRes.error) throw new Error(`Gagal memuat peringatan keamanan: ${riskRes.error.message}`);
+      if (disputeRes.error) throw new Error(`Gagal memuat laporan wali: ${disputeRes.error.message}`);
+      if (reconciliationRes.error) throw new Error(`Gagal memuat cek saldo: ${reconciliationRes.error.message}`);
+      if (integrityRes.error) throw new Error(`Gagal memuat cek ledger: ${integrityRes.error.message}`);
+      if (notificationRes.error) throw new Error(`Gagal memuat notifikasi dompet: ${notificationRes.error.message}`);
+
+      const disputeRows = (disputeRes.data || []) as IDispute[];
+      const notificationRows = (notificationRes.data || []) as INotificationQueue[];
+      const disputeProfileIds = disputeRows.map((item) => item.reported_by).filter(Boolean) as string[];
+      const notificationUserIds = notificationRows.map((item) => item.user_id).filter(Boolean);
+      const userIds = Array.from(new Set([...disputeProfileIds, ...notificationUserIds]));
+      const ledgerIds = Array.from(new Set(disputeRows.map((item) => item.ledger_id).filter(Boolean)));
+      const santriNisList = Array.from(new Set(disputeRows.map((item) => item.santri_nis).filter(Boolean)));
+      let profileMap = new Map<string, { full_name?: string | null; role?: string | null }>();
+      let ledgerMap = new Map<number, { amount?: number | null; category?: string | null; created_at?: string | null; balance_after?: number | null }>();
+      let santriMap = new Map<string, { nama?: string | null; kelas?: string | null; jurusan?: string | null }>();
+
+      if (userIds.length > 0) {
+        const { data: profileRows, error: profileRowsError } = await supabaseClient
+          .from("profiles")
+          .select("id,full_name,email,role")
+          .in("id", userIds);
+
+        if (!profileRowsError) {
+          profileMap = new Map((profileRows || []).map((item) => [item.id, { full_name: item.full_name, email: item.email, role: item.role }]));
+        }
+      }
+
+      if (ledgerIds.length > 0) {
+        const { data: ledgerRows, error: ledgerRowsError } = await supabaseClient
+          .from("transaksi_dompet")
+          .select("id,amount,category,created_at,balance_after")
+          .in("id", ledgerIds);
+
+        if (!ledgerRowsError) {
+          ledgerMap = new Map((ledgerRows || []).map((item) => [item.id, item]));
+        }
+      }
+
+      if (santriNisList.length > 0) {
+        const { data: santriRows, error: santriRowsError } = await supabaseClient
+          .from("santri")
+          .select("nis,nama,kelas,jurusan")
+          .in("nis", santriNisList);
+
+        if (!santriRowsError) {
+          santriMap = new Map((santriRows || []).map((item) => [item.nis, item]));
+        }
+      }
 
       setRiskEvents((riskRes.data || []) as IRiskEvent[]);
-      setDisputes((disputeRes.data || []) as IDispute[]);
+      setDisputes(
+        disputeRows.map((item) => ({
+          ...item,
+          profiles: item.reported_by ? profileMap.get(item.reported_by) || null : null,
+          transaksi_dompet: ledgerMap.get(item.ledger_id) || null,
+          santri: santriMap.get(item.santri_nis) || null,
+        })),
+      );
       setReconciliationRuns((reconciliationRes.data || []) as IReconciliationRun[]);
       setIntegrityRuns((integrityRes.data || []) as IIntegrityRun[]);
-      setNotifications((notificationRes.data || []) as INotificationQueue[]);
+      setNotifications(notificationRows.map((item) => ({ ...item, profiles: profileMap.get(item.user_id) || null })));
     } catch (error) {
       message.error(error instanceof Error ? error.message : "Gagal memuat data operasional dompet.");
     } finally {
@@ -251,7 +315,7 @@ export const DompetOperasionalList = () => {
     const openDisputes = disputes.filter((item) => ["open", "investigating"].includes(item.status)).length;
     const failedChecks = reconciliationRuns.filter((item) => item.status !== "success").length + integrityRuns.filter((item) => item.status !== "success").length;
     const pendingNotifications = notifications.filter((item) => ["pending", null, undefined].includes(item.status)).length;
-    const criticalNotifications = notifications.filter((item) => item.priority === "critical" && item.status !== "sent").length;
+    const criticalNotifications = notifications.filter((item) => item.priority === "critical" && item.status !== "sent" && (item.wallet_review_status || "open") === "open").length;
     return { urgentRisk, openDisputes, failedChecks, pendingNotifications, criticalNotifications };
   }, [riskEvents, disputes, reconciliationRuns, integrityRuns, notifications]);
 
@@ -320,6 +384,10 @@ export const DompetOperasionalList = () => {
       if (actionModal.type === "integrity_resolve") {
         await callWalletAdmin({ action: "resolve_integrity_run", run_id: record?.id, status: values.status, note: values.note });
         message.success("Status pemeriksaan ledger diperbarui.");
+      }
+      if (actionModal.type === "notification_review") {
+        await callWalletAdmin({ action: "review_wallet_notification", notification_id: record?.id, review_status: values.status, note: values.note });
+        message.success("Review notifikasi dompet disimpan.");
       }
       if (actionModal.type === "maintenance") {
         await callWalletAdmin({
@@ -538,7 +606,29 @@ export const DompetOperasionalList = () => {
     { title: "Jenis", dataIndex: "event_type", ellipsis: true },
     { title: "Prioritas", dataIndex: "priority", render: (_, row) => <Tag color={priorityColor(row.priority)}>{row.priority}</Tag> },
     { title: "Status", dataIndex: "status", render: (_, row) => <Tag color={statusColor(row.status || "pending")}>{row.status || "pending"}</Tag> },
+    {
+      title: "Review Admin",
+      dataIndex: "wallet_review_status",
+      render: (_, row) => {
+        const value = row.wallet_review_status || "open";
+        return (
+          <Space direction="vertical" size={0}>
+            <Tag color={value === "open" ? "red" : value === "resolved" ? "green" : "blue"}>{reviewStatusLabel[value] || value}</Tag>
+            {row.wallet_reviewed_at && <Text type="secondary">{dayjs(row.wallet_reviewed_at).format("DD/MM/YYYY HH:mm")}</Text>}
+          </Space>
+        );
+      },
+    },
     { title: "Error", dataIndex: "error_message", ellipsis: true, render: (_, row) => row.error_message || "-" },
+    {
+      title: "Aksi",
+      valueType: "option",
+      render: (_, row) => (
+        <Button size="small" icon={<AuditOutlined />} onClick={() => setActionModal({ type: "notification_review", record: row })}>
+          Review
+        </Button>
+      ),
+    },
   ];
 
   const modalTitle = {
@@ -552,6 +642,7 @@ export const DompetOperasionalList = () => {
     reconciliation_resolve: "Tindak Lanjut Rekonsiliasi",
     integrity_review: "Catatan Pemeriksaan Ledger",
     integrity_resolve: "Tindak Lanjut Pemeriksaan Ledger",
+    notification_review: "Review Notifikasi Dompet",
     maintenance: "Pemberitahuan Maintenance Dompet",
     run_reconciliation: "Jalankan Cek Saldo Manual",
     run_integrity: "Jalankan Cek Ledger Manual",
@@ -673,7 +764,11 @@ export const DompetOperasionalList = () => {
                     search={{ labelWidth: "auto" }}
                     pagination={{ pageSize: 10 }}
                     scroll={{ x: 1200 }}
-                    rowClassName={(row) => row.priority === "critical" && row.status !== "sent" ? "dompet-critical-notification-row" : ""}
+                    rowClassName={(row) =>
+                      row.priority === "critical" && row.status !== "sent" && (row.wallet_review_status || "open") === "open"
+                        ? "dompet-critical-notification-row"
+                        : ""
+                    }
                   />
                   <style>
                     {`
@@ -742,6 +837,18 @@ export const DompetOperasionalList = () => {
                   { label: "Saldo dikembalikan ke wali/santri", value: "resolved_reversed" },
                   { label: "Ditolak", value: "rejected" },
                   { label: "Dibatalkan", value: "cancelled" },
+                ]}
+              />
+            </Form.Item>
+          )}
+
+          {actionModal?.type === "notification_review" && (
+            <Form.Item name="status" label="Keputusan Review" rules={[{ required: true, message: "Pilih keputusan review." }]}>
+              <Select
+                options={[
+                  { label: "Sudah diperiksa, masih perlu dipantau", value: "reviewed" },
+                  { label: "Selesai, penyebab sudah jelas/ditangani", value: "resolved" },
+                  { label: "Abaikan karena data uji/dummy", value: "ignored_dummy" },
                 ]}
               />
             </Form.Item>

@@ -93,6 +93,19 @@ serve(async (req) => {
       return json({ data });
     }
 
+    if (action === "run_security_audit") {
+      if (!["super_admin", "rois", "bendahara", "dewan"].includes(role)) {
+        return json({ error: "Role ini tidak boleh menjalankan audit keamanan dompet." }, 403);
+      }
+
+      const { data, error } = await service.rpc("wallet_run_security_audit", {
+        p_triggered_by: profile.id,
+        p_triggered_by_role: role,
+      });
+      if (error) throw error;
+      return json({ data });
+    }
+
     if (!MANAGE_ROLES.has(role)) {
       return json({ error: "Role ini hanya boleh membaca data dompet." }, 403);
     }
@@ -215,6 +228,29 @@ serve(async (req) => {
       const { data, error } = await service.rpc("wallet_run_ledger_integrity_check", {
         p_santri_nis: santriNis,
         p_from_date: fromDate,
+      });
+      if (error) throw error;
+      return json({ data });
+    }
+
+    if (action === "review_wallet_notification") {
+      if (!MUTATION_ROLES.has(role)) return json({ error: "Tidak boleh meninjau notifikasi dompet." }, 403);
+
+      const notificationId = cleanText(body.notification_id);
+      const reviewStatus = cleanText(body.review_status);
+      const note = cleanText(body.note);
+
+      if (!notificationId) throw new Error("notification_id wajib diisi.");
+      if (!["reviewed", "resolved", "ignored_dummy"].includes(reviewStatus)) {
+        throw new Error("Status review notifikasi tidak valid.");
+      }
+
+      const { data, error } = await service.rpc("wallet_review_notification", {
+        p_notification_id: notificationId,
+        p_actor_id: profile.id,
+        p_actor_role: role,
+        p_review_status: reviewStatus,
+        p_note: note,
       });
       if (error) throw error;
       return json({ data });

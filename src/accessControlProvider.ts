@@ -80,7 +80,7 @@ export const accessControlProvider: AccessControlProvider = {
     // 3. BENDAHARA
     if (role === "bendahara") {
         const allowedBendahara = [
-            "tagihan_santri", "transaksi_keuangan", "dompet_menu", "dompet_santri", "dompet_operasional", "kantin_management", "pengeluaran", "santri", "diklat", "inventaris"
+            "tagihan_santri", "transaksi_keuangan", "dompet_menu", "dompet_santri", "dompet_operasional", "dompet_security_audit", "kantin_management", "pengeluaran", "santri", "diklat", "inventaris"
         ];
 
         if (allowedBendahara.includes(targetResource)) {

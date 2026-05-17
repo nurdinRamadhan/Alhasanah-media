@@ -745,9 +745,10 @@ Halaman `Pusat Operasional Dompet` memakai bahasa kerja yang mudah dipahami admi
 - `Laporan Wali`: daftar dispute dari wali, alasan laporan, nominal transaksi terkait, SLA, tombol `Periksa`, dan tombol `Putuskan`.
 - `Cek Saldo`: hasil rekonsiliasi ledger vs cached balance, selisih, status cocok/bermasalah, dan catatan review.
 - `Cek Ledger`: hasil verifikasi hash chain, akun yang diperiksa, ledger rusak jika ada, dan catatan review.
-- `Notifikasi`: antrean push FCM, penerima, isi, prioritas, status kirim, dan error bila gagal. SMS/email belum aktif dan disimpan sebagai catatan fitur update.
+- `Notifikasi`: antrean push FCM, penerima, isi, prioritas, status kirim, error bila gagal, dan status review admin. SMS/email belum aktif dan disimpan sebagai catatan fitur update.
 - `Umumkan Maintenance`: broadcast downtime dompet ke wali, kantin, dan role pengawas aktif.
-- Jika ada notifikasi `critical` yang belum terkirim/selesai, halaman menampilkan banner merah kuat dan baris tabel merah agar admin langsung melihat masalah kritis saldo/dompet.
+- Jika ada notifikasi `critical` yang belum terkirim/selesai dan belum direview, halaman menampilkan banner merah kuat dan baris tabel merah agar admin langsung melihat masalah kritis saldo/dompet.
+- Admin dapat menekan `Review` pada notifikasi dompet dan memilih `Sudah diperiksa`, `Selesai`, atau `Data uji`. Review wajib memakai catatan, masuk `wallet_audit_logs`, dan membuat audit keamanan tidak terus menghitung notifikasi lama sebagai insiden aktif.
 
 Semua aksi penting dari halaman ini wajib melewati `wallet-admin`, bukan update langsung dari browser. Setiap aksi menyimpan audit log dengan actor, role, resource, target, dan catatan.
 
@@ -1287,56 +1288,36 @@ Aturan wajib:
 
 ### 15.5 Multi-Factor Approval untuk Transaksi Besar
 
-Status saat ini: parsial. Kolom `large_transaction_threshold` sudah ada dan `wallet-kantin-confirm` sudah memakai approval wali, tetapi rule threshold dan push notification belum lengkap.
+Status saat ini: fondasi database sudah dikunci di `parent_approval_required_above = 75000`.
 
 Target flow:
 
 ```text
 Kantin scan QR/NFC dan input nominal
-  -> backend cek amount > large_transaction_threshold
-  -> status requires_parent_approval
-  -> push notification ke aplikasi wali
+  -> backend cek amount > 75000
+  -> jika amount > 75000: status requires_parent_approval
+  -> kirim push notification ke aplikasi wali
   -> wali approve dengan biometric/PIN lokal
   -> app wali mengirim Ed25519 signed approval
+  -> jika amount <= 75000: status requires_student_pin
+  -> santri memasukkan PIN/proof pada flow kantin yang sudah diamankan
   -> wallet-kantin-confirm posting ledger
   -> timeout 60 detik jika tidak direspons
 ```
 
-Untuk transaksi kecil, pesantren boleh memilih:
+Catatan final: persetujuan wali hanya untuk satu transaksi dengan nominal di atas Rp75.000. Akumulasi belanja harian yang melewati Rp75.000 tidak otomatis meminta approval wali untuk transaksi kecil berikutnya. Akumulasi harian/bulanan dikontrol oleh limit wali (`daily_spend_limit`/`monthly_spend_limit`): jika limit tercapai, sistem mengirim notifikasi; jika terlampaui, transaksi ditolak.
 
-- tetap wajib approval wali untuk semua transaksi, paling aman tapi friction tinggi
-- PIN/proof santri pada perangkat kantin, hanya setelah desain proof aman selesai
-- approval wali hanya untuk transaksi besar
+### 15.6 FCM Token Single-Owner
 
-### 15.6 Offline Transaction Queue Kantin
+FCM token Android harus aktif hanya untuk satu user terakhir yang login di perangkat tersebut. Ini mencegah kasus push dompet wali tetap masuk ke HP yang saat ini sedang login sebagai akun alumni/admin lain.
 
-Status saat ini: belum ada.
+Aturan implementasi Android:
 
-Offline queue diperlukan untuk kondisi internet pesantren putus, tetapi harus dibatasi ketat karena saldo final hanya bisa diverifikasi server.
-
-Aturan minimum:
-
-- Offline transaction hanya membuat local pending intent, bukan saldo final.
-- Maksimal 1 transaksi offline per santri per sesi offline.
-- Maksimal nominal offline kecil, misalnya Rp10.000-Rp15.000.
-- Expiry pendek, misalnya 5-10 menit.
-- Saat online, sync memakai `idempotency_key` yang sama.
-- Jika saldo tidak cukup saat sync, transaksi gagal dan struk harus menampilkan status gagal.
-- Kantin wajib menandai transaksi offline sebagai risiko operasional.
-
-Kotlin Room entity yang disarankan:
-
-```kotlin
-@Entity(tableName = "pending_transactions")
-data class PendingTransaction(
-    @PrimaryKey val idempotencyKey: String,
-    val walletPublicId: String,
-    val amount: Long,
-    val createdAt: Long,
-    val expiresAt: Long,
-    val status: String = "pending_sync"
-)
-```
+- Setelah login berhasil, aplikasi wajib memanggil RPC `register_my_fcm_device`.
+- Saat FCM token berubah, aplikasi wajib memanggil RPC yang sama.
+- Saat user berganti akun di perangkat yang sama, login akun baru akan otomatis menonaktifkan kepemilikan token lama.
+- Worker `push-notifications` hanya mengirim ke baris `user_devices.is_active = true`.
+- Halaman notifikasi tetap membaca `notification_queue.user_id`; jadi push yang diterima harus selalu cocok dengan akun yang sedang aktif setelah token diregistrasi ulang.
 
 ### 15.7 Formal Dispute Resolution
 
@@ -1408,7 +1389,6 @@ Untuk produksi:
 | TLS certificate pinning | Wajib di dokumen | Implementasi Android |
 | Kantin device registration | Ada fondasi DB/RPC + Edge signature check | Buat UI approval dan Android enrollment |
 | Multi-factor transaksi besar | Parsial | Push approval + timeout |
-| Offline queue kantin | Belum ada | Wajib untuk operasional, dengan hard limit |
 | Dispute resolution formal | Ada fondasi DB/RPC | Buat UI dan Android flow |
 | Hash chain verification job | Ada fondasi DB/RPC | Jadwalkan harian |
 | Biometric Android | Belum wajib di kode | Wajib untuk approval besar |
@@ -1422,7 +1402,6 @@ Prioritas implementasi berikutnya:
 4. Multi-factor approval transaksi besar dengan push notification.
 5. Hash chain verifier.
 6. Dispute workflow.
-7. Offline queue kantin.
 
 ### 15.11 Status Implementasi Pondasi Banking-Grade
 
@@ -1508,7 +1487,42 @@ Yang masih harus dikerjakan sebelum Kotlin:
 - Detail drill-down lanjutan untuk dispute dan risk event jika data operasional sudah besar.
 - Worker SMS fallback untuk saldo kritis dan event keamanan kritikal.
 - Email/weekly silent digest untuk bukti hash-chain verification sukses.
-- AI scoring di atas `wallet_risk_events`.
+- Halaman Audit Keamanan di `/dompet-security-audit` untuk pemeriksaan satu klik lintas lapisan.
+- Analisis AI Auditor di halaman yang sama untuk membaca hasil audit manual yang sudah disanitasi.
+
+## 15.1 Audit Keamanan Satu Klik
+
+Fitur audit keamanan sudah ditambahkan sebagai pusat pemeriksaan dini untuk admin:
+
+- Halaman admin: `/dompet-security-audit`, menu `Dompet Santri -> Audit Keamanan`.
+- Edge Function: `wallet-admin` action `run_security_audit`.
+- RPC database: `wallet_run_security_audit(p_triggered_by, p_triggered_by_role)`.
+- Tabel hasil: `wallet_security_audit_runs`.
+- Edge Function AI: `wallet-security-ai-auditor`.
+- Tabel hasil AI: `wallet_security_ai_analyses`.
+
+Audit memeriksa freeze switch, rekonsiliasi, hash-chain ledger, risk event tinggi/kritis, dispute lewat SLA, notifikasi kritis terbuka, device kantin, percobaan PIN gagal, RLS/grant, QR opaque, Argon2id, dan cron utama dompet.
+
+Hasil audit manual menampilkan skor 0-100, severity, temuan, rekomendasi, ringkasan per lapisan Defense in Depth, dan ringkasan siap-AI. Audit manual tetap menjadi sumber kebenaran.
+
+Tombol `Analisis AI` memanggil LLM Gemini untuk membaca audit manual yang sudah disanitasi. AI tidak menerima PIN, password, private key, token, ciphertext mentah, FCM token, NIS/NIK, nomor HP, alamat, atau data identitas lengkap. AI hanya memberi ringkasan auditor, temuan kritis, gejala awal, risiko Android/database, blocker produksi, dan rekomendasi prioritas.
+
+Konsistensi wajib: AI tidak boleh mengubah skor manual, tidak boleh membuat keputusan transaksi, dan tidak boleh membuat klaim yang bertentangan dengan checks/findings/recommendations dari audit manual.
+
+Catatan teknis lengkap ada di:
+
+```text
+referensi/Dompet-santri/catatan/audit_keamanan_defense_in_depth.md
+referensi/Dompet-santri/catatan/master_prompt_ai_security_auditor.md
+```
+
+Kebijakan penting:
+
+- QR hanya identifier acak, bukan otorisasi.
+- PIN/verifier wajib memakai Argon2id dengan parameter adaptif Android.
+- Persetujuan wali hanya wajib untuk transaksi di atas Rp75.000.
+- Transaksi sampai Rp75.000 tetap wajib lewat device kantin aktif, nonce, idempotency key, PIN/signature santri, dan validasi server-side.
+- Lapisan network/WAF/DDoS tetap perlu diverifikasi manual di provider hosting.
 
 ## 16. Checklist Implementasi Bertahap
 
@@ -1565,7 +1579,6 @@ Tahap 6 - Banking-grade controls:
 - TLS pinning Android.
 - Hash chain verifier harian.
 - Formal dispute workflow.
-- Offline queue kantin dengan hard limit.
 
 ## 17. Aturan Untuk AI Agent
 

@@ -88,7 +88,8 @@ Deno.serve(async (req) => {
       const { data: devices, error: deviceError } = await supabase
         .from("user_devices")
         .select("fcm_token")
-        .eq("user_id", item.user_id);
+        .eq("user_id", item.user_id)
+        .eq("is_active", true);
 
       if (deviceError) throw deviceError;
 

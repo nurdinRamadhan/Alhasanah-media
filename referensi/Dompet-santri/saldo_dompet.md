@@ -139,7 +139,43 @@ Tab yang tersedia:
 - `Cek Saldo`: jalankan cek manual, review hasil rekonsiliasi, dan beri tindak lanjut formal agar selisih tidak diabaikan.
 - `Cek Ledger`: jalankan cek manual, review hasil hash-chain verification, dan beri tindak lanjut formal.
 - `Notifikasi`: melihat antrean FCM dan error pengiriman. Notifikasi `critical` yang belum selesai tampil merah agar admin segera melihat masalah.
+- Pada tab `Notifikasi`, admin berwenang dapat menekan `Review` untuk memberi keputusan `Sudah diperiksa`, `Selesai`, atau `Data uji`. Catatan review wajib diisi agar keputusan masuk audit.
+- Audit keamanan hanya menghitung notifikasi kritis yang masih `Belum diperiksa`. Riwayat gagal lama yang sudah direview tidak boleh terus membuat audit terlihat kritis, tetapi tetap tersimpan sebagai bukti.
 
 Istilah UI sengaja memakai bahasa non-teknis supaya bendahara atau pengurus yang bukan programmer tetap bisa memahami tindakan yang harus dilakukan.
+
+## Audit Keamanan Dompet
+
+Halaman audit keamanan admin ada di `/dompet-security-audit` dengan nama menu `Audit Keamanan`.
+
+Fungsi halaman ini:
+
+- menjalankan pemeriksaan keamanan satu klik;
+- menjalankan analisis AI dari hasil audit manual yang sudah disanitasi;
+- menampilkan skor keamanan 0-100;
+- menampilkan status `Aman`, `Perlu perhatian`, `Berisiko`, atau `Kritis`;
+- menampilkan ringkasan lapisan Network, App, API, Database, dan Data;
+- menampilkan temuan dan rekomendasi dengan bahasa yang mudah dipahami admin non-teknis.
+
+Audit memeriksa rekonsiliasi, hash-chain ledger, freeze switch, risk event, dispute lewat SLA, notifikasi kritis yang masih terbuka, device kantin, percobaan PIN gagal, RLS/grant, QR opaque, Argon2id, dan cron dompet.
+
+Analisis AI memakai Edge Function `wallet-security-ai-auditor` dan menyimpan hasil di `wallet_security_ai_analyses`. AI tidak mengganti audit manual; AI hanya membantu membaca prioritas risiko, gejala awal, risiko Android, risiko database, dan blocker produksi. Master prompt ada di `referensi/Dompet-santri/catatan/master_prompt_ai_security_auditor.md`.
+
+Kebijakan transaksi:
+
+- Transaksi sampai Rp75.000 tidak meminta verifikasi wali setiap kali.
+- Transaksi di atas Rp75.000 wajib meminta persetujuan wali.
+- Akumulasi belanja harian/bulanan tidak memicu approval wali untuk transaksi kecil; akumulasi dikontrol oleh limit wali.
+- Jika limit harian/bulanan tercapai, sistem membuat notifikasi wali; jika transaksi melewati limit, transaksi ditolak.
+- Semua transaksi tetap harus server-side, memakai idempotency key, nonce, device kantin aktif, dan otorisasi valid.
+
+FCM token Android:
+
+- Aplikasi wajib memanggil RPC `register_my_fcm_device` setelah login dan saat token berubah.
+- Satu token FCM hanya boleh aktif untuk satu user terakhir yang login di perangkat tersebut.
+- Worker FCM hanya mengirim ke `user_devices.is_active = true`.
+- Ini mencegah push dompet milik wali muncul di perangkat yang saat ini sedang login sebagai alumni/admin karena bekas token login lama.
+
+SMS/email fallback tetap ditunda. Untuk saat ini, peringatan kritis tampil di admin panel lewat halaman `Operasional Dompet` dan `Audit Keamanan`.
 
 Checklist uji produksi internal sebelum Kotlin ada di `referensi/Dompet-santri/production_readiness_admin_database.md`.

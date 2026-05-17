@@ -38,6 +38,7 @@ export const TransaksiCreate    = React.lazy(() => import("./pages/transaksi/cre
 export const DompetSantriList   = React.lazy(() => import("./pages/dompet-santri/list").then(m => ({ default: m.DompetSantriList })));
 export const DompetOperasionalList = React.lazy(() => import("./pages/dompet-operasional/list").then(m => ({ default: m.DompetOperasionalList })));
 export const KantinManagementList = React.lazy(() => import("./pages/kantin-management/list").then(m => ({ default: m.KantinManagementList })));
+export const DompetSecurityAuditList = React.lazy(() => import("./pages/dompet-security-audit/list").then(m => ({ default: m.DompetSecurityAuditList })));
 export const MurojaahList       = React.lazy(() => import("./pages/murojaah/list").then(m => ({ default: m.MurojaahList })));
 export const MurojaahCreate     = React.lazy(() => import("./pages/murojaah/create").then(m => ({ default: m.MurojaahCreate })));
 export const MurojaahShow       = React.lazy(() => import("./pages/murojaah/show").then(m => ({ default: m.MurojaahShow })));

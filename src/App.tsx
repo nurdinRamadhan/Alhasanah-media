@@ -68,7 +68,7 @@ import {
   SettingOutlined, FormOutlined, ProjectOutlined,
   DashboardOutlined, BankOutlined, ShoppingCartOutlined, ShopOutlined,
   SafetyCertificateOutlined, MailOutlined, LockOutlined,
-  HistoryOutlined,
+  HistoryOutlined, DatabaseOutlined,
 } from "@ant-design/icons";
 
 import { Spin } from "antd";
@@ -81,7 +81,7 @@ import {
   KesehatanEdit, HafalanList, HafalanCreate, HafalanEdit, HafalanShow, 
   BeritaList, BeritaCreate, BeritaEdit, InventarisList, InventarisCreate, 
   InventarisShow, TagihanList, TagihanCreate, TagihanEdit, TransaksiList, 
-  TransaksiCreate, DompetSantriList, DompetOperasionalList, KantinManagementList,
+  TransaksiCreate, DompetSantriList, DompetOperasionalList, DompetSecurityAuditList, KantinManagementList,
   MurojaahList, MurojaahCreate, MurojaahShow, HafalanKitabList, 
   HafalanKitabCreate, HafalanKitabShow, PengeluaranList, DiklatList, 
   MasterDataPage, AuditLogList, AkademikPage, ScanQR, CreateAdminPage, 
@@ -1114,6 +1114,8 @@ const InnerApp: React.FC = () => {
                 meta:{ label:"Akun & Saldo", parent:"dompet_menu", icon:<WalletOutlined /> } },
               { name:"dompet_operasional", list:"/dompet-operasional",
                 meta:{ label:"Operasional & Peringatan", parent:"dompet_menu", icon:<SafetyCertificateOutlined /> } },
+              { name:"dompet_security_audit", list:"/dompet-security-audit",
+                meta:{ label:"Audit Keamanan", parent:"dompet_menu", icon:<DatabaseOutlined /> } },
               { name:"kantin_management", list:"/kantin-management",
                 meta:{ label:"Manajemen Kantin", parent:"dompet_menu", icon:<ShopOutlined /> } },
               { name:"diklat", meta:{ label:"Diklat & Pasaran", icon:<RocketOutlined /> } },
@@ -1219,6 +1221,7 @@ const InnerApp: React.FC = () => {
                 </Route>
                 <Route path="/dompet-santri" element={<DompetSantriList />} />
                 <Route path="/dompet-operasional" element={<DompetOperasionalList />} />
+                <Route path="/dompet-security-audit" element={<DompetSecurityAuditList />} />
                 <Route path="/kantin-management" element={<KantinManagementList />} />
                 <Route path="/pengeluaran" element={<PengeluaranList />} />
 
