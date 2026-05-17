@@ -7,6 +7,11 @@ import { IUserIdentity, TRole, TGenderScope, TJurusanScope } from "./types";
 let identityCache: IUserIdentity | null = null;
 let identityPromise: Promise<IUserIdentity | null> | null = null;
 
+const clearIdentityCache = () => {
+  identityCache = null;
+  identityPromise = null;
+};
+
 export const authProvider: AuthBindings = {
   login: async ({ email, password }) => {
     try {
@@ -25,8 +30,7 @@ export const authProvider: AuthBindings = {
 
       if (data.session) {
         // Reset cache setelah login sukses
-        identityCache = null;
-        identityPromise = null;
+        clearIdentityCache();
 
         const { data: profile } = await supabaseClient
           .from("profiles")
@@ -59,8 +63,7 @@ export const authProvider: AuthBindings = {
   },
 
   logout: async () => {
-    identityCache = null;
-    identityPromise = null;
+    clearIdentityCache();
     const { error } = await supabaseClient.auth.signOut();
     if (error) return { success: false, error };
     return { success: true, redirectTo: "/login" };
@@ -68,25 +71,33 @@ export const authProvider: AuthBindings = {
 
   check: async () => {
     try {
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) return { authenticated: false, redirectTo: "/login" };
+        const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+        if (sessionError || !session) {
+          clearIdentityCache();
+          return { authenticated: false, redirectTo: "/login" };
+        }
 
-        const { data: profile } = await supabaseClient
+        const { data: profile, error: profileError } = await supabaseClient
           .from("profiles")
           .select("is_active")
           .eq("id", session.user.id)
           .maybeSingle();
 
+        if (profileError) {
+          console.warn("Auth check profile lookup failed; keeping current session:", profileError.message);
+          return { authenticated: true };
+        }
+
         if (!profile?.is_active) {
           await supabaseClient.auth.signOut();
-          identityCache = null;
-          identityPromise = null;
+          clearIdentityCache();
           return { authenticated: false, redirectTo: "/login" };
         }
 
         return { authenticated: true };
     } catch (e) {
-        return { authenticated: false, redirectTo: "/login" };
+        console.warn("Auth check failed transiently; preserving route until Supabase recovers:", e);
+        return { authenticated: true };
     }
   },
 
@@ -110,9 +121,10 @@ export const authProvider: AuthBindings = {
 
     identityPromise = (async () => {
       try {
-        const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+        const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+        const user = session?.user ?? null;
         
-        if (userError || !user) {
+        if (sessionError || !user) {
           identityCache = null;
           return null;
         }
@@ -127,7 +139,7 @@ export const authProvider: AuthBindings = {
           console.warn("Gagal mengambil data profil identity:", error.message);
         }
 
-        if (!data?.is_active) {
+        if (data && !data.is_active) {
           await supabaseClient.auth.signOut();
           identityCache = null;
           return null;

@@ -1,43 +1,57 @@
 import { AccessControlProvider, CanParams } from "@refinedev/core";
-import { supabaseClient } from "./utility/supabaseClient";
+import { authProvider } from "./authProvider";
+import { IUserIdentity } from "./types";
 
 // In-memory cache to prevent redundant API calls during a single render cycle or session
 let cachedRole: string | null = null;
 let cachedUserId: string | null = null;
+let identityPromise: Promise<IUserIdentity | null> | null = null;
+
+const getCachedIdentity = async () => {
+    if (!identityPromise) {
+        identityPromise = Promise.resolve(authProvider.getIdentity?.() as Promise<IUserIdentity | null>)
+            .finally(() => {
+                identityPromise = null;
+            });
+    }
+
+    return identityPromise;
+};
+
+const getCanonicalResource = (resource?: string) => {
+    if (!resource) return "";
+    if (resource === "diklat_list" || resource === "diklat_master") return "diklat";
+    if (resource === "alumni_data" || resource === "forum_reports" || resource === "chat_monitoring") return resource;
+    return resource;
+};
 
 export const accessControlProvider: AccessControlProvider = {
   can: async ({ resource, action }: CanParams) => {
-    // 1. Dapatkan user session
-    const { data: { user } } = await supabaseClient.auth.getUser();
-    if (!user) {
+    const identity = await getCachedIdentity();
+    if (!identity) {
       cachedRole = null;
       cachedUserId = null;
       return { can: false, reason: "Unauthorized" };
     }
 
-    // 2. Gunakan cache jika userId sama, untuk menghindari pemanggilan DB berulang (30-60x)
     let role = "";
-    if (cachedUserId === user.id && cachedRole !== null) {
+    if (cachedUserId === identity.id && cachedRole !== null) {
       role = cachedRole;
     } else {
-      const { data: profile } = await supabaseClient
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-      
-      role = (profile?.role || "").toLowerCase();
+      role = (identity.role || "").toLowerCase();
       cachedRole = role;
-      cachedUserId = user.id;
+      cachedUserId = identity.id;
     }
+
+    const targetResource = getCanonicalResource(resource);
 
     // 1. SUPER ADMIN, ROIS, & DEWAN (Bebas Akses Semua Sidebar)
     if (["super_admin", "rois", "dewan"].includes(role)) {
         if (role === "dewan") {
-            if (resource === "notification_queue" && action === "create") {
+            if (targetResource === "notification_queue" && action === "create") {
                 return { can: true };
             }
-            if (resource === "rag_knowledge" && ["list", "show"].includes(action || "")) {
+            if (targetResource === "rag_knowledge" && ["list", "show"].includes(action || "")) {
                 return { can: true };
             }
             if (["create", "edit", "delete"].includes(action || "")) {
@@ -57,7 +71,7 @@ export const accessControlProvider: AccessControlProvider = {
             "forum_threads", "forum_comments", "forum_moderation_actions"
         ];
         
-        if (allowedKesantrian.includes(resource || "")) {
+        if (allowedKesantrian.includes(targetResource)) {
             return { can: true };
         }
         return { can: false, reason: "Akses ditolak. Khusus Kesantrian." };
@@ -69,8 +83,8 @@ export const accessControlProvider: AccessControlProvider = {
             "tagihan_santri", "transaksi_keuangan", "dompet_menu", "dompet_santri", "dompet_operasional", "kantin_management", "pengeluaran", "santri", "diklat", "inventaris"
         ];
 
-        if (allowedBendahara.includes(resource || "")) {
-            if (resource === "santri" && ["create", "edit", "delete"].includes(action || "")) {
+        if (allowedBendahara.includes(targetResource)) {
+            if (targetResource === "santri" && ["create", "edit", "delete"].includes(action || "")) {
                 return { can: false, reason: "Bendahara tidak bisa mengedit data santri." };
             }
             return { can: true };
@@ -81,7 +95,7 @@ export const accessControlProvider: AccessControlProvider = {
     // 4. KANTIN
     if (role === "kantin") {
         const allowedKantin = ["dompet_menu", "dompet_santri"];
-        if (allowedKantin.includes(resource || "")) {
+        if (allowedKantin.includes(targetResource)) {
             if (["create", "edit", "delete"].includes(action || "")) {
                 return { can: false, reason: "Kantin hanya dapat melihat dan memproses transaksi melalui alur QR." };
             }
