@@ -13,6 +13,12 @@ type QueueItem = {
   status: string | null;
 };
 
+const invalidFcmCodes = new Set([
+  "messaging/invalid-registration-token",
+  "messaging/registration-token-not-registered",
+  "messaging/invalid-argument",
+]);
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -127,12 +133,29 @@ Deno.serve(async (req) => {
           .map((result, index) => ({ result, token: tokens[index] }))
           .filter(({ result }) => !result.success);
 
+        const invalidTokens = failed
+          .filter(({ result }) => invalidFcmCodes.has(String(result.error?.code || "")))
+          .map(({ token }) => token)
+          .filter(Boolean);
+
+        if (invalidTokens.length > 0) {
+          await supabase
+            .from("user_devices")
+            .update({
+              is_active: false,
+              last_seen_at: new Date().toISOString(),
+            })
+            .in("fcm_token", invalidTokens);
+        }
+
         await supabase
           .from("notification_queue")
           .update({
             status: response.successCount > 0 ? "sent" : "failed",
             sent_at: response.successCount > 0 ? new Date().toISOString() : null,
-            error_message: failed.length > 0 ? `${failed.length} token(s) failed` : null,
+            error_message: failed.length > 0
+              ? `${failed.length} token(s) failed, ${invalidTokens.length} token invalid dinonaktifkan`
+              : null,
           })
           .eq("id", item.id);
 

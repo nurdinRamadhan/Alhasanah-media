@@ -36,7 +36,9 @@ Fitur wali:
 - Menu `Dompet Santri` muncul untuk wali yang punya santri aktif.
 - Jika dompet belum aktif, wali dapat aktivasi dompet dan membuat PIN santri.
 - PIN tidak dikirim plaintext. Android membuat verifier Argon2id dan mengirim salt/verifier ke backend.
-- Halaman wali menampilkan saldo, limit, riwayat transaksi, dan form limit.
+- Halaman wali menampilkan saldo, top up Midtrans, limit, riwayat transaksi, dan form limit.
+- Top up saldo dibuat dari Android wali melalui Edge Function `wallet-topup-create`.
+- Android hanya membuka Snap token Midtrans; saldo santri baru bertambah setelah webhook `midtrans-payment` memanggil `wallet_post_transaction` kategori `topup`.
 - Notifikasi wallet/deep link mengarah ke halaman terkait dan aplikasi fetch ulang data backend.
 - FCM single-owner dipanggil via RPC `register_my_fcm_device`.
 - Logout/switch account menonaktifkan token device saat ini.
@@ -82,11 +84,14 @@ Edge Function aktif yang dipakai Android:
 - `wallet-kantin-student-confirm`
 - `wallet-kantin-register-device`
 - `wallet-merchant-settlement-request`
+- `wallet-topup-create`
+- `midtrans-payment` untuk webhook Midtrans top up/SPP/donasi
 - `push-notifications`
 
 RPC penting:
 
 - `register_my_fcm_device`
+- `wallet_post_transaction` internal service role untuk posting top up/kantin/refund ke ledger append-only
 - `wallet_set_student_pin_verifier` internal service role
 - `wallet_confirm_kantin_student_payment` internal service role
 - `wallet_record_pin_failure` internal service role
@@ -95,6 +100,9 @@ RPC penting:
 - `wallet_post_merchant_ledger` internal service role
 - `wallet_request_merchant_settlement` internal service role via Edge Function
 - `wallet_mark_merchant_settlement_paid` internal service role/admin flow
+- `wallet_reject_merchant_settlement` internal service role/admin flow
+- `wallet_attach_merchant_settlement_proof` internal service role/admin flow
+- `wallet_set_merchant_status` internal service role/admin flow
 
 Tabel wallet/merchant penting:
 
@@ -127,6 +135,34 @@ Migration lokal baru/terkait:
 - `supabase/migrations/20260518085256_revoke_public_wallet_pin_verifier.sql`
 - `supabase/migrations/20260518131000_wallet_merchant_balance_and_settlement.sql`
 - `supabase/migrations/20260518132000_harden_wallet_merchant_internal_functions.sql`
+- `supabase/migrations/20260518143000_wallet_reconciliation_and_merchant_payout_proofs.sql`
+
+Edge Function admin yang sudah diperbarui:
+
+- `wallet-admin` versi remote 12
+- Action baru: `mark_merchant_settlement_paid`
+- Action baru: `reject_merchant_settlement`
+- Action baru: `attach_merchant_settlement_proof`
+- Action baru: `set_merchant_status`
+- Action baru: `quarantine_merchant`
+
+Edge Function wallet top up:
+
+- `wallet-topup-create` versi remote 1
+- `wallet-admin-topup-create` untuk top up titipan admin via Midtrans
+- `midtrans-payment` versi remote 35
+- Order ID top up memakai format `WALLET-TOPUP-{wallet_payment_intents.id}`.
+- Order ID top up titipan admin memakai format pendek `WAT-{wallet_payment_intents.id}` agar tidak melewati batas panjang order ID Midtrans.
+- Intent top up disimpan di `wallet_payment_intents` dengan `type = 'midtrans_topup'`.
+- Top up titipan admin memakai metadata `channel = admin_panel`, `depositor_name`, `depositor_relation`, dan catatan audit.
+- Webhook settlement/capture Midtrans:
+  - verifikasi signature jika `MIDTRANS_SERVER_KEY` tersedia
+  - cocokkan intent berdasarkan `midtrans_order_id`
+  - validasi nominal
+  - upsert `transaksi_keuangan` kategori `wallet_topup`
+  - panggil `wallet_post_transaction` dengan `direction = credit`, `category = topup`
+  - idempotency key ledger: `wallet-topup-post:{order_id}`
+  - top up Android dicatat sebagai `wali_id`, sedangkan top up titipan admin dicatat sebagai `admin_pencatat_id`
 
 ## Flow Kantin Merchant
 
@@ -161,33 +197,12 @@ Implikasi admin panel:
 - Admin/bendahara harus punya halaman rekap saldo merchant.
 - Admin/bendahara harus punya halaman pengajuan pencairan.
 - Admin/bendahara harus menandai pencairan sebagai paid hanya setelah dana benar-benar dikeluarkan dari rekening pesantren.
+- Admin/bendahara harus mengunggah atau mengarsipkan bukti transfer manual payout di bucket private `wallet-merchant-settlement-proofs`.
 - Semua aksi harus masuk audit log.
 
-## Status Sinkronisasi Admin Panel
+## Yang Perlu Dilanjutkan Di Admin Panel
 
-Status per 2026-05-18: admin panel sudah disesuaikan dengan perubahan Android/database merchant kantin.
-
-Yang sudah ditambahkan di admin panel:
-
-- Tab `Merchant` untuk membuat/mengubah `wallet_merchants`.
-- Tab `Outlet` untuk membuat/mengubah `wallet_merchant_outlets`.
-- Tombol assign akun kantin ke merchant/outlet lewat `wallet_merchant_users`.
-- Aksi aktif/suspend/revoke device kantin dari drawer akun kantin.
-- Tab `Saldo Merchant` untuk membaca `wallet_merchant_balances`.
-- Tab `Ledger Merchant` untuk audit `wallet_merchant_ledger`.
-- Tab `Pencairan` untuk approve/reject/mark paid `wallet_merchant_settlement_requests`.
-- Edge Function `wallet-admin` versi 10 dengan action merchant/outlet/assignment/settlement.
-
-Catatan penting: source migration dan Edge Function Android baru belum semuanya ada di repo admin lokal. Jika repo ini dijadikan sumber deploy tunggal, sinkronkan file Android-side berikut ke repo ini:
-
-- `wallet-kantin-student-confirm`
-- `wallet-kantin-register-device`
-- `wallet-merchant-settlement-request`
-- migration merchant balance/settlement yang disebut pada bagian `File Penting`.
-
-## Checklist Admin Panel
-
-Checklist berikut sekarang sudah diwakili oleh halaman `Manajemen Kantin`, kecuali rekonsiliasi total lintas rekening yang tetap menjadi pekerjaan lanjutan:
+Prioritas tinggi:
 
 - CRUD merchant kantin: `wallet_merchants`.
 - CRUD outlet kantin: `wallet_merchant_outlets`.
@@ -197,10 +212,11 @@ Checklist berikut sekarang sudah diwakili oleh halaman `Manajemen Kantin`, kecua
 - Ledger merchant: `wallet_merchant_ledger`.
 - Workflow pencairan:
   - list `wallet_merchant_settlement_requests`
-  - approve/reject
-  - mark paid via RPC/Edge Function admin
-  - audit bukti transfer/manual payout
-- Rekonsiliasi total lanjutan:
+  - approve/reject/request review
+  - mark paid via Edge Function `wallet-admin`
+  - upload bukti transfer ke bucket private `wallet-merchant-settlement-proofs`
+  - attach bukti lewat action `attach_merchant_settlement_proof`
+- Rekonsiliasi total:
   - saldo santri total
   - saldo merchant total
   - pending settlement
@@ -232,3 +248,141 @@ Untuk fitur Dompet/Kantin, state terakhir:
 - Edge Function wallet/kantin aktif.
 - Tabel saldo merchant dan settlement sudah RLS aktif.
 - Fungsi internal merchant sudah direvoke dari `anon/authenticated` dan hanya service role.
+
+## Status Checklist Lanjutan
+
+Status per 2026-05-18:
+
+1. Sinkron source Android-side ke repo admin
+
+   Status di repo Android ini: sudah ada.
+
+   File lokal yang tersedia:
+
+   - `supabase/functions/wallet-kantin-student-confirm/index.ts`
+   - `supabase/functions/wallet-kantin-register-device/index.ts`
+   - `supabase/functions/wallet-merchant-settlement-request/index.ts`
+   - `supabase/functions/wallet-topup-create/index.ts`
+   - `supabase/functions/wallet-admin-topup-create/index.ts`
+
+   Catatan: source `wallet-topup-create` sudah disinkronkan dari Edge Function remote versi 1 ke repo admin. Migration `20260518143000_wallet_reconciliation_and_merchant_payout_proofs.sql` masih perlu disinkronkan dari repo Android jika repo admin menjadi sumber migration tunggal.
+
+2. Rekonsiliasi total lintas saldo
+
+   Status: backend siap, UI admin repo ini sudah menambahkan tampilan dasar di `Pusat Operasional Dompet -> Cek Saldo`.
+
+   Yang sudah ada:
+
+   - saldo santri via `dompet_santri`
+   - saldo merchant/kantin via `wallet_merchant_balances`
+   - pending settlement via `wallet_merchant_balances.saldo_pending_settlement`
+   - ledger merchant via `wallet_merchant_ledger`
+   - dana masuk wallet Midtrans via `wallet_payment_intents`
+   - tagihan/SPP via `tagihan_santri`
+   - transaksi keuangan sukses via `transaksi_keuangan`
+   - kolom hasil rekonsiliasi lintas saldo di `wallet_reconciliation_runs`
+   - RPC `wallet_run_reconciliation` sudah mengisi `santri_balance_total`, `merchant_liability_total`, `merchant_pending_request_total`, `wallet_topup_midtrans_total`, `spp_paid_total`, `spp_outstanding_total`, dan `difference_liability_vs_bank`
+
+   Yang sudah ditampilkan di admin panel UI:
+
+   - dashboard rekonsiliasi total saldo santri
+   - total saldo merchant/kantin
+   - total pending settlement
+   - dana masuk Midtrans/rekening pesantren
+   - tagihan/SPP dan transaksi keuangan
+   - selisih/variance lintas ledger
+
+   Catatan: tampilan saat ini berupa tabel operasional untuk bendahara. Jika data sudah besar, tahap berikutnya bisa menambah kartu ringkasan dan grafik tren tanpa mengubah sumber data.
+
+3. Audit dan pembuatan top up Midtrans
+
+   Status: UI admin repo ini sudah menambahkan tab `Top Up Midtrans` di `Pusat Operasional Dompet`.
+
+   Yang ditampilkan:
+
+   - waktu intent
+   - sumber top up: aplikasi wali atau titipan admin
+   - santri/NIS
+   - nominal
+   - status pembayaran
+   - order ID Midtrans
+   - nama penyetor untuk titipan admin
+   - ledger yang sudah terposting
+   - waktu kedaluwarsa
+   - role pembuat
+
+   Yang bisa dibuat admin:
+
+   - bendahara/super admin dapat menekan `Top Up Titipan`;
+   - admin memilih santri, nominal, nama penyetor, hubungan penyetor, nomor HP opsional, dan catatan audit;
+   - sistem hanya membuat sesi Midtrans;
+   - saldo tidak bertambah sampai webhook Midtrans settlement/capture sukses;
+   - tidak ada jalur input saldo manual.
+
+   Yang sengaja tidak ditampilkan:
+
+   - Snap token Midtrans
+   - provider payload mentah
+   - secret/webhook signature
+
+   Aturan: admin panel boleh membuat top up titipan hanya lewat Midtrans. Admin panel tetap tidak boleh menambah saldo manual.
+
+4. Bukti pencairan merchant
+
+   Status: backend siap, UI admin perlu upload/preview.
+
+   Yang sudah ada:
+
+   - bucket private `wallet-merchant-settlement-proofs`
+   - policy storage untuk admin `super_admin`, `bendahara`, dan read `rois`
+   - kolom `proof_storage_path`, `proof_uploaded_by`, `proof_uploaded_at`, `proof_metadata`
+   - RPC `wallet_attach_merchant_settlement_proof`
+   - action `wallet-admin.attach_merchant_settlement_proof`
+   - action `wallet-admin.mark_merchant_settlement_paid`
+   - action `wallet-admin.reject_merchant_settlement`
+
+   Admin panel perlu menambahkan komponen upload file dan preview/download bukti sesuai role.
+
+5. Review notifikasi kritis
+
+   Status: belum selesai.
+
+   Notifikasi operasional masih perlu dibersihkan dari halaman admin `Operasional Dompet -> Notifikasi`. Tandai sebagai `Selesai`, `Sudah diperiksa`, atau `Data uji` sesuai hasil review.
+
+6. Production cleanup non-wallet
+
+   Status: belum selesai.
+
+   Supabase Advisor masih menemukan isu non-wallet, termasuk:
+
+   - RLS disabled: `kategori_barang`, `inventaris`, `lokasi_aset`, `struktur_organisasi`, `spatial_ref_sys`, `kecamatan_polygons`
+   - RLS enabled tanpa policy: `detail_transaksi`, `geocode_cache`, `geocode_jobs`, `prestasi_santri`
+   - PostGIS masih di schema public
+   - public bucket listing: `berita-images`, `pengeluaran-bukti`, `struktur-images`
+   - beberapa function legacy `SECURITY DEFINER` masih callable oleh `anon/authenticated`
+   - leaked password protection belum aktif
+
+7. Uji E2E setelah perubahan admin terbaru
+
+   Status: belum dilakukan penuh di perangkat/admin panel.
+
+   Yang sudah dilakukan:
+
+   - `./gradlew :app:compileDebugKotlin` berhasil
+   - `./gradlew :app:testDebugUnitTest` berhasil
+   - Edge Function dan schema dicek via Supabase MCP
+   - `wallet-admin` redeploy versi 12
+   - bucket proof, policy storage, RPC settlement reject/proof/status merchant diverifikasi via Supabase MCP
+
+   Yang masih harus disimulasikan di perangkat/admin panel:
+
+   - daftar device kantin dari Android
+   - approve device dari admin
+   - transaksi <= Rp75.000
+   - transaksi > Rp75.000 approval wali
+   - saldo merchant bertambah
+   - pengajuan settlement
+   - approve, reject, mark paid
+   - revoke device
+   - karantina merchant
+   - audit keamanan setelah semua simulasi

@@ -557,6 +557,49 @@ Wali dapat melihat:
 
 Wali tidak boleh melihat data santri lain atau data operasional kantin.
 
+### 6.6 Top Up Midtrans
+
+Top up saldo santri hanya boleh masuk melalui Midtrans dan webhook resmi. Ada dua jalur pembuatan sesi pembayaran:
+
+- `Top Up Android`: wali membuat top up dari aplikasi Android.
+- `Top Up Titipan Admin`: bendahara/super admin membuat sesi Midtrans untuk penyetor pihak ketiga, misalnya keluarga lain, kerabat, alumni, atau orang yang menitipkan uang jajan.
+
+Kedua jalur ini tidak boleh mengubah saldo langsung. Admin panel hanya membuat sesi pembayaran Midtrans; saldo santri tetap baru bertambah setelah Midtrans mengirim settlement/capture valid ke webhook `midtrans-payment`.
+
+Flow top up Android:
+
+1. Wali memilih nominal top up di aplikasi Android.
+2. Android memanggil Edge Function `wallet-topup-create`.
+3. Backend membuat baris `wallet_payment_intents` dengan `type = 'midtrans_topup'`.
+4. Backend membuat order Midtrans dengan format `WALLET-TOPUP-{wallet_payment_intents.id}` dan mengembalikan Snap token ke Android.
+5. Android membuka pembayaran Midtrans.
+6. Webhook `midtrans-payment` menerima settlement/capture dari Midtrans.
+7. Webhook memverifikasi signature jika `MIDTRANS_SERVER_KEY` tersedia, mencocokkan order ID, dan memvalidasi nominal.
+8. Webhook mencatat `transaksi_keuangan` kategori `wallet_topup`.
+9. Webhook memanggil `wallet_post_transaction` dengan `direction = credit`, `category = topup`, dan idempotency key `wallet-topup-post:{order_id}`.
+10. Saldo cached `dompet_santri.saldo` bertambah hanya dari posting ledger resmi.
+
+Flow top up titipan admin:
+
+1. Bendahara/super admin membuka `Pusat Operasional Dompet -> Top Up Midtrans`.
+2. Admin menekan `Top Up Titipan`.
+3. Admin memilih santri dan mengisi nominal, nama penyetor, hubungan penyetor, nomor HP opsional, dan catatan audit.
+4. Admin panel memanggil Edge Function `wallet-admin-topup-create`.
+5. Backend memvalidasi role admin, status akun admin, dompet santri aktif, nominal, idempotency key, dan catatan audit.
+6. Backend membuat `wallet_payment_intents` dengan `type = 'midtrans_topup'`, `created_by_role = bendahara/super_admin`, dan metadata `channel = admin_panel`.
+7. Backend membuat order Midtrans dengan format pendek `WAT-{wallet_payment_intents.id}` agar tidak melewati batas panjang order ID Midtrans.
+8. Admin memberikan halaman pembayaran Midtrans kepada penyetor.
+9. Saldo santri baru bertambah setelah webhook `midtrans-payment` berhasil memvalidasi pembayaran dan memanggil `wallet_post_transaction`.
+
+Implikasi audit:
+
+- `wallet_payment_intents` menyimpan intent top up, status, order ID, expiry, dan ledger yang sudah terposting.
+- Token Snap dan payload provider tidak boleh ditampilkan di admin panel.
+- Tab admin `Top Up Midtrans` menampilkan top up dari Android wali dan titipan admin.
+- Top up titipan admin menyimpan nama penyetor, hubungan, catatan audit, admin pembuat, order ID, dan ledger final.
+- Jika webhook gagal atau nominal tidak cocok, saldo tidak boleh dikoreksi manual; buat investigasi dari log Midtrans, intent, dan ledger.
+- Top up tunai/manual tetap tidak diaktifkan. Jika suatu saat cash deposit dibutuhkan, desainnya harus berbeda dan minimal memakai approval dua pihak.
+
 ## 7. RPC Wajib
 
 Semua mutasi saldo wajib lewat function private atau RPC ketat. Contoh nama:
@@ -1446,10 +1489,13 @@ Status per 2026-05-16:
 - Function `wallet_start_dispute_investigation` dipakai bendahara/rois/super_admin untuk memulai investigasi dispute.
 - Function `wallet_review_reconciliation_run` dan `wallet_review_integrity_run` menyimpan catatan review hasil pemeriksaan saldo dan ledger.
 - Edge Function `wallet-admin` sudah mengekspose action operasional tersebut, termasuk `broadcast_wallet_maintenance`.
-- Admin panel memiliki halaman `Pusat Operasional Dompet` di `/dompet-operasional` dengan tab bahasa Indonesia: `Peringatan Keamanan`, `Laporan Wali`, `Cek Saldo`, `Cek Ledger`, dan `Notifikasi`.
+- Admin panel memiliki halaman `Pusat Operasional Dompet` di `/dompet-operasional` dengan tab bahasa Indonesia: `Peringatan Keamanan`, `Laporan Wali`, `Cek Saldo`, `Top Up Midtrans`, `Cek Ledger`, dan `Notifikasi`.
 - Migration `20260516140739_wallet_production_readiness_workflow.sql` menutup gap workflow produksi: risk event bisa `investigating` dan `escalated`, rekonsiliasi/integritas punya `resolution_status`, `resolved_by`, `resolved_at`, dan `resolution_note`.
 - `wallet_investigate_risk_event`, `wallet_escalate_risk_event`, `wallet_resolve_reconciliation_run`, dan `wallet_resolve_integrity_run` menjadi action resmi untuk tindak lanjut operasional.
 - Halaman operasional sekarang memiliki tombol run manual `Jalankan Cek Saldo`, `Jalankan Cek Ledger`, tombol `Periksa`, `Eskalasi`, dan `Tindak Lanjut`.
+- Tab `Cek Saldo` menampilkan rekonsiliasi total: saldo ledger santri, saldo cached santri, saldo merchant, pending pencairan merchant, kewajiban internal, top up Midtrans, SPP lunas, SPP belum lunas, selisih internal, dan selisih terhadap rekening cadangan jika diisi.
+- Tab `Top Up Midtrans` menampilkan intent top up dari aplikasi wali dan titipan admin: waktu, sumber, santri, nominal, status pembayaran, order Midtrans, penyetor, ledger terposting, expiry, dan role pembuat. Admin tidak melihat Snap token atau payload Midtrans.
+- Tombol `Top Up Titipan` hanya membuat sesi Midtrans untuk penyetor pihak ketiga. Saldo tidak berubah sampai webhook Midtrans mem-posting ledger.
 - Dokumen test plan produksi internal ada di `referensi/Dompet-santri/production_readiness_admin_database.md`.
 - Status per 2026-05-18: implementasi Android memisahkan kantin sebagai merchant/outlet, bukan wali/alumni. Admin panel sudah disesuaikan untuk membaca dan mengelola `wallet_merchants`, `wallet_merchant_outlets`, `wallet_merchant_users`, `wallet_merchant_balances`, `wallet_merchant_ledger`, dan `wallet_merchant_settlement_requests`.
 - Halaman `Manajemen Kantin` sekarang memiliki tab `Akun Kantin`, `Merchant`, `Outlet`, `Saldo Merchant`, `Pencairan`, dan `Ledger Merchant`.
@@ -1494,7 +1540,7 @@ Yang masih harus dikerjakan sebelum Kotlin:
 - Detail drill-down lanjutan untuk dispute dan risk event jika data operasional sudah besar.
 - Worker SMS fallback untuk saldo kritis dan event keamanan kritikal.
 - Email/weekly silent digest untuk bukti hash-chain verification sukses.
-- Sinkronkan migration dan source Edge Function hasil pekerjaan Android ke repo admin jika belum masuk lokal, terutama `wallet-kantin-student-confirm`, `wallet-kantin-register-device`, dan `wallet-merchant-settlement-request`.
+- Pastikan migration dan source Edge Function hasil pekerjaan Android tetap sinkron di repo admin. Source `wallet-topup-create` sudah masuk repo admin; migration rekonsiliasi/payout proof masih perlu disinkronkan jika repo admin menjadi sumber migration tunggal.
 
 ## 15.1 Audit Keamanan Satu Klik
 

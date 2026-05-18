@@ -103,6 +103,7 @@ Objek penting:
 - `wallet_merchant_balances`: saldo internal merchant kantin yang tidak boleh diedit langsung.
 - `wallet_merchant_ledger`: riwayat saldo merchant append-only untuk pembayaran kantin dan pencairan.
 - `wallet_merchant_settlement_requests`: workflow pengajuan pencairan kantin.
+- `wallet_payment_intents`: jejak top up Android dan payment intent lain. Untuk top up Midtrans gunakan `type = 'midtrans_topup'`.
 
 Function penting:
 
@@ -117,6 +118,7 @@ Function penting:
 - `wallet_review_integrity_run(...)`: menyimpan catatan admin untuk hasil cek ledger.
 - `wallet_request_merchant_settlement(...)`: membuat pengajuan pencairan dari Android kantin owner/manager melalui Edge Function.
 - `wallet_mark_merchant_settlement_paid(...)`: menandai pencairan sudah dibayar oleh bendahara/super admin setelah dana benar-benar keluar.
+- `wallet_post_transaction(...)`: satu-satunya jalur posting saldo ke ledger append-only, termasuk top up Midtrans dari webhook.
 
 Cron aktif:
 
@@ -142,10 +144,27 @@ Tab yang tersedia:
 - `Peringatan Keamanan`: admin menekan `Tangani`, `Periksa`, `Eskalasi`, dan `Selesaikan` sesuai kondisi.
 - `Laporan Wali`: bendahara dapat menekan `Periksa` dan `Putuskan`; jika saldo dikembalikan, sistem membuat ledger refund baru.
 - `Cek Saldo`: jalankan cek manual, review hasil rekonsiliasi, dan beri tindak lanjut formal agar selisih tidak diabaikan.
+- `Top Up Midtrans`: melihat intent top up yang dibuat wali dari aplikasi Android atau titipan admin, status Midtrans, order ID, penyetor, dan ledger yang sudah terposting.
 - `Cek Ledger`: jalankan cek manual, review hasil hash-chain verification, dan beri tindak lanjut formal.
 - `Notifikasi`: melihat antrean FCM dan error pengiriman. Notifikasi `critical` yang belum selesai tampil merah agar admin segera melihat masalah.
 - Pada tab `Notifikasi`, admin berwenang dapat menekan `Review` untuk memberi keputusan `Sudah diperiksa`, `Selesai`, atau `Data uji`. Catatan review wajib diisi agar keputusan masuk audit.
 - Audit keamanan hanya menghitung notifikasi kritis yang masih `Belum diperiksa`. Riwayat gagal lama yang sudah direview tidak boleh terus membuat audit terlihat kritis, tetapi tetap tersimpan sebagai bukti.
+
+Aturan top up Midtrans:
+
+- Wali membuat top up dari aplikasi Android melalui Edge Function `wallet-topup-create`.
+- Bendahara/super admin dapat membuat top up titipan melalui Edge Function `wallet-admin-topup-create`.
+- Admin panel tidak membuka Snap token dan tidak mengubah saldo.
+- Android hanya menerima/membuka Snap token Midtrans.
+- Saldo santri bertambah hanya setelah webhook `midtrans-payment` menerima status settlement/capture valid dan memanggil `wallet_post_transaction`.
+- Order ID top up Android memakai format `WALLET-TOPUP-{wallet_payment_intents.id}`.
+- Order ID top up titipan admin memakai format pendek `WAT-{wallet_payment_intents.id}` agar tidak melewati batas panjang order ID Midtrans.
+- Ledger top up memakai `category = topup`, `direction = credit`, dan idempotency key `wallet-topup-post:{order_id}`.
+- Tab `Top Up Midtrans` dipakai untuk audit dan bantuan operasional jika wali/penyetor bertanya status pembayaran.
+- Top up titipan admin wajib berisi nama penyetor, hubungan penyetor, dan catatan audit.
+- Role yang boleh membuat top up titipan hanya `bendahara` dan `super_admin`.
+- Jika top up gagal/expired, admin menjelaskan status berdasarkan intent dan log, bukan membuat saldo manual.
+- Top up tunai/manual tetap tidak aktif. Satu-satunya lubang penambahan saldo dari admin adalah pembayaran Midtrans yang sukses dan terposting ledger.
 
 Halaman manajemen kantin ada di `/kantin-management` dengan nama menu `Manajemen Kantin`.
 

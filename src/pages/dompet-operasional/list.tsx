@@ -11,6 +11,7 @@ import {
   Input,
   InputNumber,
   Modal,
+  QRCode,
   Row,
   Col,
   Select,
@@ -26,6 +27,7 @@ import {
   BellOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
+  CreditCardOutlined,
   ExclamationCircleOutlined,
   FileSearchOutlined,
   ReloadOutlined,
@@ -78,9 +80,21 @@ interface IReconciliationRun {
   status: string;
   ledger_net: number;
   cached_balance_total: number;
+  santri_balance_total?: number | null;
+  merchant_available_total?: number | null;
+  merchant_pending_settlement_total?: number | null;
+  merchant_liability_total?: number | null;
+  merchant_sales_total?: number | null;
+  merchant_settled_total?: number | null;
+  merchant_pending_request_total?: number | null;
+  wallet_topup_midtrans_total?: number | null;
+  spp_paid_total?: number | null;
+  spp_outstanding_total?: number | null;
+  expected_internal_liability?: number | null;
   reserved_bank_balance?: number | null;
   difference_internal: number;
   difference_bank?: number | null;
+  difference_liability_vs_bank?: number | null;
   freeze_triggered: boolean;
   reviewed_at?: string | null;
   review_note?: string | null;
@@ -121,6 +135,31 @@ interface INotificationQueue {
   wallet_review_note?: string | null;
   user_id: string;
   profiles?: { full_name?: string | null; role?: string | null } | null;
+}
+
+interface IWalletPaymentIntent {
+  id: string;
+  santri_nis: string;
+  type: string;
+  status: string;
+  amount: number;
+  created_by?: string | null;
+  created_by_role?: string | null;
+  expires_at?: string | null;
+  approved_at?: string | null;
+  posted_ledger_id?: number | null;
+  midtrans_order_id?: string | null;
+  idempotency_key?: string | null;
+  metadata?: Record<string, unknown> | null;
+  created_at: string;
+  updated_at?: string | null;
+  santri?: { nama?: string | null; kelas?: string | null; jurusan?: string | null } | null;
+}
+
+interface IWalletSantriOption {
+  santri_nis: string;
+  saldo?: number | null;
+  santri?: { nama?: string | null; kelas?: string | null; jurusan?: string | null } | null;
 }
 
 const money = (value?: number | string | null) =>
@@ -183,6 +222,8 @@ export const DompetOperasionalList = () => {
   const [reconciliationRuns, setReconciliationRuns] = useState<IReconciliationRun[]>([]);
   const [integrityRuns, setIntegrityRuns] = useState<IIntegrityRun[]>([]);
   const [notifications, setNotifications] = useState<INotificationQueue[]>([]);
+  const [topupIntents, setTopupIntents] = useState<IWalletPaymentIntent[]>([]);
+  const [walletSantriOptions, setWalletSantriOptions] = useState<IWalletSantriOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionModal, setActionModal] = useState<{
@@ -200,7 +241,8 @@ export const DompetOperasionalList = () => {
       | "notification_review"
       | "maintenance"
       | "run_reconciliation"
-      | "run_integrity";
+      | "run_integrity"
+      | "admin_topup";
     record?: IRiskEvent | IDispute | IReconciliationRun | IIntegrityRun | INotificationQueue;
   } | null>(null);
   const [form] = Form.useForm();
@@ -208,7 +250,7 @@ export const DompetOperasionalList = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [riskRes, disputeRes, reconciliationRes, integrityRes, notificationRes] = await Promise.all([
+      const [riskRes, disputeRes, reconciliationRes, integrityRes, notificationRes, topupRes, walletAccountsRes] = await Promise.all([
         supabaseClient
           .from("wallet_risk_events")
           .select("id,created_at,severity,status,rule_code,santri_nis,action,score,response_due_at,details")
@@ -221,7 +263,7 @@ export const DompetOperasionalList = () => {
           .limit(80),
         supabaseClient
           .from("wallet_reconciliation_runs")
-          .select("id,started_at,finished_at,status,ledger_net,cached_balance_total,reserved_bank_balance,difference_internal,difference_bank,freeze_triggered,reviewed_at,review_note,resolution_status,resolved_at,resolution_note")
+          .select("id,started_at,finished_at,status,ledger_net,cached_balance_total,santri_balance_total,merchant_available_total,merchant_pending_settlement_total,merchant_liability_total,merchant_sales_total,merchant_settled_total,merchant_pending_request_total,wallet_topup_midtrans_total,spp_paid_total,spp_outstanding_total,expected_internal_liability,reserved_bank_balance,difference_internal,difference_bank,difference_liability_vs_bank,freeze_triggered,reviewed_at,review_note,resolution_status,resolved_at,resolution_note")
           .order("started_at", { ascending: false })
           .limit(60),
         supabaseClient
@@ -235,6 +277,18 @@ export const DompetOperasionalList = () => {
           .or("source_table.like.wallet%,event_type.like.wallet.%,event_type.like.dompet.%")
           .order("created_at", { ascending: false })
           .limit(100),
+        supabaseClient
+          .from("wallet_payment_intents")
+          .select("id,santri_nis,type,status,amount,created_by,created_by_role,expires_at,approved_at,posted_ledger_id,midtrans_order_id,idempotency_key,metadata,created_at,updated_at")
+          .eq("type", "midtrans_topup")
+          .order("created_at", { ascending: false })
+          .limit(80),
+        supabaseClient
+          .from("dompet_santri")
+          .select("santri_nis,saldo,status")
+          .eq("status", "active")
+          .order("santri_nis", { ascending: true })
+          .limit(500),
       ]);
 
       if (riskRes.error) throw new Error(`Gagal memuat peringatan keamanan: ${riskRes.error.message}`);
@@ -242,14 +296,18 @@ export const DompetOperasionalList = () => {
       if (reconciliationRes.error) throw new Error(`Gagal memuat cek saldo: ${reconciliationRes.error.message}`);
       if (integrityRes.error) throw new Error(`Gagal memuat cek ledger: ${integrityRes.error.message}`);
       if (notificationRes.error) throw new Error(`Gagal memuat notifikasi dompet: ${notificationRes.error.message}`);
+      if (topupRes.error) throw new Error(`Gagal memuat top up Midtrans: ${topupRes.error.message}`);
+      if (walletAccountsRes.error) throw new Error(`Gagal memuat daftar dompet aktif: ${walletAccountsRes.error.message}`);
 
       const disputeRows = (disputeRes.data || []) as IDispute[];
       const notificationRows = (notificationRes.data || []) as INotificationQueue[];
+      const topupRows = (topupRes.data || []) as IWalletPaymentIntent[];
+      const walletAccountRows = (walletAccountsRes.data || []) as IWalletSantriOption[];
       const disputeProfileIds = disputeRows.map((item) => item.reported_by).filter(Boolean) as string[];
       const notificationUserIds = notificationRows.map((item) => item.user_id).filter(Boolean);
       const userIds = Array.from(new Set([...disputeProfileIds, ...notificationUserIds]));
       const ledgerIds = Array.from(new Set(disputeRows.map((item) => item.ledger_id).filter(Boolean)));
-      const santriNisList = Array.from(new Set(disputeRows.map((item) => item.santri_nis).filter(Boolean)));
+      const santriNisList = Array.from(new Set([...disputeRows.map((item) => item.santri_nis), ...topupRows.map((item) => item.santri_nis), ...walletAccountRows.map((item) => item.santri_nis)].filter(Boolean)));
       let profileMap = new Map<string, { full_name?: string | null; role?: string | null }>();
       let ledgerMap = new Map<number, { amount?: number | null; category?: string | null; created_at?: string | null; balance_after?: number | null }>();
       let santriMap = new Map<string, { nama?: string | null; kelas?: string | null; jurusan?: string | null }>();
@@ -299,6 +357,8 @@ export const DompetOperasionalList = () => {
       setReconciliationRuns((reconciliationRes.data || []) as IReconciliationRun[]);
       setIntegrityRuns((integrityRes.data || []) as IIntegrityRun[]);
       setNotifications(notificationRows.map((item) => ({ ...item, profiles: profileMap.get(item.user_id) || null })));
+      setTopupIntents(topupRows.map((item) => ({ ...item, santri: santriMap.get(item.santri_nis) || null })));
+      setWalletSantriOptions(walletAccountRows.map((item) => ({ ...item, santri: santriMap.get(item.santri_nis) || null })));
     } catch (error) {
       message.error(error instanceof Error ? error.message : "Gagal memuat data operasional dompet.");
     } finally {
@@ -316,8 +376,10 @@ export const DompetOperasionalList = () => {
     const failedChecks = reconciliationRuns.filter((item) => item.status !== "success").length + integrityRuns.filter((item) => item.status !== "success").length;
     const pendingNotifications = notifications.filter((item) => ["pending", null, undefined].includes(item.status)).length;
     const criticalNotifications = notifications.filter((item) => item.priority === "critical" && item.status !== "sent" && (item.wallet_review_status || "open") === "open").length;
-    return { urgentRisk, openDisputes, failedChecks, pendingNotifications, criticalNotifications };
-  }, [riskEvents, disputes, reconciliationRuns, integrityRuns, notifications]);
+    const pendingTopups = topupIntents.filter((item) => ["pending", "created", "waiting_payment"].includes(item.status) && !item.posted_ledger_id).length;
+    const postedTopups = topupIntents.filter((item) => Boolean(item.posted_ledger_id)).length;
+    return { urgentRisk, openDisputes, failedChecks, pendingNotifications, criticalNotifications, pendingTopups, postedTopups };
+  }, [riskEvents, disputes, reconciliationRuns, integrityRuns, notifications, topupIntents]);
 
   const callWalletAdmin = async (body: Record<string, unknown>) => {
     setActionLoading(true);
@@ -413,6 +475,51 @@ export const DompetOperasionalList = () => {
           from_date: values.from_date?.toISOString() || null,
         });
         message.success("Pemeriksaan ledger manual selesai dijalankan.");
+      }
+      if (actionModal.type === "admin_topup") {
+        const idempotencyKey = `admin-topup:${crypto.randomUUID()}`;
+        const { data, error } = await supabaseClient.functions.invoke("wallet-admin-topup-create", {
+          body: {
+            santri_nis: values.santri_nis,
+            amount: values.amount,
+            depositor_name: values.depositor_name,
+            depositor_relation: values.depositor_relation,
+            depositor_phone: values.depositor_phone || null,
+            note: values.note,
+            idempotency_key: idempotencyKey,
+          },
+        });
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+        await loadData();
+        const redirectUrl = data?.data?.redirect_url ? String(data.data.redirect_url) : "";
+        Modal.success({
+          title: "Sesi top up Midtrans dibuat",
+          width: 520,
+          content: (
+            <Space direction="vertical" size={12} style={{ width: "100%" }}>
+              <Text>Berikan halaman pembayaran Midtrans kepada penyetor. Saldo santri baru bertambah setelah pembayaran berhasil.</Text>
+              <Text strong>Order: {data?.data?.order_id || "-"}</Text>
+              <Text>Nominal: {money(data?.data?.amount)}</Text>
+              {redirectUrl ? (
+                <>
+                  <div style={{ display: "flex", justifyContent: "center", padding: 8 }}>
+                    <QRCode value={redirectUrl} size={220} />
+                  </div>
+                  <Button type="primary" icon={<CreditCardOutlined />} href={redirectUrl} target="_blank" rel="noopener noreferrer" block>
+                    Buka Pembayaran Midtrans
+                  </Button>
+                  <Text copyable={{ text: redirectUrl }} type="secondary">
+                    Salin link pembayaran Midtrans
+                  </Text>
+                </>
+              ) : (
+                <Alert showIcon type="warning" message="Link pembayaran tidak diterima dari Midtrans" />
+              )}
+            </Space>
+          ),
+        });
+        message.success("Sesi top up titipan dibuat.");
       }
       closeAction();
     } catch (error) {
@@ -535,9 +642,16 @@ export const DompetOperasionalList = () => {
   const reconciliationColumns: ProColumns<IReconciliationRun>[] = [
     { title: "Waktu", dataIndex: "started_at", render: (_, row) => dayjs(row.started_at).format("DD/MM/YYYY HH:mm") },
     { title: "Status", dataIndex: "status", render: (_, row) => <Tag color={statusColor(row.status)}>{row.status === "success" ? "Cocok" : "Bermasalah"}</Tag> },
-    { title: "Saldo dari Ledger", dataIndex: "ledger_net", align: "right", render: (_, row) => money(row.ledger_net) },
-    { title: "Saldo Cepat", dataIndex: "cached_balance_total", align: "right", render: (_, row) => money(row.cached_balance_total) },
-    { title: "Selisih", dataIndex: "difference_internal", align: "right", render: (_, row) => money(row.difference_internal) },
+    { title: "Saldo Ledger Santri", dataIndex: "ledger_net", align: "right", render: (_, row) => money(row.ledger_net) },
+    { title: "Saldo Cepat Santri", dataIndex: "cached_balance_total", align: "right", render: (_, row) => money(row.cached_balance_total) },
+    { title: "Saldo Merchant", dataIndex: "merchant_available_total", align: "right", render: (_, row) => money(row.merchant_available_total) },
+    { title: "Pending Cair Merchant", dataIndex: "merchant_pending_settlement_total", align: "right", render: (_, row) => money(row.merchant_pending_settlement_total) },
+    { title: "Kewajiban Internal", dataIndex: "expected_internal_liability", align: "right", render: (_, row) => money(row.expected_internal_liability) },
+    { title: "Top Up Midtrans", dataIndex: "wallet_topup_midtrans_total", align: "right", render: (_, row) => money(row.wallet_topup_midtrans_total) },
+    { title: "SPP Lunas", dataIndex: "spp_paid_total", align: "right", render: (_, row) => money(row.spp_paid_total) },
+    { title: "SPP Belum Lunas", dataIndex: "spp_outstanding_total", align: "right", render: (_, row) => money(row.spp_outstanding_total) },
+    { title: "Selisih Internal", dataIndex: "difference_internal", align: "right", render: (_, row) => money(row.difference_internal) },
+    { title: "Selisih Rekening", dataIndex: "difference_liability_vs_bank", align: "right", render: (_, row) => row.difference_liability_vs_bank == null ? "-" : money(row.difference_liability_vs_bank) },
     { title: "Sudah Direview", dataIndex: "reviewed_at", render: (_, row) => row.reviewed_at ? <Tag color="green">Sudah</Tag> : <Tag color="gold">Belum</Tag> },
     { title: "Tindak Lanjut", dataIndex: "resolution_status", render: (_, row) => <Tag color={statusColor(row.resolution_status || "open")}>{row.resolution_status || "open"}</Tag> },
     {
@@ -554,6 +668,49 @@ export const DompetOperasionalList = () => {
         </Space>
       ),
     },
+  ];
+
+  const topupColumns: ProColumns<IWalletPaymentIntent>[] = [
+    { title: "Waktu", dataIndex: "created_at", render: (_, row) => dayjs(row.created_at).format("DD/MM/YYYY HH:mm") },
+    {
+      title: "Sumber",
+      dataIndex: "created_by_role",
+      render: (_, row) => {
+        const channel = row.metadata?.channel;
+        return channel === "admin_panel" ? <Tag color="purple">Titipan Admin</Tag> : <Tag color="blue">Aplikasi Wali</Tag>;
+      },
+    },
+    {
+      title: "Santri",
+      dataIndex: "santri_nis",
+      render: (_, row) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{row.santri?.nama || row.santri_nis}</Text>
+          <Text type="secondary">NIS {row.santri_nis} · Kelas {row.santri?.kelas || "-"}</Text>
+        </Space>
+      ),
+    },
+    { title: "Nominal", dataIndex: "amount", align: "right", render: (_, row) => money(row.amount) },
+    {
+      title: "Status Pembayaran",
+      dataIndex: "status",
+      render: (_, row) => (
+        <Space direction="vertical" size={0}>
+          <Tag color={statusColor(row.posted_ledger_id ? "success" : row.status)}>{row.posted_ledger_id ? "Saldo sudah masuk" : row.status}</Tag>
+          {row.approved_at && <Text type="secondary">{dayjs(row.approved_at).format("DD/MM/YYYY HH:mm")}</Text>}
+        </Space>
+      ),
+    },
+    { title: "Order Midtrans", dataIndex: "midtrans_order_id", ellipsis: true, render: (_, row) => row.midtrans_order_id || "-" },
+    {
+      title: "Penyetor",
+      dataIndex: "metadata",
+      ellipsis: true,
+      render: (_, row) => row.metadata?.channel === "admin_panel" ? String(row.metadata?.depositor_name || "-") : "Wali santri",
+    },
+    { title: "Ledger", dataIndex: "posted_ledger_id", render: (_, row) => row.posted_ledger_id || "-" },
+    { title: "Kedaluwarsa", dataIndex: "expires_at", render: (_, row) => row.expires_at ? dayjs(row.expires_at).format("DD/MM/YYYY HH:mm") : "-" },
+    { title: "Dibuat Dari", dataIndex: "created_by_role", render: (_, row) => row.created_by_role || "wali/aplikasi" },
   ];
 
   const integrityColumns: ProColumns<IIntegrityRun>[] = [
@@ -646,6 +803,7 @@ export const DompetOperasionalList = () => {
     maintenance: "Pemberitahuan Maintenance Dompet",
     run_reconciliation: "Jalankan Cek Saldo Manual",
     run_integrity: "Jalankan Cek Ledger Manual",
+    admin_topup: "Buat Top Up Titipan via Midtrans",
   }[actionModal?.type || "risk_ack"];
 
   return (
@@ -703,7 +861,7 @@ export const DompetOperasionalList = () => {
           </Col>
           <Col xs={24} md={6}>
             <Card>
-              <Statistic title="Notifikasi Menunggu" value={stats.pendingNotifications} prefix={<BellOutlined />} />
+              <Statistic title="Top Up Menunggu" value={stats.pendingTopups} prefix={<ClockCircleOutlined />} />
             </Card>
           </Col>
         </Row>
@@ -720,6 +878,9 @@ export const DompetOperasionalList = () => {
           </Button>
           <Button icon={<AuditOutlined />} onClick={() => setActionModal({ type: "run_integrity" })}>
             Jalankan Cek Ledger
+          </Button>
+          <Button type="primary" icon={<CreditCardOutlined />} onClick={() => setActionModal({ type: "admin_topup" })}>
+            Top Up Titipan
           </Button>
         </Space>
 
@@ -738,7 +899,32 @@ export const DompetOperasionalList = () => {
             {
               key: "reconciliation",
               label: "Cek Saldo",
-              children: <ProTable<IReconciliationRun> rowKey="id" loading={loading} dataSource={reconciliationRuns} columns={reconciliationColumns} search={false} pagination={{ pageSize: 10 }} scroll={{ x: 1000 }} />,
+              children: (
+                <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                  <Alert
+                    showIcon
+                    type="info"
+                    message="Rekonsiliasi ini mencakup saldo santri, saldo merchant kantin, top up Midtrans, dan tagihan/SPP."
+                    description="Jika ada selisih, jangan ubah saldo manual. Jalankan pemeriksaan, beri catatan, lalu tindak lanjuti melalui ledger atau proses resmi."
+                  />
+                  <ProTable<IReconciliationRun> rowKey="id" loading={loading} dataSource={reconciliationRuns} columns={reconciliationColumns} search={false} pagination={{ pageSize: 10 }} scroll={{ x: 1900 }} />
+                </Space>
+              ),
+            },
+            {
+              key: "topups",
+              label: "Top Up Midtrans",
+              children: (
+                <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                  <Alert
+                    showIcon
+                    type="info"
+                    message="Top up hanya sah jika dibayar lewat Midtrans."
+                    description="Bendahara/super admin boleh membuat top up titipan, tetapi saldo tetap baru bertambah setelah webhook Midtrans berhasil mem-posting ledger. Tidak ada input saldo manual."
+                  />
+                  <ProTable<IWalletPaymentIntent> rowKey="id" loading={loading} dataSource={topupIntents} columns={topupColumns} search={{ labelWidth: "auto" }} pagination={{ pageSize: 10 }} scroll={{ x: 1200 }} />
+                </Space>
+              ),
             },
             {
               key: "integrity",
@@ -798,7 +984,7 @@ export const DompetOperasionalList = () => {
         okText="Simpan"
         cancelText="Batal"
       >
-        {actionModal?.record && !["maintenance", "run_reconciliation", "run_integrity"].includes(actionModal.type) && (
+        {actionModal?.record && !["maintenance", "run_reconciliation", "run_integrity", "admin_topup"].includes(actionModal.type) && (
           <Descriptions size="small" column={1} style={{ marginBottom: 16 }}>
             <Descriptions.Item label="ID">{String((actionModal.record as { id?: string }).id || "-")}</Descriptions.Item>
           </Descriptions>
@@ -888,7 +1074,45 @@ export const DompetOperasionalList = () => {
             </>
           )}
 
-          {!["maintenance", "run_reconciliation", "run_integrity"].includes(actionModal?.type || "") && (
+          {actionModal?.type === "admin_topup" && (
+            <>
+              <Alert
+                showIcon
+                type="warning"
+                message="Top up ini tidak menambah saldo secara langsung."
+                description="Sistem hanya membuat sesi Midtrans. Saldo santri bertambah otomatis setelah pembayaran berhasil dan webhook mencatat ledger."
+                style={{ marginBottom: 16 }}
+              />
+              <Form.Item name="santri_nis" label="Santri" rules={[{ required: true, message: "Pilih santri." }]}>
+                <Select
+                  showSearch
+                  placeholder="Cari nama atau NIS santri"
+                  optionFilterProp="label"
+                  options={walletSantriOptions.map((item) => ({
+                    value: item.santri_nis,
+                    label: `${item.santri?.nama || item.santri_nis} - ${item.santri_nis} - saldo ${money(item.saldo)}`,
+                  }))}
+                />
+              </Form.Item>
+              <Form.Item name="amount" label="Nominal Top Up" rules={[{ required: true, message: "Nominal wajib diisi." }]}>
+                <InputNumber min={10000} max={5000000} precision={0} step={10000} style={{ width: "100%" }} />
+              </Form.Item>
+              <Form.Item name="depositor_name" label="Nama Penyetor" rules={[{ required: true, min: 3, message: "Nama penyetor wajib diisi." }]}>
+                <Input placeholder="Contoh: Kakek Ahmad / Donatur keluarga" />
+              </Form.Item>
+              <Form.Item name="depositor_relation" label="Hubungan dengan Santri" rules={[{ required: true, min: 2, message: "Hubungan penyetor wajib diisi." }]}>
+                <Input placeholder="Contoh: Kakek, bibi, wali titipan, alumni" />
+              </Form.Item>
+              <Form.Item name="depositor_phone" label="Nomor HP Penyetor Opsional">
+                <Input placeholder="Opsional untuk audit dan konfirmasi pembayaran" />
+              </Form.Item>
+              <Form.Item name="note" label="Catatan Audit" rules={[{ required: true, min: 10, message: "Catatan audit minimal 10 karakter." }]}>
+                <Input.TextArea rows={4} placeholder="Contoh: Top up titipan dari keluarga, pembayaran tetap dilakukan lewat Midtrans." />
+              </Form.Item>
+            </>
+          )}
+
+          {!["maintenance", "run_reconciliation", "run_integrity", "admin_topup"].includes(actionModal?.type || "") && (
             <Form.Item
               name="note"
               label="Catatan untuk Audit"
