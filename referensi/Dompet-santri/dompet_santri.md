@@ -1451,6 +1451,13 @@ Status per 2026-05-16:
 - `wallet_investigate_risk_event`, `wallet_escalate_risk_event`, `wallet_resolve_reconciliation_run`, dan `wallet_resolve_integrity_run` menjadi action resmi untuk tindak lanjut operasional.
 - Halaman operasional sekarang memiliki tombol run manual `Jalankan Cek Saldo`, `Jalankan Cek Ledger`, tombol `Periksa`, `Eskalasi`, dan `Tindak Lanjut`.
 - Dokumen test plan produksi internal ada di `referensi/Dompet-santri/production_readiness_admin_database.md`.
+- Status per 2026-05-18: implementasi Android memisahkan kantin sebagai merchant/outlet, bukan wali/alumni. Admin panel sudah disesuaikan untuk membaca dan mengelola `wallet_merchants`, `wallet_merchant_outlets`, `wallet_merchant_users`, `wallet_merchant_balances`, `wallet_merchant_ledger`, dan `wallet_merchant_settlement_requests`.
+- Halaman `Manajemen Kantin` sekarang memiliki tab `Akun Kantin`, `Merchant`, `Outlet`, `Saldo Merchant`, `Pencairan`, dan `Ledger Merchant`.
+- Edge Function `wallet-admin` versi 11 menambah action `create_or_update_merchant`, `create_or_update_merchant_outlet`, `assign_kantin_merchant`, `review_merchant_settlement`, dan `quarantine_merchant`.
+- Nilai constraint merchant yang dipakai admin panel harus mengikuti database: `ownership_model` = `pesantren/pengurus/dewan/external/other`, `status` = `active/suspended/closed`, dan `settlement_mode` = `pesantren_account/merchant_subledger/manual_settlement`.
+- Pencairan merchant hanya diproses bendahara/super admin. Status `approved` berarti disetujui untuk dibayar, `paid` hanya boleh ditekan setelah uang benar-benar keluar dari rekening pesantren, dan `rejected` mengembalikan saldo pending lewat ledger merchant baru.
+- Audit keamanan versi `deterministic_ai_ready_v2_kantin_merchant` memeriksa konsistensi akun kantin, device aktif, assignment merchant, saldo merchant, ledger merchant, pending settlement, RLS/grant merchant, dan kesiapan mitigasi kantin.
+- Tombol `Karantina` di tab `Merchant` dipakai sebagai mitigasi insiden: merchant disuspend, assignment akun kantin aktif disuspend, dan device aktif terkait ikut disuspend tanpa mengubah saldo atau ledger.
 
 Canonical message untuk signature device kantin pada `wallet-kantin-authorize`:
 
@@ -1487,8 +1494,7 @@ Yang masih harus dikerjakan sebelum Kotlin:
 - Detail drill-down lanjutan untuk dispute dan risk event jika data operasional sudah besar.
 - Worker SMS fallback untuk saldo kritis dan event keamanan kritikal.
 - Email/weekly silent digest untuk bukti hash-chain verification sukses.
-- Halaman Audit Keamanan di `/dompet-security-audit` untuk pemeriksaan satu klik lintas lapisan.
-- Analisis AI Auditor di halaman yang sama untuk membaca hasil audit manual yang sudah disanitasi.
+- Sinkronkan migration dan source Edge Function hasil pekerjaan Android ke repo admin jika belum masuk lokal, terutama `wallet-kantin-student-confirm`, `wallet-kantin-register-device`, dan `wallet-merchant-settlement-request`.
 
 ## 15.1 Audit Keamanan Satu Klik
 
@@ -1514,6 +1520,7 @@ Catatan teknis lengkap ada di:
 ```text
 referensi/Dompet-santri/catatan/audit_keamanan_defense_in_depth.md
 referensi/Dompet-santri/catatan/master_prompt_ai_security_auditor.md
+referensi/Dompet-santri/catatan/panduan_operator_audit_keamanan.md
 ```
 
 Kebijakan penting:

@@ -31,6 +31,12 @@ const requirePositiveAmount = (value: unknown) => {
 const idempotencyKey = (prefix: string, actorId: string) =>
   `${prefix}:${actorId}:${crypto.randomUUID()}`;
 
+const requireNote = (value: unknown, label = "Catatan") => {
+  const note = cleanText(value);
+  if (note.length < 12) throw new Error(`${label} minimal 12 karakter.`);
+  return note;
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -197,6 +203,294 @@ serve(async (req) => {
       });
       if (error) throw error;
       return json({ data });
+    }
+
+    if (action === "create_or_update_merchant") {
+      if (!MUTATION_ROLES.has(role)) return json({ error: "Tidak boleh mengelola merchant kantin." }, 403);
+
+      const merchantId = cleanText(body.merchant_id) || null;
+      const name = cleanText(body.name);
+      const ownershipModel = cleanText(body.ownership_model) || "pesantren";
+      const ownerProfileId = cleanText(body.owner_profile_id) || null;
+      const status = cleanText(body.status) || "active";
+      const settlementMode = cleanText(body.settlement_mode) || "manual_settlement";
+      const note = requireNote(body.note, "Catatan pengelolaan merchant");
+
+      if (!name) throw new Error("Nama merchant wajib diisi.");
+      if (!["pesantren", "pengurus", "dewan", "external", "other"].includes(ownershipModel)) throw new Error("Model kepemilikan merchant tidak valid.");
+      if (!["active", "suspended", "closed"].includes(status)) throw new Error("Status merchant tidak valid.");
+      if (!["pesantren_account", "merchant_subledger", "manual_settlement"].includes(settlementMode)) throw new Error("Mode settlement merchant tidak valid.");
+
+      const payload = {
+        name,
+        ownership_model: ownershipModel,
+        owner_profile_id: ownerProfileId,
+        status,
+        settlement_mode: settlementMode,
+        metadata: {
+          source: "admin_panel",
+          action,
+          note,
+          actor_name: profile.full_name,
+        },
+        updated_at: new Date().toISOString(),
+      };
+
+      const query = merchantId
+        ? service.from("wallet_merchants").update(payload).eq("id", merchantId).select("*").single()
+        : service.from("wallet_merchants").insert(payload).select("*").single();
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      await service.from("wallet_audit_logs").insert({
+        actor_id: profile.id,
+        actor_role: role,
+        action: merchantId ? "wallet_update_merchant" : "wallet_create_merchant",
+        resource: "wallet_merchants",
+        record_id: data.id,
+        metadata: { note, status, settlement_mode: settlementMode, ownership_model: ownershipModel },
+      });
+
+      return json({ data });
+    }
+
+    if (action === "create_or_update_merchant_outlet") {
+      if (!MUTATION_ROLES.has(role)) return json({ error: "Tidak boleh mengelola outlet kantin." }, 403);
+
+      const outletId = cleanText(body.outlet_id) || null;
+      const merchantId = cleanText(body.merchant_id);
+      const name = cleanText(body.name);
+      const location = cleanText(body.location) || null;
+      const status = cleanText(body.status) || "active";
+      const note = requireNote(body.note, "Catatan pengelolaan outlet");
+
+      if (!merchantId) throw new Error("merchant_id wajib diisi.");
+      if (!name) throw new Error("Nama outlet wajib diisi.");
+      if (!["active", "suspended", "closed"].includes(status)) throw new Error("Status outlet tidak valid.");
+
+      const payload = {
+        merchant_id: merchantId,
+        name,
+        location,
+        status,
+        metadata: {
+          source: "admin_panel",
+          action,
+          note,
+          actor_name: profile.full_name,
+        },
+        updated_at: new Date().toISOString(),
+      };
+
+      const query = outletId
+        ? service.from("wallet_merchant_outlets").update(payload).eq("id", outletId).select("*").single()
+        : service.from("wallet_merchant_outlets").insert(payload).select("*").single();
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      await service.from("wallet_audit_logs").insert({
+        actor_id: profile.id,
+        actor_role: role,
+        action: outletId ? "wallet_update_merchant_outlet" : "wallet_create_merchant_outlet",
+        resource: "wallet_merchant_outlets",
+        record_id: data.id,
+        metadata: { note, merchant_id: merchantId, status },
+      });
+
+      return json({ data });
+    }
+
+    if (action === "assign_kantin_merchant") {
+      if (!MUTATION_ROLES.has(role)) return json({ error: "Tidak boleh mengatur assignment kantin." }, 403);
+
+      const kantinUserId = cleanText(body.kantin_user_id);
+      const merchantId = cleanText(body.merchant_id);
+      const outletId = cleanText(body.outlet_id) || null;
+      const merchantRole = cleanText(body.merchant_role) || "cashier";
+
+      if (!kantinUserId) throw new Error("kantin_user_id wajib diisi.");
+      if (!merchantId) throw new Error("merchant_id wajib diisi.");
+      if (!["owner", "manager", "cashier", "auditor"].includes(merchantRole)) throw new Error("Role merchant tidak valid.");
+
+      const { data, error } = await service.rpc("wallet_assign_kantin_merchant", {
+        p_kantin_user_id: kantinUserId,
+        p_merchant_id: merchantId,
+        p_outlet_id: outletId,
+        p_merchant_role: merchantRole,
+        p_actor_id: profile.id,
+      });
+      if (error) throw error;
+      return json({ data });
+    }
+
+    if (action === "quarantine_merchant") {
+      if (!MUTATION_ROLES.has(role)) return json({ error: "Tidak boleh mengarantina merchant kantin." }, 403);
+
+      const merchantId = cleanText(body.merchant_id);
+      const note = requireNote(body.note, "Catatan karantina merchant");
+
+      if (!merchantId) throw new Error("merchant_id wajib diisi.");
+
+      const { data: merchant, error: merchantError } = await service
+        .from("wallet_merchants")
+        .update({
+          status: "suspended",
+          updated_at: new Date().toISOString(),
+          metadata: {
+            source: "admin_panel",
+            action,
+            note,
+            actor_name: profile.full_name,
+            quarantined_at: new Date().toISOString(),
+          },
+        })
+        .eq("id", merchantId)
+        .select("id,name,status")
+        .single();
+      if (merchantError) throw merchantError;
+
+      const { data: assignments, error: assignmentReadError } = await service
+        .from("wallet_merchant_users")
+        .select("profile_id")
+        .eq("merchant_id", merchantId)
+        .eq("status", "active");
+      if (assignmentReadError) throw assignmentReadError;
+
+      const profileIds = Array.from(new Set((assignments || []).map((item) => item.profile_id).filter(Boolean)));
+
+      const { error: assignmentError } = await service
+        .from("wallet_merchant_users")
+        .update({ status: "suspended" })
+        .eq("merchant_id", merchantId)
+        .eq("status", "active");
+      if (assignmentError) throw assignmentError;
+
+      let suspendedDevices = 0;
+      if (profileIds.length > 0) {
+        const { data: deviceRows, error: deviceError } = await service
+          .from("kantin_devices")
+          .update({
+            status: "suspended",
+            revoked_by: profile.id,
+            revoked_at: new Date().toISOString(),
+            revoke_reason: `Karantina merchant: ${note}`,
+          })
+          .in("kantin_user_id", profileIds)
+          .eq("status", "active")
+          .select("id");
+        if (deviceError) throw deviceError;
+        suspendedDevices = deviceRows?.length || 0;
+      }
+
+      await service.from("wallet_audit_logs").insert({
+        actor_id: profile.id,
+        actor_role: role,
+        action: "wallet_quarantine_merchant",
+        resource: "wallet_merchants",
+        record_id: merchantId,
+        metadata: {
+          note,
+          merchant_name: merchant.name,
+          suspended_assignments: profileIds.length,
+          suspended_devices: suspendedDevices,
+        },
+      });
+
+      return json({ data: { merchant, suspended_assignments: profileIds.length, suspended_devices: suspendedDevices } });
+    }
+
+    if (action === "review_merchant_settlement") {
+      if (!["super_admin", "bendahara"].includes(role)) return json({ error: "Hanya bendahara/super admin yang boleh memproses pencairan kantin." }, 403);
+
+      const settlementId = cleanText(body.settlement_request_id);
+      const status = cleanText(body.status);
+      const note = requireNote(body.note, "Catatan pencairan");
+
+      if (!settlementId) throw new Error("settlement_request_id wajib diisi.");
+
+      if (status === "paid") {
+        const { data, error } = await service.rpc("wallet_mark_merchant_settlement_paid", {
+          p_settlement_request_id: settlementId,
+          p_actor_id: profile.id,
+          p_note: note,
+        });
+        if (error) throw error;
+        return json({ data });
+      }
+
+      if (status === "rejected") {
+        const { data: request, error: requestError } = await service
+          .from("wallet_merchant_settlement_requests")
+          .select("id,merchant_id,outlet_id,amount,status")
+          .eq("id", settlementId)
+          .single();
+        if (requestError) throw requestError;
+        if (!["requested", "approved"].includes(request.status)) throw new Error("Status pencairan tidak bisa ditolak.");
+
+        const { data: ledger, error: ledgerError } = await service.rpc("wallet_post_merchant_ledger", {
+          p_merchant_id: request.merchant_id,
+          p_outlet_id: request.outlet_id,
+          p_direction: "credit",
+          p_category: "settlement_rejected",
+          p_amount: request.amount,
+          p_idempotency_key: `merchant-settlement-rejected:${request.id}`,
+          p_actor_id: profile.id,
+          p_actor_role: role,
+          p_santri_ledger_id: null,
+          p_payment_intent_id: null,
+          p_settlement_request_id: request.id,
+          p_keterangan: "Pengajuan pencairan saldo kantin ditolak admin",
+          p_metadata: { source: "admin_panel", note_present: true },
+        });
+        if (ledgerError) throw ledgerError;
+
+        const { data, error } = await service
+          .from("wallet_merchant_settlement_requests")
+          .update({
+            status: "rejected",
+            reviewed_by: profile.id,
+            reviewed_at: new Date().toISOString(),
+            review_note: note,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", settlementId)
+          .select("*")
+          .single();
+        if (error) throw error;
+        return json({ data: { ...data, ledger } });
+      }
+
+      if (status === "approved") {
+        const { data, error } = await service
+          .from("wallet_merchant_settlement_requests")
+          .update({
+            status: "approved",
+            reviewed_by: profile.id,
+            reviewed_at: new Date().toISOString(),
+            review_note: note,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", settlementId)
+          .in("status", ["requested"])
+          .select("*")
+          .single();
+        if (error) throw error;
+
+        await service.from("wallet_audit_logs").insert({
+          actor_id: profile.id,
+          actor_role: role,
+          action: "wallet_approve_merchant_settlement",
+          resource: "wallet_merchant_settlement_requests",
+          record_id: settlementId,
+          metadata: { note },
+        });
+
+        return json({ data });
+      }
+
+      throw new Error("Status pencairan tidak valid.");
     }
 
     if (action === "run_reconciliation") {

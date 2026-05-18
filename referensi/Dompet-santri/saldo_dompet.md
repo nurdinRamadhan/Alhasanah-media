@@ -100,6 +100,9 @@ Objek penting:
 - `wallet_weekly_digest_runs`: audit pembuatan ringkasan mingguan.
 - `wallet_disputes.response_due_at`: SLA dispute 48 jam.
 - `wallet_risk_events.response_due_at`: SLA risk critical 15 menit.
+- `wallet_merchant_balances`: saldo internal merchant kantin yang tidak boleh diedit langsung.
+- `wallet_merchant_ledger`: riwayat saldo merchant append-only untuk pembayaran kantin dan pencairan.
+- `wallet_merchant_settlement_requests`: workflow pengajuan pencairan kantin.
 
 Function penting:
 
@@ -112,6 +115,8 @@ Function penting:
 - `wallet_start_dispute_investigation(...)`: menandai laporan wali sedang diperiksa.
 - `wallet_review_reconciliation_run(...)`: menyimpan catatan admin untuk hasil cek saldo.
 - `wallet_review_integrity_run(...)`: menyimpan catatan admin untuk hasil cek ledger.
+- `wallet_request_merchant_settlement(...)`: membuat pengajuan pencairan dari Android kantin owner/manager melalui Edge Function.
+- `wallet_mark_merchant_settlement_paid(...)`: menandai pencairan sudah dibayar oleh bendahara/super admin setelah dana benar-benar keluar.
 
 Cron aktif:
 
@@ -142,6 +147,19 @@ Tab yang tersedia:
 - Pada tab `Notifikasi`, admin berwenang dapat menekan `Review` untuk memberi keputusan `Sudah diperiksa`, `Selesai`, atau `Data uji`. Catatan review wajib diisi agar keputusan masuk audit.
 - Audit keamanan hanya menghitung notifikasi kritis yang masih `Belum diperiksa`. Riwayat gagal lama yang sudah direview tidak boleh terus membuat audit terlihat kritis, tetapi tetap tersimpan sebagai bukti.
 
+Halaman manajemen kantin ada di `/kantin-management` dengan nama menu `Manajemen Kantin`.
+
+Tab yang tersedia:
+
+- `Akun Kantin`: melihat akun role `kantin`, aktif/nonaktif, dan assignment merchant.
+- `Merchant`: membuat dan mengubah data merchant kantin sesuai pengelola lembaga.
+- `Outlet`: membuat outlet/pos kasir di bawah merchant.
+- `Saldo Merchant`: melihat saldo available, saldo pending pencairan, total penjualan, dan total yang sudah dicairkan.
+- `Pencairan`: menyetujui, menolak, atau menandai pencairan sebagai sudah dibayar.
+- `Ledger Merchant`: audit riwayat perubahan saldo merchant dari pembayaran kantin dan settlement.
+
+Aturan penting: admin panel tidak boleh mengedit saldo merchant langsung. Semua perubahan saldo merchant harus lewat pembayaran kantin, pengajuan pencairan, penolakan pencairan, atau marking paid yang tercatat di ledger merchant.
+
 Istilah UI sengaja memakai bahasa non-teknis supaya bendahara atau pengurus yang bukan programmer tetap bisa memahami tindakan yang harus dilakukan.
 
 ## Audit Keamanan Dompet
@@ -160,6 +178,12 @@ Fungsi halaman ini:
 Audit memeriksa rekonsiliasi, hash-chain ledger, freeze switch, risk event, dispute lewat SLA, notifikasi kritis yang masih terbuka, device kantin, percobaan PIN gagal, RLS/grant, QR opaque, Argon2id, dan cron dompet.
 
 Analisis AI memakai Edge Function `wallet-security-ai-auditor` dan menyimpan hasil di `wallet_security_ai_analyses`. AI tidak mengganti audit manual; AI hanya membantu membaca prioritas risiko, gejala awal, risiko Android, risiko database, dan blocker produksi. Master prompt ada di `referensi/Dompet-santri/catatan/master_prompt_ai_security_auditor.md`.
+
+Panduan operator lengkap untuk lembaga lain, termasuk istilah, fungsi tombol, cara menggunakan audit, dan mitigasi temuan, ada di:
+
+```text
+referensi/Dompet-santri/catatan/panduan_operator_audit_keamanan.md
+```
 
 Kebijakan transaksi:
 

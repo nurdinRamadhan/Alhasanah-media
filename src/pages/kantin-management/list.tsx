@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useTable } from "@refinedev/antd";
 import { useGetIdentity, useNavigation } from "@refinedev/core";
 import { ProColumns, ProTable } from "@ant-design/pro-components";
@@ -9,15 +9,23 @@ import {
   Button,
   Descriptions,
   Drawer,
+  Form,
+  Input,
   Popconfirm,
+  Modal,
+  Select,
   Space,
   Statistic,
   Tag,
+  Tabs,
   Typography,
 } from "antd";
 import {
   AuditOutlined,
+  BankOutlined,
+  CheckCircleOutlined,
   DeleteOutlined,
+  DollarOutlined,
   HistoryOutlined,
   MobileOutlined,
   ReloadOutlined,
@@ -64,6 +72,64 @@ interface IKantinMerchantUser {
   wallet_merchant_outlets?: { name?: string | null; location?: string | null } | null;
 }
 
+interface IWalletMerchant {
+  id: string;
+  name: string;
+  ownership_model: string;
+  owner_profile_id?: string | null;
+  status: string;
+  settlement_mode: string;
+  created_at: string;
+}
+
+interface IWalletOutlet {
+  id: string;
+  merchant_id: string;
+  name: string;
+  location?: string | null;
+  status: string;
+  created_at: string;
+}
+
+interface IWalletBalance {
+  id: string;
+  merchant_id: string;
+  outlet_id?: string | null;
+  saldo_available: number;
+  saldo_pending_settlement: number;
+  total_sales: number;
+  total_settled: number;
+  updated_at: string;
+}
+
+interface IWalletMerchantLedger {
+  id: number;
+  created_at: string;
+  merchant_id: string;
+  outlet_id?: string | null;
+  direction: string;
+  category: string;
+  amount: number;
+  balance_available_after: number;
+  pending_settlement_after: number;
+  actor_role: string;
+  keterangan?: string | null;
+}
+
+interface IWalletSettlement {
+  id: string;
+  merchant_id: string;
+  outlet_id?: string | null;
+  requested_by: string;
+  amount: number;
+  status: string;
+  payout_method: string;
+  destination_note?: string | null;
+  reviewed_at?: string | null;
+  review_note?: string | null;
+  created_at: string;
+}
+
 const money = (value?: number | string | null) =>
   new Intl.NumberFormat("id-ID", {
     style: "currency",
@@ -80,9 +146,21 @@ export const KantinManagementList = () => {
   const [devices, setDevices] = useState<IKantinDevice[]>([]);
   const [history, setHistory] = useState<IKantinHistory[]>([]);
   const [assignments, setAssignments] = useState<IKantinMerchantUser[]>([]);
+  const [merchants, setMerchants] = useState<IWalletMerchant[]>([]);
+  const [outlets, setOutlets] = useState<IWalletOutlet[]>([]);
+  const [balances, setBalances] = useState<IWalletBalance[]>([]);
+  const [merchantLedger, setMerchantLedger] = useState<IWalletMerchantLedger[]>([]);
+  const [settlements, setSettlements] = useState<IWalletSettlement[]>([]);
+  const [merchantLoading, setMerchantLoading] = useState(false);
   const [loadingAction, setLoadingAction] = useState(false);
+  const [actionModal, setActionModal] = useState<{
+    type: "merchant" | "outlet" | "assign" | "settlement" | "quarantineMerchant";
+    record?: IWalletMerchant | IWalletOutlet | IProfile | IWalletSettlement;
+  } | null>(null);
+  const [form] = Form.useForm();
 
   const canManage = ["super_admin", "rois", "bendahara"].includes(String(user?.role || "").toLowerCase());
+  const canSettle = ["super_admin", "bendahara"].includes(String(user?.role || "").toLowerCase());
 
   const { tableProps, tableQueryResult } = useTable<IProfile>({
     resource: "profiles",
@@ -105,6 +183,179 @@ export const KantinManagementList = () => {
       return data?.data;
     } finally {
       setLoadingAction(false);
+    }
+  };
+
+  const loadMerchantData = async () => {
+    setMerchantLoading(true);
+    try {
+      const [merchantRes, outletRes, balanceRes, ledgerRes, settlementRes] = await Promise.all([
+        supabaseClient
+          .from("wallet_merchants")
+          .select("id,name,ownership_model,owner_profile_id,status,settlement_mode,created_at")
+          .order("created_at", { ascending: false }),
+        supabaseClient
+          .from("wallet_merchant_outlets")
+          .select("id,merchant_id,name,location,status,created_at")
+          .order("created_at", { ascending: false }),
+        supabaseClient
+          .from("wallet_merchant_balances")
+          .select("id,merchant_id,outlet_id,saldo_available,saldo_pending_settlement,total_sales,total_settled,updated_at")
+          .order("updated_at", { ascending: false }),
+        supabaseClient
+          .from("wallet_merchant_ledger")
+          .select("id,created_at,merchant_id,outlet_id,direction,category,amount,balance_available_after,pending_settlement_after,actor_role,keterangan")
+          .order("created_at", { ascending: false })
+          .limit(80),
+        supabaseClient
+          .from("wallet_merchant_settlement_requests")
+          .select("id,merchant_id,outlet_id,requested_by,amount,status,payout_method,destination_note,reviewed_at,review_note,created_at")
+          .order("created_at", { ascending: false })
+          .limit(80),
+      ]);
+
+      if (merchantRes.error) throw merchantRes.error;
+      if (outletRes.error) throw outletRes.error;
+      if (balanceRes.error) throw balanceRes.error;
+      if (ledgerRes.error) throw ledgerRes.error;
+      if (settlementRes.error) throw settlementRes.error;
+
+      setMerchants((merchantRes.data || []) as IWalletMerchant[]);
+      setOutlets((outletRes.data || []) as IWalletOutlet[]);
+      setBalances((balanceRes.data || []) as IWalletBalance[]);
+      setMerchantLedger((ledgerRes.data || []) as IWalletMerchantLedger[]);
+      setSettlements((settlementRes.data || []) as IWalletSettlement[]);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Gagal memuat data merchant kantin.");
+    } finally {
+      setMerchantLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadMerchantData();
+  }, []);
+
+  const merchantName = (merchantId?: string | null) => merchants.find((item) => item.id === merchantId)?.name || merchantId || "-";
+  const outletName = (outletId?: string | null) => outlets.find((item) => item.id === outletId)?.name || (outletId ? outletId : "Semua outlet");
+
+  const closeAction = () => {
+    setActionModal(null);
+    form.resetFields();
+  };
+
+  const openMerchantModal = (record?: IWalletMerchant) => {
+    setActionModal({ type: "merchant", record });
+    form.setFieldsValue({
+      name: record?.name,
+      ownership_model: record?.ownership_model || "pesantren",
+      owner_profile_id: record?.owner_profile_id || undefined,
+      status: record?.status || "active",
+      settlement_mode: record?.settlement_mode || "manual_settlement",
+    });
+  };
+
+  const openOutletModal = (record?: IWalletOutlet) => {
+    setActionModal({ type: "outlet", record });
+    form.setFieldsValue({
+      merchant_id: record?.merchant_id,
+      name: record?.name,
+      location: record?.location,
+      status: record?.status || "active",
+    });
+  };
+
+  const openAssignModal = (record?: IProfile) => {
+    setActionModal({ type: "assign", record });
+    form.setFieldsValue({
+      kantin_user_id: record?.id,
+      merchant_role: "cashier",
+    });
+  };
+
+  const openSettlementModal = (record: IWalletSettlement) => {
+    setActionModal({ type: "settlement", record });
+    form.setFieldsValue({
+      status: record.status === "requested" ? "approved" : "paid",
+    });
+  };
+
+  const openQuarantineMerchantModal = (record: IWalletMerchant) => {
+    setActionModal({ type: "quarantineMerchant", record });
+    form.setFieldsValue({ note: undefined });
+  };
+
+  const submitAction = async () => {
+    if (!actionModal) return;
+    const values = await form.validateFields();
+
+    try {
+      if (actionModal.type === "merchant") {
+        await callWalletAdmin({
+          action: "create_or_update_merchant",
+          merchant_id: (actionModal.record as IWalletMerchant | undefined)?.id,
+          ...values,
+        });
+        message.success("Data merchant kantin disimpan.");
+      }
+
+      if (actionModal.type === "outlet") {
+        await callWalletAdmin({
+          action: "create_or_update_merchant_outlet",
+          outlet_id: (actionModal.record as IWalletOutlet | undefined)?.id,
+          ...values,
+        });
+        message.success("Data outlet kantin disimpan.");
+      }
+
+      if (actionModal.type === "assign") {
+        await callWalletAdmin({
+          action: "assign_kantin_merchant",
+          ...values,
+        });
+        message.success("Assignment kantin disimpan.");
+      }
+
+      if (actionModal.type === "settlement") {
+        await callWalletAdmin({
+          action: "review_merchant_settlement",
+          settlement_request_id: (actionModal.record as IWalletSettlement).id,
+          status: values.status,
+          note: values.note,
+        });
+        message.success("Status pencairan kantin diperbarui.");
+      }
+
+      if (actionModal.type === "quarantineMerchant") {
+        await callWalletAdmin({
+          action: "quarantine_merchant",
+          merchant_id: (actionModal.record as IWalletMerchant).id,
+          note: values.note,
+        });
+        message.success("Merchant kantin dikarantina. Assignment dan device aktif terkait disuspend.");
+      }
+
+      closeAction();
+      await loadMerchantData();
+      await tableQueryResult.refetch();
+      if (selected) await openDetail(selected);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Aksi gagal diproses.");
+    }
+  };
+
+  const setDeviceStatus = async (device: IKantinDevice, status: "active" | "suspended" | "revoked") => {
+    try {
+      await callWalletAdmin({
+        action: "set_kantin_device_status",
+        device_id: device.device_id,
+        status,
+        reason: `Update status device kantin dari admin panel menjadi ${status}`,
+      });
+      message.success("Status device kantin diperbarui.");
+      if (selected) await openDetail(selected);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Gagal mengubah status device.");
     }
   };
 
@@ -196,27 +447,112 @@ export const KantinManagementList = () => {
             Audit
           </Button>
           {canManage && (
-            record.is_active ? (
-              <Popconfirm
-                title="Nonaktifkan akun kantin?"
-                description="Device kantin akan direvoke dan akun tidak bisa memproses transaksi baru. Riwayat tetap utuh."
-                okText="Nonaktifkan"
-                cancelText="Batal"
-                okButtonProps={{ danger: true }}
-                onConfirm={() => setAccountStatus(record, false)}
-              >
-                <Button size="small" danger icon={<DeleteOutlined />} loading={loadingAction}>
-                  Nonaktifkan
-                </Button>
-              </Popconfirm>
-            ) : (
-              <Button size="small" onClick={() => setAccountStatus(record, true)} loading={loadingAction}>
-                Aktifkan
+            <>
+              <Button size="small" icon={<ShopOutlined />} onClick={() => openAssignModal(record)}>
+                Assign
               </Button>
-            )
+              {record.is_active ? (
+                <Popconfirm
+                  title="Nonaktifkan akun kantin?"
+                  description="Device kantin akan direvoke dan akun tidak bisa memproses transaksi baru. Riwayat tetap utuh."
+                  okText="Nonaktifkan"
+                  cancelText="Batal"
+                  okButtonProps={{ danger: true }}
+                  onConfirm={() => setAccountStatus(record, false)}
+                >
+                  <Button size="small" danger icon={<DeleteOutlined />} loading={loadingAction}>
+                    Nonaktifkan
+                  </Button>
+                </Popconfirm>
+              ) : (
+                <Button size="small" onClick={() => setAccountStatus(record, true)} loading={loadingAction}>
+                  Aktifkan
+                </Button>
+              )}
+            </>
           )}
         </Space>
       ),
+    },
+  ];
+
+  const merchantColumns: ProColumns<IWalletMerchant>[] = [
+    { title: "Merchant", dataIndex: "name" },
+    { title: "Kepemilikan", dataIndex: "ownership_model", render: (_, r) => <Tag>{r.ownership_model}</Tag> },
+    { title: "Settlement", dataIndex: "settlement_mode", render: (_, r) => <Tag color="blue">{r.settlement_mode}</Tag> },
+    { title: "Status", dataIndex: "status", render: (_, r) => <Tag color={r.status === "active" ? "green" : "red"}>{r.status}</Tag> },
+    {
+      title: "Aksi",
+      valueType: "option",
+      render: (_, r) => canManage ? (
+        <Space>
+          <Button size="small" icon={<AuditOutlined />} onClick={() => openMerchantModal(r)}>
+            Ubah
+          </Button>
+          {r.status === "active" && (
+            <Button size="small" danger icon={<SafetyCertificateOutlined />} onClick={() => openQuarantineMerchantModal(r)}>
+              Karantina
+            </Button>
+          )}
+        </Space>
+      ) : null,
+    },
+  ];
+
+  const outletColumns: ProColumns<IWalletOutlet>[] = [
+    { title: "Outlet", dataIndex: "name" },
+    { title: "Merchant", dataIndex: "merchant_id", render: (_, r) => merchantName(r.merchant_id) },
+    { title: "Lokasi", dataIndex: "location", render: (_, r) => r.location || "-" },
+    { title: "Status", dataIndex: "status", render: (_, r) => <Tag color={r.status === "active" ? "green" : "red"}>{r.status}</Tag> },
+    {
+      title: "Aksi",
+      valueType: "option",
+      render: (_, r) => canManage ? (
+        <Button size="small" icon={<AuditOutlined />} onClick={() => openOutletModal(r)}>
+          Ubah
+        </Button>
+      ) : null,
+    },
+  ];
+
+  const balanceColumns: ProColumns<IWalletBalance>[] = [
+    { title: "Merchant", dataIndex: "merchant_id", render: (_, r) => merchantName(r.merchant_id) },
+    { title: "Outlet", dataIndex: "outlet_id", render: (_, r) => outletName(r.outlet_id) },
+    { title: "Saldo Bisa Dicairkan", dataIndex: "saldo_available", align: "right", render: (_, r) => money(r.saldo_available) },
+    { title: "Saldo Menunggu", dataIndex: "saldo_pending_settlement", align: "right", render: (_, r) => money(r.saldo_pending_settlement) },
+    { title: "Total Penjualan", dataIndex: "total_sales", align: "right", render: (_, r) => money(r.total_sales) },
+    { title: "Total Dicairkan", dataIndex: "total_settled", align: "right", render: (_, r) => money(r.total_settled) },
+    { title: "Update", dataIndex: "updated_at", render: (_, r) => dayjs(r.updated_at).format("DD/MM/YYYY HH:mm") },
+  ];
+
+  const ledgerColumns: ProColumns<IWalletMerchantLedger>[] = [
+    { title: "Waktu", dataIndex: "created_at", render: (_, r) => dayjs(r.created_at).format("DD/MM/YYYY HH:mm") },
+    { title: "Merchant", dataIndex: "merchant_id", render: (_, r) => merchantName(r.merchant_id) },
+    { title: "Outlet", dataIndex: "outlet_id", render: (_, r) => outletName(r.outlet_id) },
+    { title: "Arah", dataIndex: "direction", render: (_, r) => <Tag color={r.direction === "credit" ? "green" : "orange"}>{r.direction}</Tag> },
+    { title: "Kategori", dataIndex: "category" },
+    { title: "Nominal", dataIndex: "amount", align: "right", render: (_, r) => money(r.amount) },
+    { title: "Saldo Akhir", dataIndex: "balance_available_after", align: "right", render: (_, r) => money(r.balance_available_after) },
+    { title: "Pending Akhir", dataIndex: "pending_settlement_after", align: "right", render: (_, r) => money(r.pending_settlement_after) },
+    { title: "Catatan", dataIndex: "keterangan", ellipsis: true, render: (_, r) => r.keterangan || "-" },
+  ];
+
+  const settlementColumns: ProColumns<IWalletSettlement>[] = [
+    { title: "Waktu", dataIndex: "created_at", render: (_, r) => dayjs(r.created_at).format("DD/MM/YYYY HH:mm") },
+    { title: "Merchant", dataIndex: "merchant_id", render: (_, r) => merchantName(r.merchant_id) },
+    { title: "Outlet", dataIndex: "outlet_id", render: (_, r) => outletName(r.outlet_id) },
+    { title: "Nominal", dataIndex: "amount", align: "right", render: (_, r) => money(r.amount) },
+    { title: "Status", dataIndex: "status", render: (_, r) => <Tag color={r.status === "paid" ? "green" : r.status === "rejected" ? "red" : "gold"}>{r.status}</Tag> },
+    { title: "Tujuan", dataIndex: "destination_note", ellipsis: true, render: (_, r) => r.destination_note || "-" },
+    { title: "Review", dataIndex: "review_note", ellipsis: true, render: (_, r) => r.review_note || "-" },
+    {
+      title: "Aksi",
+      valueType: "option",
+      render: (_, r) => canSettle && !["paid", "rejected", "cancelled"].includes(r.status) ? (
+        <Button size="small" type="primary" icon={<CheckCircleOutlined />} onClick={() => openSettlementModal(r)}>
+          Proses
+        </Button>
+      ) : null,
     },
   ];
 
@@ -244,22 +580,94 @@ export const KantinManagementList = () => {
           <Statistic title="Total Akun Kantin" value={kantinRows.length} prefix={<ShopOutlined />} />
           <Statistic title="Aktif" value={activeCount} />
           <Statistic title="Nonaktif" value={inactiveCount} />
+          <Statistic title="Merchant" value={merchants.length} prefix={<BankOutlined />} />
+          <Statistic title="Pencairan Menunggu" value={settlements.filter((item) => ["requested", "approved"].includes(item.status)).length} prefix={<DollarOutlined />} />
         </Space>
 
-        <ProTable<IProfile>
-          {...tableProps}
-          rowKey="id"
-          columns={columns}
-          search={{ labelWidth: "auto" }}
-          toolBarRender={() => [
-            <Button key="refresh" icon={<ReloadOutlined />} onClick={() => tableQueryResult.refetch()}>
-              Refresh
-            </Button>,
-            canManage ? (
-              <Button key="create" type="primary" icon={<UserAddOutlined />} onClick={() => push("/admin-management/create")}>
-                Buat Akun Kantin
-              </Button>
-            ) : null,
+        <Tabs
+          items={[
+            {
+              key: "accounts",
+              label: "Akun Kantin",
+              children: (
+                <ProTable<IProfile>
+                  {...tableProps}
+                  rowKey="id"
+                  columns={columns}
+                  search={{ labelWidth: "auto" }}
+                  toolBarRender={() => [
+                    <Button key="refresh" icon={<ReloadOutlined />} onClick={() => tableQueryResult.refetch()}>
+                      Refresh
+                    </Button>,
+                    canManage ? (
+                      <Button key="create" type="primary" icon={<UserAddOutlined />} onClick={() => push("/admin-management/create")}>
+                        Buat Akun Kantin
+                      </Button>
+                    ) : null,
+                  ]}
+                />
+              ),
+            },
+            {
+              key: "merchants",
+              label: "Merchant",
+              children: (
+                <ProTable<IWalletMerchant>
+                  rowKey="id"
+                  loading={merchantLoading}
+                  dataSource={merchants}
+                  columns={merchantColumns}
+                  search={{ labelWidth: "auto" }}
+                  pagination={{ pageSize: 10 }}
+                  toolBarRender={() => [
+                    <Button key="refresh" icon={<ReloadOutlined />} onClick={loadMerchantData}>
+                      Refresh
+                    </Button>,
+                    canManage ? (
+                      <Button key="create" type="primary" icon={<ShopOutlined />} onClick={() => openMerchantModal()}>
+                        Tambah Merchant
+                      </Button>
+                    ) : null,
+                  ]}
+                />
+              ),
+            },
+            {
+              key: "outlets",
+              label: "Outlet",
+              children: (
+                <ProTable<IWalletOutlet>
+                  rowKey="id"
+                  loading={merchantLoading}
+                  dataSource={outlets}
+                  columns={outletColumns}
+                  search={{ labelWidth: "auto" }}
+                  pagination={{ pageSize: 10 }}
+                  toolBarRender={() => [
+                    canManage ? (
+                      <Button key="create" type="primary" icon={<ShopOutlined />} onClick={() => openOutletModal()}>
+                        Tambah Outlet
+                      </Button>
+                    ) : null,
+                  ]}
+                />
+              ),
+            },
+            {
+              key: "balances",
+              label: "Saldo Merchant",
+              children: <ProTable<IWalletBalance> rowKey="id" loading={merchantLoading} dataSource={balances} columns={balanceColumns} search={{ labelWidth: "auto" }} pagination={{ pageSize: 10 }} scroll={{ x: 1000 }} />,
+            },
+            {
+              key: "settlements",
+              label: "Pencairan",
+              children: <ProTable<IWalletSettlement> rowKey="id" loading={merchantLoading} dataSource={settlements} columns={settlementColumns} search={{ labelWidth: "auto" }} pagination={{ pageSize: 10 }} scroll={{ x: 1100 }} />,
+            },
+            {
+              key: "ledger",
+              label: "Ledger Merchant",
+              children: <ProTable<IWalletMerchantLedger> rowKey="id" loading={merchantLoading} dataSource={merchantLedger} columns={ledgerColumns} search={{ labelWidth: "auto" }} pagination={{ pageSize: 10 }} scroll={{ x: 1200 }} />,
+            },
           ]}
         />
       </Space>
@@ -287,6 +695,23 @@ export const KantinManagementList = () => {
                 { title: "Status", dataIndex: "status", render: (_, r) => <Tag color={r.status === "active" ? "green" : r.status === "pending" ? "gold" : "red"}>{r.status}</Tag> },
                 { title: "Registered", dataIndex: "registered_at", render: (_, r) => dayjs(r.registered_at).format("DD/MM/YYYY HH:mm") },
                 { title: "Last Tx", dataIndex: "last_transaction_at", render: (_, r) => r.last_transaction_at ? dayjs(r.last_transaction_at).format("DD/MM/YYYY HH:mm") : "-" },
+                {
+                  title: "Aksi",
+                  valueType: "option",
+                  render: (_, r) => canManage ? (
+                    <Space>
+                      {r.status !== "active" && (
+                        <Button size="small" onClick={() => setDeviceStatus(r, "active")}>Aktifkan</Button>
+                      )}
+                      {r.status === "active" && (
+                        <Button size="small" onClick={() => setDeviceStatus(r, "suspended")}>Suspend</Button>
+                      )}
+                      {r.status !== "revoked" && (
+                        <Button size="small" danger onClick={() => setDeviceStatus(r, "revoked")}>Revoke</Button>
+                      )}
+                    </Space>
+                  ) : null,
+                },
               ]}
             />
 
@@ -322,6 +747,146 @@ export const KantinManagementList = () => {
           </Space>
         )}
       </Drawer>
+
+      <Modal
+        title={
+          actionModal?.type === "merchant" ? "Data Merchant Kantin" :
+          actionModal?.type === "outlet" ? "Data Outlet Kantin" :
+          actionModal?.type === "assign" ? "Assign Akun Kantin" :
+          actionModal?.type === "quarantineMerchant" ? "Karantina Merchant Kantin" :
+          "Proses Pencairan Kantin"
+        }
+        open={Boolean(actionModal)}
+        onCancel={closeAction}
+        onOk={submitAction}
+        confirmLoading={loadingAction}
+        okText="Simpan"
+        cancelText="Batal"
+      >
+        <Form form={form} layout="vertical">
+          {actionModal?.type === "merchant" && (
+            <>
+              <Form.Item name="name" label="Nama Merchant" rules={[{ required: true, message: "Nama merchant wajib diisi." }]}>
+                <Input placeholder="Contoh: Kantin Pesantren" />
+              </Form.Item>
+              <Form.Item name="ownership_model" label="Pengelola" rules={[{ required: true, message: "Pilih pengelola." }]}>
+                <Select
+                  options={[
+                    { label: "Pesantren", value: "pesantren" },
+                    { label: "Pengurus", value: "pengurus" },
+                    { label: "Dewan", value: "dewan" },
+                    { label: "Pihak Luar", value: "external" },
+                    { label: "Lainnya", value: "other" },
+                  ]}
+                />
+              </Form.Item>
+              <Form.Item name="owner_profile_id" label="Owner Profile ID Opsional">
+                <Input placeholder="Kosongkan jika dikelola pesantren" />
+              </Form.Item>
+              <Form.Item name="settlement_mode" label="Mode Pencairan" rules={[{ required: true, message: "Pilih mode pencairan." }]}>
+                <Select
+                  options={[
+                    { label: "Rekening pesantren", value: "pesantren_account" },
+                    { label: "Ledger merchant internal", value: "merchant_subledger" },
+                    { label: "Pencairan manual", value: "manual_settlement" },
+                  ]}
+                />
+              </Form.Item>
+              <Form.Item name="status" label="Status" rules={[{ required: true, message: "Pilih status." }]}>
+                <Select
+                  options={[
+                    { label: "Aktif", value: "active" },
+                    { label: "Suspend", value: "suspended" },
+                    { label: "Tutup permanen", value: "closed" },
+                  ]}
+                />
+              </Form.Item>
+            </>
+          )}
+
+          {actionModal?.type === "outlet" && (
+            <>
+              <Form.Item name="merchant_id" label="Merchant" rules={[{ required: true, message: "Pilih merchant." }]}>
+                <Select options={merchants.map((item) => ({ label: item.name, value: item.id }))} />
+              </Form.Item>
+              <Form.Item name="name" label="Nama Outlet" rules={[{ required: true, message: "Nama outlet wajib diisi." }]}>
+                <Input placeholder="Contoh: Kantin Utama" />
+              </Form.Item>
+              <Form.Item name="location" label="Lokasi">
+                <Input placeholder="Contoh: Samping aula" />
+              </Form.Item>
+              <Form.Item name="status" label="Status" rules={[{ required: true, message: "Pilih status." }]}>
+                <Select
+                  options={[
+                    { label: "Aktif", value: "active" },
+                    { label: "Suspend", value: "suspended" },
+                    { label: "Tutup permanen", value: "closed" },
+                  ]}
+                />
+              </Form.Item>
+            </>
+          )}
+
+          {actionModal?.type === "assign" && (
+            <>
+              <Form.Item name="kantin_user_id" label="Akun Kantin" rules={[{ required: true, message: "Pilih akun kantin." }]}>
+                <Select options={kantinRows.map((item) => ({ label: item.full_name || item.email || item.id, value: item.id }))} />
+              </Form.Item>
+              <Form.Item name="merchant_id" label="Merchant" rules={[{ required: true, message: "Pilih merchant." }]}>
+                <Select options={merchants.map((item) => ({ label: item.name, value: item.id }))} />
+              </Form.Item>
+              <Form.Item name="outlet_id" label="Outlet Opsional">
+                <Select allowClear options={outlets.map((item) => ({ label: `${item.name} - ${merchantName(item.merchant_id)}`, value: item.id }))} />
+              </Form.Item>
+              <Form.Item name="merchant_role" label="Peran di Merchant" rules={[{ required: true, message: "Pilih peran." }]}>
+                <Select
+                  options={[
+                    { label: "Owner", value: "owner" },
+                    { label: "Manager", value: "manager" },
+                    { label: "Kasir", value: "cashier" },
+                    { label: "Auditor", value: "auditor" },
+                  ]}
+                />
+              </Form.Item>
+            </>
+          )}
+
+          {actionModal?.type === "settlement" && (
+            <>
+              <Descriptions size="small" column={1} bordered style={{ marginBottom: 16 }}>
+                <Descriptions.Item label="Merchant">{merchantName((actionModal.record as IWalletSettlement)?.merchant_id)}</Descriptions.Item>
+                <Descriptions.Item label="Outlet">{outletName((actionModal.record as IWalletSettlement)?.outlet_id)}</Descriptions.Item>
+                <Descriptions.Item label="Nominal">{money((actionModal.record as IWalletSettlement)?.amount)}</Descriptions.Item>
+              </Descriptions>
+              <Form.Item name="status" label="Keputusan" rules={[{ required: true, message: "Pilih keputusan." }]}>
+                <Select
+                  options={[
+                    { label: "Setujui untuk dibayar", value: "approved" },
+                    { label: "Tandai sudah dibayar", value: "paid" },
+                    { label: "Tolak dan kembalikan saldo pending", value: "rejected" },
+                  ]}
+                />
+              </Form.Item>
+            </>
+          )}
+
+          {actionModal?.type === "quarantineMerchant" && (
+            <Alert
+              type="error"
+              showIcon
+              message="Karantina akan menghentikan transaksi merchant ini."
+              description="Merchant disuspend, assignment akun kantin aktif disuspend, dan device aktif terkait ikut disuspend. Saldo dan ledger tidak diubah."
+              style={{ marginBottom: 16 }}
+            />
+          )}
+
+          {actionModal?.type !== "assign" && (
+            <Form.Item name="note" label="Catatan Audit" rules={[{ required: true, min: 12, message: "Catatan minimal 12 karakter." }]}>
+              <Input.TextArea rows={4} placeholder="Tulis alasan tindakan dengan jelas." />
+            </Form.Item>
+          )}
+        </Form>
+      </Modal>
     </div>
   );
 };

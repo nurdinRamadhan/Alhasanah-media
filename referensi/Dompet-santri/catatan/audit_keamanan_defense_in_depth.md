@@ -96,11 +96,25 @@ Audit satu klik memeriksa:
 - dispute yang melewati SLA;
 - notifikasi kritis yang gagal/tertahan;
 - status device kantin;
+- kesiapan akses kantin: akun kantin aktif harus punya device aktif, device aktif tidak boleh terhubung ke akun nonaktif, dan merchant aktif harus punya akun kantin aktif;
+- saldo dan ledger merchant kantin: saldo cached merchant tidak boleh negatif, harus cocok dengan ledger merchant terakhir, dan pending settlement tidak boleh melebihi saldo pending;
 - percobaan PIN gagal;
-- RLS dan grant publik pada tabel wallet;
+- RLS dan grant publik pada tabel wallet/merchant;
 - kebijakan QR opaque;
 - kewajiban Argon2id untuk verifier PIN;
 - cron utama dompet.
+
+## Mitigasi Kritis Kantin
+
+Jika audit menemukan masalah pada merchant kantin, lakukan mitigasi berlapis:
+
+- `Karantina Merchant`: tombol di halaman `Manajemen Kantin -> Merchant`. Efeknya: merchant disuspend, assignment akun kantin aktif disuspend, dan device aktif terkait ikut disuspend. Saldo dan ledger tidak diubah.
+- `Revoke/Suspend Device`: dipakai jika hanya satu perangkat yang dicurigai hilang, bocor, atau dipakai di luar prosedur.
+- `Freeze Global Dompet`: dipakai jika mismatch saldo/ledger, hash-chain rusak, eksploit transaksi, atau rekonsiliasi gagal. Ini menahan transaksi baru sampai penyebab selesai.
+- `Tahan Pencairan`: jika saldo merchant atau pending settlement tidak konsisten, jangan tekan `Tandai sudah dibayar` sebelum rekonsiliasi selesai.
+- `Review Notifikasi Kritis`: notifikasi kritis yang sudah jelas dummy/gagal token lama harus diberi status review, bukan dihapus, supaya audit tidak terus terlihat kritis tanpa konteks.
+
+Perbaikan otomatis boleh hanya menghentikan risiko baru, bukan mengubah histori uang. Sistem boleh otomatis freeze, suspend device, atau membuat risk event. Sistem tidak boleh otomatis menghapus ledger, mengedit saldo, atau menyelesaikan dispute tanpa keputusan manusia.
 
 ## Batas Persetujuan Wali
 
