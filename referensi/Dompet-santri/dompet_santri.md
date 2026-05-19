@@ -476,10 +476,19 @@ Flow aman akun kantin:
 3. Aplikasi Android membuat keypair Ed25519 khusus device kantin.
 4. Public key, device id, dan fingerprint dikirim untuk registrasi device.
 5. Admin melakukan review dan approve device kantin.
-6. Setelah device status `active`, aplikasi kantin boleh membuat authorization session.
-7. Setiap request transaksi wajib ditandatangani device kantin.
-8. Jika akun kantin dinonaktifkan, semua device kantin direvoke dan assignment merchant dicabut.
-9. Admin panel menolak login/session akun dengan `profiles.is_active = false`.
+6. Saat akun/device diaktifkan, admin panel harus memastikan merchant, outlet, dan assignment aktif.
+7. Setelah device status `active` dan assignment merchant aktif, aplikasi kantin boleh membuat authorization session.
+8. Setiap request transaksi wajib ditandatangani device kantin.
+9. Jika akun kantin dinonaktifkan, semua device kantin direvoke dan assignment merchant dicabut.
+10. Admin panel menolak login/session akun dengan `profiles.is_active = false`.
+
+Catatan operasional 2026-05-19:
+
+- Akun role `kantin` dan device `active` belum cukup. Android kantin juga membutuhkan baris aktif di `wallet_merchants`, `wallet_merchant_outlets`, dan `wallet_merchant_users`.
+- Admin panel menyediakan tombol `Siapkan Otomatis` di halaman `Manajemen Kantin`. Tombol ini memanggil Edge Function `wallet-kantin-provision`, lalu RPC `wallet_ensure_kantin_ready`.
+- Jika belum ada merchant/outlet default, sistem membuat `Kantin Pesantren` dan `Outlet Utama`, lalu membuat assignment `cashier` untuk akun kantin.
+- Alur otomatis ini juga dipakai setelah admin mengaktifkan akun atau device kantin, agar admin non-teknis tidak perlu memahami detail merchant, outlet, dan assignment.
+- Semua provisioning tetap masuk ke `wallet_audit_logs` dengan action `wallet_ensure_kantin_ready`.
 
 Prinsip penting:
 
@@ -903,6 +912,9 @@ Validasi backend:
 - nominal harus valid
 - limit per transaksi dicek
 - jika `merchant_id` dikirim, user kantin harus terhubung ke merchant/outlet tersebut
+- jika `merchant_id` tidak dikirim, backend boleh memakai satu assignment merchant/outlet aktif milik akun kantin; jika ada lebih dari satu assignment aktif, aplikasi wajib mengirim `merchant_id` dan `outlet_id`
+- request wajib membawa `device_id`, `device_nonce`, dan `device_signature`; signature diverifikasi dengan public key device kantin aktif
+- kegagalan authorization mengembalikan `code` eksplisit agar Android bisa menampilkan pesan yang benar, misalnya `LIMIT_SINGLE_TRANSACTION`, `KANTIN_DEVICE_SIGNATURE_INVALID`, `KANTIN_DEVICE_NOT_ACTIVE`, `KANTIN_MERCHANT_ASSIGNMENT_MISSING`, atau `KANTIN_MERCHANT_SELECTION_REQUIRED`
 - session pendek dan idempotent
 - tidak ada debit saldo pada tahap ini
 
@@ -1502,8 +1514,14 @@ Status per 2026-05-16:
 - Edge Function `wallet-admin` versi 11 menambah action `create_or_update_merchant`, `create_or_update_merchant_outlet`, `assign_kantin_merchant`, `review_merchant_settlement`, dan `quarantine_merchant`.
 - Nilai constraint merchant yang dipakai admin panel harus mengikuti database: `ownership_model` = `pesantren/pengurus/dewan/external/other`, `status` = `active/suspended/closed`, dan `settlement_mode` = `pesantren_account/merchant_subledger/manual_settlement`.
 - Pencairan merchant hanya diproses bendahara/super admin. Status `approved` berarti disetujui untuk dibayar, `paid` hanya boleh ditekan setelah uang benar-benar keluar dari rekening pesantren, dan `rejected` mengembalikan saldo pending lewat ledger merchant baru.
+- Proses pencairan merchant di admin panel memakai Edge Function `wallet-merchant-settlement-admin`. Status `rejected` wajib memanggil RPC `wallet_reject_merchant_settlement`, bukan update manual, agar saldo pending kembali ke `saldo_available` dan audit ledger tetap append-only.
+- Pengajuan pencairan dari aplikasi kantin wajib lewat Edge Function `wallet-merchant-settlement-request`. RPC internal `wallet_request_merchant_settlement_for_actor` hanya boleh dieksekusi `service_role`; `authenticated` tidak boleh memanggil RPC settlement langsung dari client.
+- Fungsi internal `wallet_ensure_kantin_ready`, `wallet_notify_merchant_settlement`, `wallet_request_merchant_settlement`, dan `wallet_request_merchant_settlement_for_actor` harus tetap service-only. Jika Supabase Advisor kembali melaporkan fungsi ini callable oleh `anon`/`authenticated`, anggap sebagai temuan produksi dan tutup grant sebelum operasional besar.
+- Trigger `tr_wallet_notify_merchant_settlement` membuat notifikasi untuk semua skenario pencairan: `requested`, `approved`, `paid`, dan `rejected`. Penerima minimum adalah akun kantin pengaju dan role pengawas `super_admin`, `bendahara`, serta `rois`.
 - Audit keamanan versi `deterministic_ai_ready_v2_kantin_merchant` memeriksa konsistensi akun kantin, device aktif, assignment merchant, saldo merchant, ledger merchant, pending settlement, RLS/grant merchant, dan kesiapan mitigasi kantin.
 - Tombol `Karantina` di tab `Merchant` dipakai sebagai mitigasi insiden: merchant disuspend, assignment akun kantin aktif disuspend, dan device aktif terkait ikut disuspend tanpa mengubah saldo atau ledger.
+- Edge Function `wallet-kantin-authorize` versi 5 menambah response error terstruktur (`code` + `error`) dan audit/risk log untuk kegagalan otorisasi kantin, termasuk device tidak aktif, signature perangkat tidak valid, assignment merchant tidak ada, sistem wallet freeze, dan limit transaksi wali terlampaui.
+- Untuk masa transisi Android, `wallet-kantin-authorize` masih menerima signature lama yang belum mengikat `merchant_id/outlet_id` jika request tetap berasal dari akun kantin dan device Ed25519 aktif. Mode ini dicatat sebagai `signature_mode = compat_blank_merchant_outlet` dan harus dihapus setelah aplikasi Android sudah menandatangani canonical message penuh.
 
 Canonical message untuk signature device kantin pada `wallet-kantin-authorize`:
 

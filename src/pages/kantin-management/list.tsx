@@ -148,6 +148,7 @@ export const KantinManagementList = () => {
   const [assignments, setAssignments] = useState<IKantinMerchantUser[]>([]);
   const [merchants, setMerchants] = useState<IWalletMerchant[]>([]);
   const [outlets, setOutlets] = useState<IWalletOutlet[]>([]);
+  const [ownerProfiles, setOwnerProfiles] = useState<IProfile[]>([]);
   const [balances, setBalances] = useState<IWalletBalance[]>([]);
   const [merchantLedger, setMerchantLedger] = useState<IWalletMerchantLedger[]>([]);
   const [settlements, setSettlements] = useState<IWalletSettlement[]>([]);
@@ -186,10 +187,34 @@ export const KantinManagementList = () => {
     }
   };
 
+  const callSettlementAdmin = async (body: Record<string, unknown>) => {
+    setLoadingAction(true);
+    try {
+      const { data, error } = await supabaseClient.functions.invoke("wallet-merchant-settlement-admin", { body });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data?.data;
+    } finally {
+      setLoadingAction(false);
+    }
+  };
+
+  const provisionKantin = async (record: IProfile, reason: string) => {
+    const { data, error } = await supabaseClient.functions.invoke("wallet-kantin-provision", {
+      body: {
+        kantin_user_id: record.id,
+        reason,
+      },
+    });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    return data?.data;
+  };
+
   const loadMerchantData = async () => {
     setMerchantLoading(true);
     try {
-      const [merchantRes, outletRes, balanceRes, ledgerRes, settlementRes] = await Promise.all([
+      const [merchantRes, outletRes, balanceRes, ledgerRes, settlementRes, ownerRes] = await Promise.all([
         supabaseClient
           .from("wallet_merchants")
           .select("id,name,ownership_model,owner_profile_id,status,settlement_mode,created_at")
@@ -212,6 +237,12 @@ export const KantinManagementList = () => {
           .select("id,merchant_id,outlet_id,requested_by,amount,status,payout_method,destination_note,reviewed_at,review_note,created_at")
           .order("created_at", { ascending: false })
           .limit(80),
+        supabaseClient
+          .from("profiles")
+          .select("id,email,full_name,role,is_active,created_at,no_hp,foto_url,akses_gender,akses_jurusan")
+          .in("role", ["kantin", "pengurus", "dewan", "bendahara", "rois", "super_admin"])
+          .eq("is_active", true)
+          .order("full_name", { ascending: true }),
       ]);
 
       if (merchantRes.error) throw merchantRes.error;
@@ -219,12 +250,14 @@ export const KantinManagementList = () => {
       if (balanceRes.error) throw balanceRes.error;
       if (ledgerRes.error) throw ledgerRes.error;
       if (settlementRes.error) throw settlementRes.error;
+      if (ownerRes.error) throw ownerRes.error;
 
       setMerchants((merchantRes.data || []) as IWalletMerchant[]);
       setOutlets((outletRes.data || []) as IWalletOutlet[]);
       setBalances((balanceRes.data || []) as IWalletBalance[]);
       setMerchantLedger((ledgerRes.data || []) as IWalletMerchantLedger[]);
       setSettlements((settlementRes.data || []) as IWalletSettlement[]);
+      setOwnerProfiles((ownerRes.data || []) as IProfile[]);
     } catch (error) {
       message.error(error instanceof Error ? error.message : "Gagal memuat data merchant kantin.");
     } finally {
@@ -317,8 +350,7 @@ export const KantinManagementList = () => {
       }
 
       if (actionModal.type === "settlement") {
-        await callWalletAdmin({
-          action: "review_merchant_settlement",
+        await callSettlementAdmin({
           settlement_request_id: (actionModal.record as IWalletSettlement).id,
           status: values.status,
           note: values.note,
@@ -352,10 +384,29 @@ export const KantinManagementList = () => {
         status,
         reason: `Update status device kantin dari admin panel menjadi ${status}`,
       });
-      message.success("Status device kantin diperbarui.");
+      if (status === "active" && selected) {
+        await provisionKantin(selected, "Provisioning otomatis setelah device kantin diaktifkan admin");
+      }
+      message.success(status === "active" ? "Device aktif. Merchant, outlet, dan assignment otomatis disiapkan." : "Status device kantin diperbarui.");
+      await loadMerchantData();
       if (selected) await openDetail(selected);
     } catch (error) {
       message.error(error instanceof Error ? error.message : "Gagal mengubah status device.");
+    }
+  };
+
+  const ensureKantinReady = async (record: IProfile) => {
+    try {
+      setLoadingAction(true);
+      await provisionKantin(record, "Admin menyiapkan otomatis akses merchant, outlet, dan assignment kantin");
+      message.success("Akses kantin siap. Merchant, outlet, dan assignment sudah aktif.");
+      await loadMerchantData();
+      await tableQueryResult.refetch();
+      if (selected?.id === record.id) await openDetail(record);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Gagal menyiapkan akses kantin.");
+    } finally {
+      setLoadingAction(false);
     }
   };
 
@@ -399,7 +450,11 @@ export const KantinManagementList = () => {
         is_active: isActive,
         reason: isActive ? "Aktivasi akun kantin dari admin panel" : "Nonaktifkan akun kantin dari admin panel",
       });
-      message.success(isActive ? "Akun kantin diaktifkan." : "Akun kantin dinonaktifkan dan device direvoke.");
+      if (isActive) {
+        await provisionKantin(record, "Provisioning otomatis setelah akun kantin diaktifkan admin");
+      }
+      message.success(isActive ? "Akun kantin aktif. Merchant, outlet, dan assignment otomatis disiapkan." : "Akun kantin dinonaktifkan dan device direvoke.");
+      await loadMerchantData();
       await tableQueryResult.refetch();
       if (selected?.id === record.id) await openDetail({ ...record, is_active: isActive });
     } catch (error) {
@@ -450,6 +505,9 @@ export const KantinManagementList = () => {
             <>
               <Button size="small" icon={<ShopOutlined />} onClick={() => openAssignModal(record)}>
                 Assign
+              </Button>
+              <Button size="small" icon={<SafetyCertificateOutlined />} onClick={() => ensureKantinReady(record)} loading={loadingAction}>
+                Siapkan Otomatis
               </Button>
               {record.is_active ? (
                 <Popconfirm
@@ -573,7 +631,7 @@ export const KantinManagementList = () => {
           showIcon
           icon={<SafetyCertificateOutlined />}
           message="Akun kantin tidak cukup untuk transaksi."
-          description="Transaksi hanya bisa diproses oleh aplikasi Android kantin dari device terdaftar dan aktif. Menonaktifkan akun kantin akan merevoke device dan akses merchant, bukan menghapus histori ledger."
+          description="Transaksi hanya bisa diproses oleh aplikasi Android kantin dari device terdaftar, akun aktif, dan assignment merchant aktif. Tombol Siapkan Otomatis akan membuat merchant, outlet, dan assignment default agar admin non teknis tidak perlu mengatur satu per satu."
         />
 
         <Space wrap size={16}>
@@ -780,8 +838,17 @@ export const KantinManagementList = () => {
                   ]}
                 />
               </Form.Item>
-              <Form.Item name="owner_profile_id" label="Owner Profile ID Opsional">
-                <Input placeholder="Kosongkan jika dikelola pesantren" />
+              <Form.Item name="owner_profile_id" label="Akun Pengelola Opsional">
+                <Select
+                  allowClear
+                  showSearch
+                  placeholder="Kosongkan jika dikelola pesantren"
+                  optionFilterProp="label"
+                  options={ownerProfiles.map((item) => ({
+                    label: `${item.full_name || item.email || item.id} (${item.role || "-"})`,
+                    value: item.id,
+                  }))}
+                />
               </Form.Item>
               <Form.Item name="settlement_mode" label="Mode Pencairan" rules={[{ required: true, message: "Pilih mode pencairan." }]}>
                 <Select

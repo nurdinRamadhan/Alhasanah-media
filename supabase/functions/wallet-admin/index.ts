@@ -19,6 +19,18 @@ const json = (body: unknown, status = 200) =>
   });
 
 const cleanText = (value: unknown) => String(value ?? "").trim();
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    const message = typeof record.message === "string" ? record.message : "";
+    const details = typeof record.details === "string" ? record.details : "";
+    const hint = typeof record.hint === "string" ? record.hint : "";
+    return [message, details, hint].filter(Boolean).join(" | ");
+  }
+  return "";
+};
 
 const requirePositiveAmount = (value: unknown) => {
   const amount = Number(value);
@@ -185,7 +197,21 @@ serve(async (req) => {
         p_reason: reason || null,
       });
       if (error) throw error;
-      return json({ data });
+
+      let provisioning = null;
+      if (status === "active" && data?.kantin_user_id) {
+        const { data: readyData, error: readyError } = await service.rpc("wallet_ensure_kantin_ready", {
+          p_kantin_user_id: data.kantin_user_id,
+          p_actor_id: profile.id,
+          p_reason: "Provisioning otomatis saat device kantin diaktifkan",
+          p_merchant_id: null,
+          p_outlet_id: null,
+        });
+        if (readyError) throw readyError;
+        provisioning = readyData;
+      }
+
+      return json({ data: { device: data, provisioning } });
     }
 
     if (action === "set_kantin_account_status") {
@@ -200,6 +226,41 @@ serve(async (req) => {
         p_is_active: isActive,
         p_actor_id: profile.id,
         p_reason: reason,
+      });
+      if (error) throw error;
+
+      let provisioning = null;
+      if (isActive) {
+        const { data: readyData, error: readyError } = await service.rpc("wallet_ensure_kantin_ready", {
+          p_kantin_user_id: kantinUserId,
+          p_actor_id: profile.id,
+          p_reason: "Provisioning otomatis saat akun kantin diaktifkan",
+          p_merchant_id: null,
+          p_outlet_id: null,
+        });
+        if (readyError) throw readyError;
+        provisioning = readyData;
+      }
+
+      return json({ data: { account: data, provisioning } });
+    }
+
+    if (action === "ensure_kantin_ready") {
+      if (!MUTATION_ROLES.has(role)) return json({ error: "Tidak boleh menyiapkan akses merchant kantin." }, 403);
+
+      const kantinUserId = cleanText(body.kantin_user_id);
+      const merchantId = cleanText(body.merchant_id) || null;
+      const outletId = cleanText(body.outlet_id) || null;
+      const reason = cleanText(body.reason) || "Provisioning otomatis kantin dari admin panel";
+
+      if (!kantinUserId) throw new Error("kantin_user_id wajib diisi.");
+
+      const { data, error } = await service.rpc("wallet_ensure_kantin_ready", {
+        p_kantin_user_id: kantinUserId,
+        p_actor_id: profile.id,
+        p_reason: reason,
+        p_merchant_id: merchantId,
+        p_outlet_id: outletId,
       });
       if (error) throw error;
       return json({ data });
@@ -421,45 +482,13 @@ serve(async (req) => {
       }
 
       if (status === "rejected") {
-        const { data: request, error: requestError } = await service
-          .from("wallet_merchant_settlement_requests")
-          .select("id,merchant_id,outlet_id,amount,status")
-          .eq("id", settlementId)
-          .single();
-        if (requestError) throw requestError;
-        if (!["requested", "approved"].includes(request.status)) throw new Error("Status pencairan tidak bisa ditolak.");
-
-        const { data: ledger, error: ledgerError } = await service.rpc("wallet_post_merchant_ledger", {
-          p_merchant_id: request.merchant_id,
-          p_outlet_id: request.outlet_id,
-          p_direction: "credit",
-          p_category: "settlement_rejected",
-          p_amount: request.amount,
-          p_idempotency_key: `merchant-settlement-rejected:${request.id}`,
+        const { data, error } = await service.rpc("wallet_reject_merchant_settlement", {
+          p_settlement_request_id: settlementId,
           p_actor_id: profile.id,
-          p_actor_role: role,
-          p_santri_ledger_id: null,
-          p_payment_intent_id: null,
-          p_settlement_request_id: request.id,
-          p_keterangan: "Pengajuan pencairan saldo kantin ditolak admin",
-          p_metadata: { source: "admin_panel", note_present: true },
+          p_note: note,
         });
-        if (ledgerError) throw ledgerError;
-
-        const { data, error } = await service
-          .from("wallet_merchant_settlement_requests")
-          .update({
-            status: "rejected",
-            reviewed_by: profile.id,
-            reviewed_at: new Date().toISOString(),
-            review_note: note,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", settlementId)
-          .select("*")
-          .single();
         if (error) throw error;
-        return json({ data: { ...data, ledger } });
+        return json({ data });
       }
 
       if (status === "approved") {
@@ -802,7 +831,7 @@ serve(async (req) => {
 
     return json({ error: "Action tidak dikenali." }, 400);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Wallet admin function failed.";
+    const message = getErrorMessage(error) || "Wallet admin function failed.";
     return json({ error: message }, 400);
   }
 });

@@ -9,8 +9,8 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 const { Option } = Select;
 
 export default function PersebaranSantriPage() {
-  const [mode, setMode] = useState<MapMode>("heatmap");
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [mode, setMode] = useState<MapMode>("points");
+  const [theme, setTheme] = useState<"dark" | "light">("light");
   const [kelas, setKelas] = useState<string | null>(null);
   const [jurusan, setJurusan] = useState<string | null>(null);
 
@@ -40,16 +40,13 @@ export default function PersebaranSantriPage() {
             <div className="mb-4">
               <label className="text-xs font-bold text-gray-400 uppercase">Filter Santri</label>
               <Select placeholder="Semua Kelas" allowClear style={{ width: "100%", marginTop: 8 }} onChange={(v)=>setKelas(v ?? null)}>
-                <Option value={null}>Semua</Option>
-                <Option value="kelas_1">Kelas 1</Option>
-                <Option value="kelas_2">Kelas 2</Option>
-                <Option value="kelas_3">Kelas 3</Option>
+                <Option value="1">Kelas 1</Option>
+                <Option value="2">Kelas 2</Option>
+                <Option value="3">Kelas 3</Option>
               </Select>
               <Select placeholder="Semua Jurusan" allowClear style={{ width: "100%", marginTop: 8 }} onChange={(v)=>setJurusan(v ?? null)}>
-                <Option value={null}>Semua</Option>
-                <Option value="umum">Umum</Option>
-                <Option value="keagamaan">Keagamaan</Option>
-                <Option value="multimedia">Multimedia</Option>
+                <Option value="KITAB">Kitab</Option>
+                <Option value="TAHFIDZ">Tahfidz</Option>
               </Select>
             </div>
 

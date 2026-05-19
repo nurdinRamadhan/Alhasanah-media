@@ -22,6 +22,74 @@ html, body, #root, .ant-layout, .ant-layout-content {
   display: block;
 }
 
+.map-cyber {
+  background: #020617;
+  border: 1px solid rgba(34, 211, 238, 0.28);
+  box-shadow:
+    inset 0 0 0 1px rgba(15, 23, 42, 0.8),
+    inset 0 0 42px rgba(34, 211, 238, 0.16),
+    0 20px 60px rgba(2, 6, 23, 0.42);
+}
+
+.map-cyber::before,
+.map-cyber::after {
+  content: "";
+  position: absolute;
+  z-index: 25;
+  pointer-events: none;
+  width: 54px;
+  height: 54px;
+  border-color: rgba(34, 211, 238, 0.88);
+  filter: drop-shadow(0 0 10px rgba(34, 211, 238, 0.55));
+}
+
+.map-cyber::before {
+  top: 14px;
+  left: 14px;
+  border-top: 2px solid;
+  border-left: 2px solid;
+}
+
+.map-cyber::after {
+  right: 14px;
+  bottom: 14px;
+  border-right: 2px solid;
+  border-bottom: 2px solid;
+}
+
+.map-cyber-grid {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(34, 211, 238, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 0.09) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mix-blend-mode: screen;
+  opacity: 0.38;
+}
+
+.map-scanline {
+  position: absolute;
+  inset: 0;
+  z-index: 21;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(34, 211, 238, 0.08),
+    transparent
+  );
+  background-size: 100% 7px;
+  opacity: 0.34;
+}
+
+.map-cyber[data-map-theme="light"] .map-cyber-grid,
+.map-cyber[data-map-theme="light"] .map-scanline {
+  opacity: 0.2;
+}
+
 /* L7 / MapLibre canvas must exactly fill the container */
 .l7-container, .l7-scene, .l7-container canvas, .maplibregl-canvas {
   position: absolute !important;
@@ -39,6 +107,15 @@ html, body, #root, .ant-layout, .ant-layout-content {
   position: relative;
   z-index: 60;
   pointer-events: auto;
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(8, 13, 29, 0.92), rgba(17, 24, 39, 0.74));
+  border: 1px solid rgba(34, 211, 238, 0.32) !important;
+  box-shadow:
+    0 0 0 1px rgba(14, 165, 233, 0.08),
+    0 18px 42px rgba(2, 6, 23, 0.42),
+    0 0 28px rgba(34, 211, 238, 0.16);
+  backdrop-filter: blur(12px);
 }
 
 /* AntD overlays */
@@ -54,10 +131,28 @@ body { overflow-x: hidden; }
 
 /* Neon / popup visuals preserved */
 .map-popup-neon {
-  background: linear-gradient(135deg, rgba(12,60,170,0.95), rgba(36,11,77,0.92));
+  background: linear-gradient(135deg, rgba(8, 47, 73, 0.96), rgba(15, 23, 42, 0.94));
   color: #e6f7ff;
-  border-radius: 10px;
+  border: 1px solid rgba(34, 211, 238, 0.36);
+  border-radius: 8px;
   padding: 10px;
-  box-shadow: 0 8px 28px rgba(60,80,255,0.12);
+  box-shadow:
+    0 8px 28px rgba(14, 165, 233, 0.2),
+    inset 0 0 22px rgba(34, 211, 238, 0.08);
   z-index: 10002;
+}
+
+.neon-btn {
+  border-color: rgba(34, 211, 238, 0.66) !important;
+  color: #e0f2fe !important;
+  text-shadow: 0 0 10px rgba(34, 211, 238, 0.38);
+  box-shadow: inset 0 0 14px rgba(34, 211, 238, 0.08);
+}
+
+.neon-btn:hover {
+  border-color: #67e8f9 !important;
+  color: #ffffff !important;
+  box-shadow:
+    inset 0 0 18px rgba(34, 211, 238, 0.14),
+    0 0 22px rgba(34, 211, 238, 0.24);
 }
