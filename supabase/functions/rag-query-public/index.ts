@@ -37,6 +37,18 @@ function buildContext(matches: MatchResult[]) {
   return total;
 }
 
+function topSimilarity(matches: MatchResult[]) {
+  return matches.reduce((max, match) => Math.max(max, Number(match.similarity || 0)), 0);
+}
+
+function confidenceLabel(matches: MatchResult[]) {
+  const top = topSimilarity(matches);
+  if (top >= 0.82) return "high";
+  if (top >= 0.74) return "medium";
+  if (matches.length > 0) return "low";
+  return "none";
+}
+
 serve(async (req) => {
   const options = handleOptions(req);
   if (options) return options;
@@ -91,6 +103,7 @@ serve(async (req) => {
 
     const matches = ((matchesRaw || []) as MatchResult[]).map((match) => sanitizeForAI(match));
     const hasRelevantContext = matches.length > 0;
+    const confidence = confidenceLabel(matches);
     const context = buildContext(matches);
 
     let answer = "";
@@ -106,6 +119,7 @@ serve(async (req) => {
           "Jika konteks tidak cukup, katakan bahwa informasi belum tersedia.",
           "Jangan mengarang dalil, halaman, bab, atau nama kitab.",
           "Sebutkan nama kitab dan bab/pasal jika tersedia di metadata.",
+          "Sebutkan sumber yang dipakai secara ringkas jika jawaban berasal dari dokumen.",
           "Gunakan Bahasa Indonesia yang sopan dan santun.",
         ].join("\n")
         : [
@@ -113,6 +127,7 @@ serve(async (req) => {
           "Jawab pertanyaan hanya berdasarkan konteks yang diberikan.",
           "Jika informasi tidak tersedia di konteks, katakan dengan jujur bahwa kamu belum memiliki informasi tersebut.",
           "Jangan mengarang informasi.",
+          "Sebutkan sumber dokumen yang dipakai secara ringkas jika tersedia.",
           "Jangan menyebut atau meminta data sensitif seperti NIK, NIS, alamat lengkap, nomor telepon, atau data santri pribadi.",
           "Gunakan Bahasa Indonesia yang sopan dan santun.",
         ].join("\n");
@@ -136,6 +151,8 @@ serve(async (req) => {
         source,
         match_count: matches.length,
         threshold,
+        top_similarity: topSimilarity(matches),
+        confidence,
       },
     });
 
@@ -147,6 +164,14 @@ serve(async (req) => {
         similarity: match.similarity,
       })),
       has_relevant_context: hasRelevantContext,
+      confidence,
+      confidence_note: confidence === "high"
+        ? "Jawaban didukung dokumen dengan relevansi tinggi."
+        : confidence === "medium"
+          ? "Jawaban didukung dokumen relevan, tetapi tetap terbatas pada isi knowledge base."
+          : confidence === "low"
+            ? "Ada dokumen terkait, tetapi relevansinya rendah. Jawaban perlu dibaca hati-hati."
+            : "Tidak ditemukan konteks relevan di knowledge base.",
       remaining_requests: rate.remaining,
     });
   } catch (error) {

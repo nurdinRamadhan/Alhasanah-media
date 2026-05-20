@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   Col,
+  DatePicker,
   Descriptions,
   Divider,
   Empty,
@@ -55,6 +56,81 @@ const statusColors: Record<string, string> = {
 const decisionRoles = ["super_admin", "rois", "dewan"];
 const manageRoles = ["super_admin", "rois"];
 
+const metadataLabels: Record<string, string> = {
+  summary: "Ringkasan",
+  author: "Penulis / Sumber",
+  unit: "Unit / Bagian",
+  subject: "Topik",
+  audience: "Audiens",
+  version: "Versi",
+  reference: "Nomor Referensi",
+  pages: "Halaman / Pasal",
+  effective_date: "Tanggal Berlaku",
+  keywords: "Kata Kunci",
+  sensitivity: "Klasifikasi",
+  notes: "Catatan",
+};
+
+const metadataSensitivityLabels: Record<string, string> = {
+  public: "Publik",
+  internal: "Internal",
+  restricted: "Terbatas",
+};
+
+const compactObject = (value: Record<string, unknown>) => Object.fromEntries(
+  Object.entries(value).filter(([, entry]) => {
+    if (Array.isArray(entry)) return entry.length > 0;
+    return entry !== undefined && entry !== null && String(entry).trim() !== "";
+  }),
+);
+
+const buildDocumentMetadata = (values: CreateDocumentValues) => {
+  const effectiveDate = values.metadata_effective_date
+    ? dayjs(values.metadata_effective_date).format("YYYY-MM-DD")
+    : undefined;
+
+  return compactObject({
+    summary: values.metadata_summary,
+    author: values.metadata_author,
+    unit: values.metadata_unit,
+    subject: values.metadata_subject,
+    audience: values.metadata_audience,
+    version: values.metadata_version,
+    reference: values.metadata_reference,
+    pages: values.metadata_pages,
+    effective_date: effectiveDate,
+    keywords: values.metadata_keywords,
+    sensitivity: values.metadata_sensitivity,
+    notes: values.metadata_notes,
+  });
+};
+
+const renderMetadataValue = (key: string, value: unknown) => {
+  if (key === "sensitivity" && typeof value === "string") {
+    return metadataSensitivityLabels[value] || value;
+  }
+  if (Array.isArray(value)) return value.join(", ");
+  if (typeof value === "object" && value !== null) return JSON.stringify(value, null, 2);
+  return String(value ?? "-");
+};
+
+const renderMetadataDescriptions = (metadata?: unknown) => {
+  const safeMetadata = typeof metadata === "object" && metadata !== null && !Array.isArray(metadata)
+    ? metadata as Record<string, unknown>
+    : {};
+  const entries = Object.entries(safeMetadata);
+
+  if (!entries.length) {
+    return <Text type="secondary">Belum ada metadata.</Text>;
+  }
+
+  return entries.map(([key, value]) => (
+    <Descriptions.Item key={key} label={metadataLabels[key] || key}>
+      <Text style={{ whiteSpace: "pre-wrap" }}>{renderMetadataValue(key, value)}</Text>
+    </Descriptions.Item>
+  ));
+};
+
 type CreateDocumentValues = {
   title: string;
   source_type: RagSourceType;
@@ -63,7 +139,18 @@ type CreateDocumentValues = {
   content: string;
   chunk_size?: number;
   chunk_overlap?: number;
-  metadata_text?: string;
+  metadata_summary?: string;
+  metadata_author?: string;
+  metadata_unit?: string;
+  metadata_subject?: string;
+  metadata_audience?: string;
+  metadata_version?: string;
+  metadata_reference?: string;
+  metadata_pages?: string;
+  metadata_effective_date?: dayjs.Dayjs | string;
+  metadata_keywords?: string[];
+  metadata_sensitivity?: "public" | "internal" | "restricted";
+  metadata_notes?: string;
 };
 
 type QueryTestValues = {
@@ -79,6 +166,8 @@ type QueryTestResult = {
     similarity?: number;
   }>;
   has_relevant_context?: boolean;
+  confidence?: "none" | "low" | "medium" | "high";
+  confidence_note?: string;
 };
 
 type AdminDecisionValues = {
@@ -99,6 +188,7 @@ type AdminDecisionResult = {
     kitab_references?: Array<{ title: string; metadata?: Record<string, unknown>; similarity?: number }>;
     internal_docs?: Array<{ title: string; metadata?: Record<string, unknown>; similarity?: number }>;
   };
+  confidence?: "none" | "low" | "medium" | "high";
   confidence_note?: string;
 };
 
@@ -200,7 +290,7 @@ export const RagKnowledgePage: React.FC = () => {
       status: "active",
       chunk_size: 500,
       chunk_overlap: 50,
-      metadata_text: "{}",
+      metadata_sensitivity: sourceType === "internal" ? "internal" : "public",
     });
     setModalOpen(true);
   };
@@ -234,14 +324,7 @@ export const RagKnowledgePage: React.FC = () => {
     if (!canManage || !user) return;
     setIngesting(true);
 
-    let metadata = {};
-    try {
-      metadata = values.metadata_text ? JSON.parse(values.metadata_text) : {};
-    } catch {
-      message.error("Metadata harus berupa JSON valid.");
-      setIngesting(false);
-      return;
-    }
+    const metadata = buildDocumentMetadata(values);
 
     const { data, error } = await supabaseClient.functions.invoke("rag-ingest", {
       body: {
@@ -276,16 +359,9 @@ export const RagKnowledgePage: React.FC = () => {
 
   const createMetadataOnly = async () => {
     if (!canManage || !user) return;
-    await form.validateFields(["title", "source_type", "document_type", "metadata_text"]);
-    const values = form.getFieldsValue();
-
-    let metadata = {};
-    try {
-      metadata = values.metadata_text ? JSON.parse(values.metadata_text) : {};
-    } catch {
-      message.error("Metadata harus berupa JSON valid.");
-      return;
-    }
+    await form.validateFields(["title", "source_type", "document_type"]);
+    const values = form.getFieldsValue() as CreateDocumentValues;
+    const metadata = buildDocumentMetadata(values);
 
     const { error } = await supabaseClient.from("rag_documents").insert({
       title: values.title,
@@ -507,11 +583,7 @@ export const RagKnowledgePage: React.FC = () => {
                   <Descriptions size="small" bordered column={1}>
                     <Descriptions.Item label="ID">{record.id}</Descriptions.Item>
                     <Descriptions.Item label="Sumber">{sourceLabels[record.source_type]}</Descriptions.Item>
-                    <Descriptions.Item label="Metadata">
-                      <pre style={{ margin: 0, whiteSpace: "pre-wrap" }}>
-                        {JSON.stringify(record.metadata || {}, null, 2)}
-                      </pre>
-                    </Descriptions.Item>
+                    {renderMetadataDescriptions(record.metadata)}
                   </Descriptions>
                 ),
               })}
@@ -669,7 +741,16 @@ export const RagKnowledgePage: React.FC = () => {
               {queryResult ? (
                 <Space direction="vertical" size={12} style={{ width: "100%" }}>
                   <Card size="small" title="Jawaban">
-                    <Text style={{ whiteSpace: "pre-wrap" }}>{queryResult.answer}</Text>
+                    <Space direction="vertical" size={8} style={{ width: "100%" }}>
+                      <Space wrap>
+                        <Tag color={queryResult.confidence === "high" ? "green" : queryResult.confidence === "medium" ? "blue" : queryResult.confidence === "low" ? "gold" : "default"}>
+                          Confidence: {queryResult.confidence || "unknown"}
+                        </Tag>
+                        {queryResult.has_relevant_context ? <Tag color="green">Konteks relevan</Tag> : <Tag>Tanpa konteks</Tag>}
+                      </Space>
+                      <Text style={{ whiteSpace: "pre-wrap" }}>{queryResult.answer}</Text>
+                      {queryResult.confidence_note ? <Text type="secondary">{queryResult.confidence_note}</Text> : null}
+                    </Space>
                   </Card>
                   <Card size="small" title="Sumber Ditemukan">
                     {queryResult.sources?.length ? (
@@ -837,6 +918,9 @@ export const RagKnowledgePage: React.FC = () => {
                   </Card>
                   <Card size="small" title="Sumber Data">
                     <Space direction="vertical" style={{ width: "100%" }}>
+                      <Tag color={adminResult.confidence === "high" ? "green" : adminResult.confidence === "medium" ? "blue" : adminResult.confidence === "low" ? "gold" : "default"}>
+                        Confidence: {adminResult.confidence || "unknown"}
+                      </Tag>
                       <Tag color={adminResult.data_sources?.db_context ? "green" : "default"}>
                         Data DB: {adminResult.data_sources?.db_context ? "digunakan" : "tidak digunakan"}
                       </Tag>
@@ -1011,9 +1095,97 @@ export const RagKnowledgePage: React.FC = () => {
             </Col>
           </Row>
           <Divider style={{ margin: "8px 0 14px" }} />
-          <Form.Item name="metadata_text" label="Metadata JSON">
-            <Input.TextArea rows={5} spellCheck={false} />
-          </Form.Item>
+          <Card size="small" title="Informasi Tambahan">
+            <Row gutter={12}>
+              <Col xs={24} md={12}>
+                <Form.Item name="metadata_summary" label="Ringkasan Singkat">
+                  <Input maxLength={220} placeholder="Contoh: SOP pembayaran bulanan santri" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="metadata_subject" label="Topik">
+                  <Input maxLength={120} placeholder="Contoh: Keuangan, Kesantrian, Kitab" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="metadata_author" label="Penulis / Sumber">
+                  <Input maxLength={120} placeholder="Contoh: Bendahara Pesantren" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="metadata_unit" label="Unit / Bagian">
+                  <Input maxLength={120} placeholder="Contoh: Tata Usaha" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="metadata_audience" label="Ditujukan Untuk">
+                  <Select
+                    allowClear
+                    options={[
+                      { value: "Semua Pengguna", label: "Semua Pengguna" },
+                      { value: "Admin", label: "Admin" },
+                      { value: "Wali Santri", label: "Wali Santri" },
+                      { value: "Santri", label: "Santri" },
+                      { value: "Pengurus", label: "Pengurus" },
+                    ]}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="metadata_sensitivity" label="Klasifikasi">
+                  <Select
+                    options={[
+                      { value: "public", label: "Publik" },
+                      { value: "internal", label: "Internal" },
+                      { value: "restricted", label: "Terbatas" },
+                    ]}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={8}>
+                <Form.Item name="metadata_version" label="Versi">
+                  <Input maxLength={40} placeholder="Contoh: v1.0" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={8}>
+                <Form.Item name="metadata_reference" label="Nomor Referensi">
+                  <Input maxLength={80} placeholder="Contoh: SOP-KEU-001" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={8}>
+                <Form.Item name="metadata_effective_date" label="Tanggal Berlaku">
+                  <DatePicker style={{ width: "100%" }} format="DD MMM YYYY" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="metadata_pages" label="Halaman / Pasal">
+                  <Input maxLength={80} placeholder="Contoh: Hal. 3-5 atau Pasal 2" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="metadata_keywords" label="Kata Kunci">
+                  <Select
+                    mode="tags"
+                    tokenSeparators={[","]}
+                    placeholder="Ketik lalu Enter"
+                    options={[
+                      { value: "keuangan", label: "keuangan" },
+                      { value: "tagihan", label: "tagihan" },
+                      { value: "santri", label: "santri" },
+                      { value: "wali", label: "wali" },
+                      { value: "kitab", label: "kitab" },
+                      { value: "sop", label: "sop" },
+                    ]}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={24}>
+                <Form.Item name="metadata_notes" label="Catatan">
+                  <Input.TextArea rows={2} maxLength={500} placeholder="Catatan singkat agar AI memahami konteks dokumen." />
+                </Form.Item>
+              </Col>
+            </Row>
+          </Card>
         </Form>
       </Modal>
       <Modal
@@ -1051,9 +1223,15 @@ export const RagKnowledgePage: React.FC = () => {
               dataIndex: "metadata",
               width: 260,
               render: (value) => (
-                <pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: 12 }}>
-                  {JSON.stringify(value || {}, null, 2)}
-                </pre>
+                <Space direction="vertical" size={2}>
+                  {Object.entries(value || {}).slice(0, 6).map(([key, entry]) => (
+                    <Text key={key} style={{ fontSize: 12 }}>
+                      <Text strong style={{ fontSize: 12 }}>{metadataLabels[key] || key}: </Text>
+                      {renderMetadataValue(key, entry)}
+                    </Text>
+                  ))}
+                  {!Object.keys(value || {}).length && <Text type="secondary">-</Text>}
+                </Space>
               ),
             },
           ]}

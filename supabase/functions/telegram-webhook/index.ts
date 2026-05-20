@@ -85,6 +85,9 @@ type TopicKey =
     | "PRESTASI"
     | "BEBAS";
 
+type FreeQuestionMode = "rag_knowledge" | "system_ops";
+type RagSourceScope = "public" | "kitab" | "internal";
+
 // ───────────────────────────────────────────────────────────────────────────
 // CONSTANTS
 // ───────────────────────────────────────────────────────────────────────────
@@ -106,6 +109,8 @@ const FINANCE_ROLES: AllowedRole[] = ["super_admin", "rois", "bendahara"];
 
 // Jeda minimal antar request per user (detik) — cegah spam ke Gemini
 const RATE_LIMIT_SECONDS = 12;
+const MAX_FREE_QUESTION_CHARS = 700;
+const GEMINI_TIMEOUT_MS = Number(Deno.env.get("TELEGRAM_GEMINI_TIMEOUT_MS") || 25_000);
 
 // Env variables
 const BOT_TOKEN        = Deno.env.get("TELEGRAM_BOT_TOKEN")        ?? "";
@@ -113,6 +118,7 @@ const WEBHOOK_SECRET   = Deno.env.get("TELEGRAM_WEBHOOK_SECRET")   ?? "";
 const SUPABASE_URL     = Deno.env.get("SUPABASE_URL")              ?? "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") ?? "";
+const ALLOW_INSECURE_DEV = Deno.env.get("TELEGRAM_ALLOW_INSECURE_DEV") === "true";
 
 // Base URL Telegram Bot API
 const TG_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
@@ -158,8 +164,8 @@ const REPORT_LIMITS: Record<TopicKey, { maxWords: number; maxOutputTokens: numbe
 
 function verifyWebhookSecret(req: Request): boolean {
     if (!WEBHOOK_SECRET) {
-        console.warn("[Security] WEBHOOK_SECRET belum diset — dev mode, skip verifikasi");
-        return true;
+        console.error("[Security] WEBHOOK_SECRET belum diset — request ditolak. Set TELEGRAM_ALLOW_INSECURE_DEV=true hanya untuk dev lokal.");
+        return ALLOW_INSECURE_DEV;
     }
     const incoming = req.headers.get("X-Telegram-Bot-Api-Secret-Token") ?? "";
     return incoming === WEBHOOK_SECRET;
@@ -245,10 +251,10 @@ function splitTextSafely(text: string, maxLen: number): string[] {
  * Hapus format Markdown agar plain text tidak error di Telegram.
  */
 function stripMarkdown(text: string): string {
-    return text.replace(/[*_`\[\]]/g, "");
+    return text.replace(/[*_`[\]]/g, "");
 }
 
-function sanitizeAiAnswer(text: string, topic: TopicKey): string {
+function sanitizeAiAnswer(text: string, topic: TopicKey, requireAction = true): string {
     let answer = (text || "").trim();
     if (!answer) return "Maaf, AI tidak memberikan jawaban untuk permintaan ini.";
 
@@ -259,11 +265,78 @@ function sanitizeAiAnswer(text: string, topic: TopicKey): string {
         .replace(/\n{3,}/g, "\n\n")
         .trim();
 
-    if (!/⚡\s*\*?Aksi:/i.test(answer)) {
+    if (requireAction && !/⚡\s*\*?Aksi:/i.test(answer)) {
         answer += `\n\n⚡ *Aksi:* Tinjau prioritas ${TOPIC_EMOJI[topic]} hari ini melalui dashboard dan tindak lanjuti data yang berisiko.`;
     }
 
     return answer;
+}
+
+function cleanTelegramInput(value: string, max = MAX_FREE_QUESTION_CHARS): string {
+    return value
+        .split("\u0000").join("")
+        .replace(/[\u200B-\u200D\uFEFF]/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, max);
+}
+
+function normalizeForIntent(value: string): string {
+    return value
+        .toLowerCase()
+        .normalize("NFKD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function includesAny(text: string, terms: string[]): boolean {
+    return terms.some((term) => text.includes(term));
+}
+
+function isKitabKnowledgeQuestion(question: string): boolean {
+    const text = normalizeForIntent(question);
+    return includesAny(text, [
+        "kitab", "hukum", "fiqih", "fikih", "fatwa", "dalil", "bab", "pasal",
+        "syarah", "matan", "adab", "akhlak", "thaharah", "taharah", "wudhu",
+        "wudu", "najis", "shalat", "sholat", "puasa", "zakat", "muamalah",
+    ]);
+}
+
+function isSystemOpsQuestion(question: string): boolean {
+    const text = normalizeForIntent(question);
+    return includesAny(text, [
+        "santri aktif", "jumlah santri", "data santri", "tagihan", "spp", "belum lunas",
+        "cicilan", "keuangan", "kas", "pengeluaran", "pemasukan", "saldo", "dompet",
+        "hafalan", "tahfidz", "murojaah", "kesehatan", "sakit", "keluhan",
+        "pelanggaran", "disiplin", "kedisiplinan", "izin", "perizinan", "prestasi",
+        "inventaris", "laporan", "ringkasan", "kinerja", "dashboard", "bulan ini",
+        "minggu ini", "hari ini", "terakhir", "risiko operasional", "siapa santri",
+        "kelas", "jurusan", "nis",
+    ]);
+}
+
+function resolveFreeQuestionMode(question: string): FreeQuestionMode {
+    return isSystemOpsQuestion(question) ? "system_ops" : "rag_knowledge";
+}
+
+function resolveRagScopes(question: string, mode: FreeQuestionMode, canUseInternal: boolean): RagSourceScope[] {
+    if (mode === "system_ops") {
+        return canUseInternal ? ["internal", "public", "kitab"] : ["public", "kitab"];
+    }
+    if (isKitabKnowledgeQuestion(question)) return ["kitab", "public"];
+    return ["public", "kitab"];
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(url, { ...init, signal: controller.signal });
+    } finally {
+        clearTimeout(timeout);
+    }
 }
 
 /**
@@ -550,7 +623,8 @@ async function buildDataContext(
     // deno-lint-ignore no-explicit-any
     santriList.forEach((s: any) => { santriMap[s.nis] = s; });
 
-    const namaOf = (nis: string, _short = false): string => {
+    const namaOf = (nis: string, short = false): string => {
+        void short;
         const safeNis = String(nis || "").replace(/[^0-9A-Za-z]/g, "");
         return `Santri-${safeNis.slice(-4) || "XXXX"}`;
     };
@@ -764,6 +838,123 @@ Inventaris Rusak Berat: ${rusak} | Rusak Ringan: ${rusakRingan} | Hilang: ${hila
 `.trim();
 }
 
+async function embedTelegramQuery(query: string): Promise<number[]> {
+    const model = Deno.env.get("AI_EMBEDDING_MODEL") || "gemini-embedding-001";
+    const preparedText = model.startsWith("gemini-embedding")
+        ? `task: question answering | query: ${query}`
+        : query;
+
+    const response = await fetchWithTimeout(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:embedContent?key=${GEMINI_API_KEY}`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(model.startsWith("gemini-embedding") ? {
+                content: { parts: [{ text: preparedText }] },
+                output_dimensionality: 768,
+            } : {
+                content: { parts: [{ text: query }] },
+                taskType: "RETRIEVAL_QUERY",
+                output_dimensionality: 768,
+            }),
+        },
+        GEMINI_TIMEOUT_MS,
+    );
+
+    const data = await response.json();
+    if (!response.ok) {
+        console.error("[Telegram RAG] embedding error:", JSON.stringify(data));
+        return [];
+    }
+
+    const values = data.embedding?.values;
+    return Array.isArray(values) ? values as number[] : [];
+}
+
+async function buildTelegramRagContext(
+    supabase: ReturnType<typeof createClient>,
+    admin: AdminProfile,
+    question: string,
+    mode: FreeQuestionMode,
+): Promise<{ context: string; sources: string[] }> {
+    if (!question || !GEMINI_API_KEY) return { context: "", sources: [] };
+
+    const embedding = await embedTelegramQuery(question);
+    if (embedding.length !== 768) return { context: "", sources: [] };
+
+    const canUseInternal = ["super_admin", "rois", "dewan"].includes(admin.role);
+    const scopes = resolveRagScopes(question, mode, canUseInternal);
+    const matchCount = Math.min(Number(Deno.env.get("RAG_MAX_CHUNKS") || 4), 4);
+
+    const publicPromise = scopes.includes("public")
+        ? supabase.rpc("match_public_documents", {
+            query_embedding: embedding,
+            match_threshold: Number(Deno.env.get("RAG_MATCH_THRESHOLD_PUBLIC") || 0.70),
+            match_count: matchCount,
+        })
+        : Promise.resolve({ data: [], error: null });
+    const kitabPromise = scopes.includes("kitab")
+        ? supabase.rpc("match_kitab_documents", {
+            query_embedding: embedding,
+            match_threshold: Number(Deno.env.get("RAG_MATCH_THRESHOLD_KITAB") || 0.65),
+            match_count: isKitabKnowledgeQuestion(question) ? matchCount : 2,
+        })
+        : Promise.resolve({ data: [], error: null });
+    const internalPromise = scopes.includes("internal") && canUseInternal
+        ? supabase.rpc("match_internal_documents", {
+            query_embedding: embedding,
+            match_threshold: Number(Deno.env.get("RAG_MATCH_THRESHOLD_INTERNAL") || 0.72),
+            match_count: matchCount,
+        })
+        : Promise.resolve({ data: [], error: null });
+
+    const [publicResult, kitabResult, internalResult] = await Promise.all([
+        publicPromise,
+        kitabPromise,
+        internalPromise,
+    ]);
+
+    for (const [label, result] of [
+        ["public", publicResult],
+        ["kitab", kitabResult],
+        ["internal", internalResult],
+    ] as const) {
+        if (result.error) console.error(`[Telegram RAG] ${label} match error:`, result.error);
+    }
+
+    const matches = [
+        ...((publicResult.data || []) as Array<Record<string, unknown>>).map((row) => ({ ...row, source_label: "Publik" })),
+        ...((kitabResult.data || []) as Array<Record<string, unknown>>).map((row) => ({ ...row, source_label: "Kitab" })),
+        ...((internalResult.data || []) as Array<Record<string, unknown>>).map((row) => ({ ...row, source_label: "Internal" })),
+    ]
+        .filter((row) => scopes.includes(
+            String(row.source_label || "").toLowerCase() === "publik"
+                ? "public"
+                : String(row.source_label || "").toLowerCase() as RagSourceScope,
+        ))
+        .sort((a, b) => Number(b.similarity || 0) - Number(a.similarity || 0))
+        .slice(0, 5);
+
+    const sources: string[] = [];
+    let context = "";
+    for (const [index, match] of matches.entries()) {
+        const title = String(match.title || "Dokumen");
+        const similarity = Number(match.similarity || 0).toFixed(3);
+        const content = String(match.content || "").slice(0, 900);
+        const sourceLabel = String(match.source_label || "RAG");
+        sources.push(`${sourceLabel}: ${title} (${similarity})`);
+        const next = [
+            `Sumber RAG ${index + 1}: ${sourceLabel} - ${title}`,
+            `Similarity: ${similarity}`,
+            `Isi: ${content}`,
+        ].join("\n");
+        if ((context + "\n\n" + next).length > 3200) break;
+        context = `${context}\n\n${next}`.trim();
+    }
+
+    return { context, sources };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // BAGIAN 6 — PROMPT BUILDER
 // Format output disesuaikan untuk Telegram (bukan tabel, tapi bullet).
@@ -773,7 +964,9 @@ function buildPrompt(
     topic:           TopicKey,
     dataContext:     string,
     admin:           AdminProfile,
-    customQuestion?: string
+    customQuestion?: string,
+    ragContext?: string,
+    freeQuestionMode?: FreeQuestionMode,
 ): string {
     // Instruksi scope untuk AI
     const scopeNote = admin.akses_jurusan !== "ALL" || admin.akses_gender !== "ALL"
@@ -781,8 +974,26 @@ function buildPrompt(
         : "";
     const limits = REPORT_LIMITS[topic];
     const isFullReport = topic === "LAPORAN";
+    const isKnowledgeFree = topic === "BEBAS" && freeQuestionMode === "rag_knowledge";
 
-    const SYSTEM_PROMPT = `Anda adalah Analis Data Eksekutif Pesantren Al-Hasanah. Jawaban dikirim via Telegram.${scopeNote}
+    const SYSTEM_PROMPT = isKnowledgeFree
+        ? `Anda adalah asisten knowledge base Pesantren Al-Hasanah. Jawaban dikirim via Telegram.${scopeNote}
+
+ATURAN OUTPUT:
+① Maksimal 450 kata.
+② Format Telegram (parse_mode Markdown v1): *bold*, _italic_, \`code\`
+③ Jawab langsung sesuai pertanyaan, profesional, dan mudah dipahami.
+④ Utamakan KONTEKS RAG. Jangan mengarang isi dokumen yang tidak ada.
+⑤ Jangan membuat laporan kinerja, laporan santri, atau audit operasional kecuali user memintanya secara eksplisit.
+⑥ Jika pertanyaan kitab/hukum, jawaban adalah ringkasan referensi, bukan fatwa final; sarankan konfirmasi ke ustadz/pengasuh untuk keputusan amaliah penting.
+⑦ Sebutkan sumber dokumen secara ringkas jika tersedia.
+
+FORMAT:
+*[JAWABAN SINGKAT]*
+• [poin utama]
+• [poin pendukung]
+• [catatan sumber/keterbatasan bila perlu]`
+        : `Anda adalah Analis Data Eksekutif Pesantren Al-Hasanah. Jawaban dikirim via Telegram.${scopeNote}
 
 ATURAN OUTPUT:
 ① Maksimal ${limits.maxWords} kata. Jangan terlalu ringkas; semua angka penting dan risiko harus muncul.
@@ -791,7 +1002,8 @@ ATURAN OUTPUT:
 ④ Jangan mengarang data. Jika data nihil, tulis "nihil"; jika sumber gagal, sebutkan keterbatasannya.
 ⑤ Beri analisis, bukan hanya salin angka: jelaskan implikasi, risiko, dan prioritas.
 ⑥ Untuk laporan menyeluruh, bahas semua modul yang ada di data. Untuk topik spesifik, tetap sebutkan konteks lintas modul jika relevan.
-⑦ Akhiri SELALU dengan: ⚡ *Aksi:* [2-3 tindakan konkret dan spesifik]
+⑦ Jika ada KONTEKS RAG, gunakan sebagai referensi pendukung dan sebutkan sumbernya secara ringkas.
+⑧ Akhiri SELALU dengan: ⚡ *Aksi:* [2-3 tindakan konkret dan spesifik]
 
 FORMAT WAJIB:
 *[EMOJI] [JUDUL SINGKAT]*
@@ -822,13 +1034,32 @@ ${isFullReport ? `*Ringkasan Eksekutif*
 
 ⚡ *Aksi:* [2-3 tindakan konkret]`;
 
-    const dataSection = `\n\n━━━ DATA REAL-TIME SISTEM ━━━\n${dataContext}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+    const dataSection = dataContext
+        ? `\n\n━━━ DATA REAL-TIME SISTEM ━━━\n${dataContext}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+        : "";
+    const ragSection = ragContext
+        ? `\n\n━━━ KONTEKS RAG TERKAIT ━━━\n${ragContext}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+        : "";
 
     if (topic === "BEBAS") {
-        return `${SYSTEM_PROMPT}${dataSection}\n\nPERTANYAAN ADMIN (${admin.full_name}): ${customQuestion ?? "tidak ada pertanyaan"}`;
+        const modeInstruction = freeQuestionMode === "rag_knowledge"
+            ? [
+                "MODE TANYA KNOWLEDGE:",
+                "1. Jawab pertanyaan dari KONTEKS RAG sebagai sumber utama.",
+                "2. Jangan mengubah pertanyaan umum/kitab/profil pesantren menjadi laporan kinerja, laporan santri, atau audit operasional.",
+                "3. Jika KONTEKS RAG tersedia, jangan mengawali jawaban dengan jumlah santri, status kinerja, tagihan, atau data operasional kecuali user memang menanyakannya.",
+                "4. Jika konteks RAG tidak cukup, katakan bahwa referensi belum cukup dan beri jawaban umum singkat hanya bila aman.",
+            ].join("\n")
+            : [
+                "MODE TANYA OPERASIONAL:",
+                "1. Gunakan DATA REAL-TIME SISTEM sebagai sumber utama.",
+                "2. Gunakan KONTEKS RAG hanya sebagai pendukung kebijakan, referensi, atau definisi.",
+            ].join("\n");
+
+        return `${SYSTEM_PROMPT}${dataSection}${ragSection}\n\n${modeInstruction}\n\nPERTANYAAN ADMIN (${admin.full_name}): ${customQuestion ?? "tidak ada pertanyaan"}`;
     }
 
-    return `${SYSTEM_PROMPT}${dataSection}\n\nTUGAS ANALISA: ${TOPIC_TASK[topic]}`;
+    return `${SYSTEM_PROMPT}${dataSection}${ragSection}\n\nTUGAS ANALISA: ${TOPIC_TASK[topic]}`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -935,23 +1166,49 @@ async function handleTopicCommand(
         return;
     }
 
-    // 4. Ambil data real-time dari seluruh sistem
-    let dataContext: string;
-    try {
-        dataContext = await buildDataContext(supabase, admin);
-    } catch (err) {
-        console.error("[buildDataContext] Error:", err);
-        await sendMessage(chatId,
-            `⚠️ *Gagal Mengambil Data*\n\n` +
-            `Terjadi kesalahan saat memuat data pesantren.\n` +
-            `Coba lagi dalam beberapa saat.`
-        );
+    const safeQuestion = customQuestion ? cleanTelegramInput(customQuestion) : undefined;
+    if (customQuestion && !safeQuestion) {
+        await sendMessage(chatId, "❓ Pertanyaan kosong setelah dibersihkan. Coba tulis ulang pertanyaannya.");
         return;
     }
 
-    // 5. Susun prompt
-    const prompt = buildPrompt(topic, dataContext, admin, customQuestion);
-    const limits = REPORT_LIMITS[topic];
+    const freeQuestionMode: FreeQuestionMode | undefined = topic === "BEBAS" && safeQuestion
+        ? resolveFreeQuestionMode(safeQuestion)
+        : undefined;
+
+    let ragContext = "";
+    let ragSources: string[] = [];
+    if (safeQuestion && topic === "BEBAS") {
+        try {
+            const rag = await buildTelegramRagContext(supabase, admin, safeQuestion, freeQuestionMode ?? "rag_knowledge");
+            ragContext = rag.context;
+            ragSources = rag.sources;
+        } catch (err) {
+            console.error("[Telegram RAG] context build failed:", err);
+        }
+    }
+
+    // Ambil snapshot sistem hanya untuk command laporan/topik operasional.
+    // Pertanyaan knowledge umum/kitab harus RAG-first agar tidak berubah menjadi laporan kinerja.
+    let dataContext = "";
+    if (topic !== "BEBAS" || freeQuestionMode === "system_ops") {
+        try {
+            dataContext = await buildDataContext(supabase, admin);
+        } catch (err) {
+            console.error("[buildDataContext] Error:", err);
+            await sendMessage(chatId,
+                `⚠️ *Gagal Mengambil Data*\n\n` +
+                `Terjadi kesalahan saat memuat data pesantren.\n` +
+                `Coba lagi dalam beberapa saat.`
+            );
+            return;
+        }
+    }
+
+    const prompt = buildPrompt(topic, dataContext, admin, safeQuestion, ragContext, freeQuestionMode);
+    const limits = freeQuestionMode === "rag_knowledge"
+        ? { maxWords: 450, maxOutputTokens: 1600 }
+        : REPORT_LIMITS[topic];
 
     // 6. Panggil Gemini API langsung — tidak melalui gemini-consultant
     //    Ini menghilangkan masalah JWT antar Edge Function
@@ -961,7 +1218,7 @@ async function handleTopicCommand(
             `https://generativelanguage.googleapis.com/v1beta/models/` +
             `gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
-        const geminiRes = await fetch(GEMINI_URL, {
+        const geminiRes = await fetchWithTimeout(GEMINI_URL, {
             method:  "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -975,7 +1232,7 @@ async function handleTopicCommand(
                     maxOutputTokens: limits.maxOutputTokens,
                 },
             }),
-        });
+        }, GEMINI_TIMEOUT_MS);
 
         // Parse response
         const geminiData = await geminiRes.json();
@@ -1013,6 +1270,7 @@ async function handleTopicCommand(
             geminiData?.candidates?.[0]?.content?.parts?.[0]?.text
                 ?? "Maaf, AI tidak memberikan jawaban untuk permintaan ini.",
             topic,
+            freeQuestionMode !== "rag_knowledge",
         );
         if (finishReason === "MAX_TOKENS") {
             answer += `\n\n_ Catatan: jawaban mencapai batas token. Gunakan perintah topik spesifik untuk rincian tambahan._`;
@@ -1037,14 +1295,13 @@ async function handleTopicCommand(
     });
 
     const footer =
-        `\n\n_${TOPIC_EMOJI[topic]} ${admin.full_name} · ${timeStr} WIB_`;
+        `\n\n_${TOPIC_EMOJI[topic]} ${escapeMarkdown(admin.full_name)} · ${timeStr} WIB_` +
+        (ragSources.length
+            ? `\n_RAG: ${ragSources.slice(0, 3).map((item) => escapeMarkdown(stripMarkdown(item))).join(" | ")}_`
+            : "");
 
     await sendMessage(chatId, answer + footer);
 }
-
-
-// Helper: now() agar bisa di-mock dalam testing
-const now = () => new Date();
 
 // ═══════════════════════════════════════════════════════════════════════════
 // BAGIAN 8 — MESSAGE ROUTER
@@ -1062,7 +1319,8 @@ async function routeMessage(
     // Parse command vs argumen
     const spaceIdx = rawText.indexOf(" ");
     const command  = (spaceIdx === -1 ? rawText : rawText.slice(0, spaceIdx)).toLowerCase();
-    const args     = spaceIdx === -1 ? "" : rawText.slice(spaceIdx + 1).trim();
+    const args     = cleanTelegramInput(spaceIdx === -1 ? "" : rawText.slice(spaceIdx + 1), MAX_FREE_QUESTION_CHARS);
+    const safeRawText = cleanTelegramInput(rawText, MAX_FREE_QUESTION_CHARS);
 
     // Catat aktivitas ke audit_logs SEBELUM rate limit check
     // (agar query yang di-throttle pun tetap tercatat)
@@ -1152,7 +1410,7 @@ async function routeMessage(
         default: {
             // Pesan teks biasa (bukan command) → mode bebas langsung
             if (!rawText.startsWith("/")) {
-                await handleTopicCommand(supabase, admin, chatId, "BEBAS", rawText);
+                await handleTopicCommand(supabase, admin, chatId, "BEBAS", safeRawText);
                 break;
             }
             // Command tidak dikenal
@@ -1180,7 +1438,7 @@ function resolveTopicFromCommand(cmd: string): string {
 
 /** Escape karakter Markdown v1 dalam string dinamis */
 function escapeMarkdown(text: string): string {
-    return text.replace(/([*_`\[\]])/g, "\\$1");
+    return text.replace(/([*_`[\]])/g, "\\$1");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -72,4 +72,11 @@ export const resources: ResourceProps[] = [
     meta:{ label:"Arsip & Nilai", parent:"ulangan_menu", icon:<FileProtectOutlined /> } },
   { name:"notification_queue", list:"/notifications", create:"/notifications/create",
     meta:{ label:"Notifikasi Push", icon:<BellOutlined /> } },
+  { name:"backend_command_center", meta:{ label:"Backend Command Center", icon:<DatabaseOutlined /> } },
+  { name:"backend_self_healing", list:"/backend-command-center/self-healing",
+    meta:{ label:"Self-Healing Center", parent:"backend_command_center", icon:<SafetyCertificateOutlined /> } },
+  { name:"backend_diagnostics", list:"/backend-command-center/diagnostics",
+    meta:{ label:"Backend Diagnostics", parent:"backend_command_center", icon:<DatabaseOutlined /> } },
+  { name:"backend_private_audit_log", list:"/backend-command-center/private-audit-log",
+    meta:{ label:"Private Audit Log", parent:"backend_command_center", icon:<FileProtectOutlined /> } },
 ];

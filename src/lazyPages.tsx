@@ -63,6 +63,9 @@ export const WeeklyTestCreate   = React.lazy(() => import("./pages/ulangan/creat
 export const WeeklyTestArsip    = React.lazy(() => import("./pages/ulangan/arsip/list").then(m => ({ default: m.WeeklyTestArsip })));
 export const NotificationList   = React.lazy(() => import("./pages/notifications/list").then(m => ({ default: m.NotificationList })));
 export const NotificationCreate = React.lazy(() => import("./pages/notifications/create").then(m => ({ default: m.NotificationCreate })));
+export const SelfHealingCenterPage = React.lazy(() => import("./pages/backend-command-center").then(m => ({ default: m.SelfHealingCenterPage })));
+export const BackendDiagnosticsPage = React.lazy(() => import("./pages/backend-command-center").then(m => ({ default: m.BackendDiagnosticsPage })));
+export const PrivateAuditLogPage = React.lazy(() => import("./pages/backend-command-center").then(m => ({ default: m.PrivateAuditLogPage })));
 
 
 export const LoadingFallback = () => (

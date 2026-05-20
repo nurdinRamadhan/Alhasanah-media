@@ -71,8 +71,6 @@ import {
   HistoryOutlined, DatabaseOutlined,
 } from "@ant-design/icons";
 
-import { Spin } from "antd";
-
 // ── Lazy Loading Pages ──
 import { 
   DashboardPage, InstansiPage, SantriList, SantriCreate, SantriEdit, SantriShow, 
@@ -86,7 +84,8 @@ import {
   HafalanKitabCreate, HafalanKitabShow, PengeluaranList, DiklatList, 
   MasterDataPage, AuditLogList, AkademikPage, ScanQR, CreateAdminPage, 
   AdminList, AlumniList, WeeklyTestList, WeeklyTestCreate, WeeklyTestArsip, 
-  NotificationList, NotificationCreate, LoadingFallback 
+  NotificationList, NotificationCreate, SelfHealingCenterPage, BackendDiagnosticsPage,
+  PrivateAuditLogPage, RagKnowledgePage, LoadingFallback
 } from "./lazyPages";
 
 import { AiFloatingButton }   from "./components/AiFloatingButton";
@@ -1104,6 +1103,7 @@ const InnerApp: React.FC = () => {
                 meta:{ label:"Hafalan Kitab", parent:"tahfidz_menu", icon:<BookOutlined /> } },
               { name:"alumni_data",  list:"/alumni",      meta:{ label:"Manajemen Alumni",            icon:<GlobalOutlined /> } },
               { name:"audit_logs",   list:"/audit-logs",  meta:{ label:"Log Aktivitas (Permanen)",     icon:<SafetyCertificateOutlined /> } },
+              { name:"rag_knowledge", list:"/rag",         meta:{ label:"RAG Knowledge Base",           icon:<DatabaseOutlined /> } },
               { name:"akademik",     list:"/akademik",    meta:{ label:"Laporan Nilai",                icon:<BookOutlined /> } },
               { name:"tagihan_santri", list:"/tagihan", create:"/tagihan/create", edit:"/tagihan/edit/:id",
                 meta:{ label:"Keuangan & SPP", icon:<WalletOutlined /> } },
@@ -1133,6 +1133,13 @@ const InnerApp: React.FC = () => {
                 meta:{ label:"Arsip & Nilai", parent:"ulangan_menu", icon:<FileProtectOutlined /> } },
               { name:"notification_queue", list:"/notifications", create:"/notifications/create",
                 meta:{ label:"Notifikasi Push", icon:<BellOutlined /> } },
+              { name:"backend_command_center", meta:{ label:"Backend Command Center", icon:<DatabaseOutlined /> } },
+              { name:"backend_self_healing", list:"/backend-command-center/self-healing",
+                meta:{ label:"Self-Healing Center", parent:"backend_command_center", icon:<SafetyCertificateOutlined /> } },
+              { name:"backend_diagnostics", list:"/backend-command-center/diagnostics",
+                meta:{ label:"Backend Diagnostics", parent:"backend_command_center", icon:<DatabaseOutlined /> } },
+              { name:"backend_private_audit_log", list:"/backend-command-center/private-audit-log",
+                meta:{ label:"Private Audit Log", parent:"backend_command_center", icon:<FileProtectOutlined /> } },
             ]}
           >
             <Routes>
@@ -1208,6 +1215,7 @@ const InnerApp: React.FC = () => {
 
                 <Route path="/alumni">    <Route index element={<AlumniList />}    /></Route>
                 <Route path="/audit-logs"><Route index element={<AuditLogList />}  /></Route>
+                <Route path="/rag">       <Route index element={<RagKnowledgePage />} /></Route>
                 <Route path="/akademik">  <Route index element={<AkademikPage />} /></Route>
 
                 <Route path="/tagihan">
@@ -1250,6 +1258,12 @@ const InnerApp: React.FC = () => {
                 <Route path="/notifications">
                   <Route index         element={<NotificationList />}   />
                   <Route path="create" element={<NotificationCreate />} />
+                </Route>
+
+                <Route path="/backend-command-center">
+                  <Route path="self-healing" element={<SelfHealingCenterPage />} />
+                  <Route path="diagnostics" element={<BackendDiagnosticsPage />} />
+                  <Route path="private-audit-log" element={<PrivateAuditLogPage />} />
                 </Route>
 
                 <Route path="*" element={<ErrorComponent />} />

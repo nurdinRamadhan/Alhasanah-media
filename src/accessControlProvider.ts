@@ -25,6 +25,13 @@ const getCanonicalResource = (resource?: string) => {
     return resource;
 };
 
+const backendCommandCenterResources = [
+    "backend_command_center",
+    "backend_self_healing",
+    "backend_diagnostics",
+    "backend_private_audit_log",
+];
+
 export const accessControlProvider: AccessControlProvider = {
   can: async ({ resource, action }: CanParams) => {
     const identity = await getCachedIdentity();
@@ -44,6 +51,12 @@ export const accessControlProvider: AccessControlProvider = {
     }
 
     const targetResource = getCanonicalResource(resource);
+
+    if (backendCommandCenterResources.includes(targetResource)) {
+        return role === "super_admin"
+            ? { can: true }
+            : { can: false, reason: "Akses ditolak. Backend Command Center khusus super admin." };
+    }
 
     // 1. SUPER ADMIN, ROIS, & DEWAN (Bebas Akses Semua Sidebar)
     if (["super_admin", "rois", "dewan"].includes(role)) {

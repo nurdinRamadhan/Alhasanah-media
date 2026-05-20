@@ -161,6 +161,19 @@ Deno.serve(async (req) => {
       return jsonResponse({ message: "OK" });
     }
 
+    if (isTerminalFailure) {
+      await supabase
+        .from("transaksi_keuangan")
+        .update({
+          status_transaksi: transactionStatus,
+          status: "failed",
+          metode_pembayaran: paymentType,
+          keterangan: `[MIDTRANS] Pembayaran gagal atau kedaluwarsa (${transactionStatus})`,
+        })
+        .eq("midtrans_order_id", orderIdRaw);
+      return jsonResponse({ message: "OK" });
+    }
+
     if (!isPaid) return jsonResponse({ message: "OK" });
 
     const tagihanId = orderIdRaw.split("_")[0];

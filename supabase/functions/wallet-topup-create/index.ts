@@ -24,6 +24,94 @@ function cleanAmount(value: unknown): number {
   return amount;
 }
 
+function cleanText(value: unknown): string {
+  return String(value ?? "").trim();
+}
+
+type MethodSpec = { code: string; label: string; paymentType: string; bank?: string; store?: string };
+
+const METHODS: Record<string, MethodSpec> = {
+  qris: { code: "qris", label: "QRIS", paymentType: "qris" },
+  gopay: { code: "gopay", label: "GoPay", paymentType: "gopay" },
+  bca_va: { code: "bca_va", label: "BCA Virtual Account", paymentType: "bank_transfer", bank: "bca" },
+  bni_va: { code: "bni_va", label: "BNI Virtual Account", paymentType: "bank_transfer", bank: "bni" },
+  bri_va: { code: "bri_va", label: "BRI Virtual Account", paymentType: "bank_transfer", bank: "bri" },
+  permata_va: { code: "permata_va", label: "Permata Virtual Account", paymentType: "bank_transfer", bank: "permata" },
+  mandiri_bill: { code: "mandiri_bill", label: "Mandiri Bill Payment", paymentType: "echannel" },
+  alfamart: { code: "alfamart", label: "Alfamart", paymentType: "cstore", store: "alfamart" },
+  indomaret: { code: "indomaret", label: "Indomaret", paymentType: "cstore", store: "indomaret" },
+};
+
+function pickActionUrl(data: Record<string, unknown>, actionName: string): string | null {
+  const actions = Array.isArray(data.actions) ? data.actions as Record<string, unknown>[] : [];
+  const action = actions.find((item) => cleanText(item.name) === actionName);
+  return action ? cleanText(action.url) || null : null;
+}
+
+function normalizeCoreResponse(data: Record<string, unknown>, method: MethodSpec, amount: number) {
+  const vaNumbers = Array.isArray(data.va_numbers) ? data.va_numbers as Record<string, unknown>[] : [];
+  const firstVa = vaNumbers[0] ?? {};
+  const qrUrl = pickActionUrl(data, "generate-qr-code") ?? pickActionUrl(data, "generate-qr-code-v2");
+  const deeplinkUrl = pickActionUrl(data, "deeplink-redirect") ?? pickActionUrl(data, "mobile_deeplink_redirect");
+  return {
+    order_id: cleanText(data.order_id),
+    transaction_id: cleanText(data.transaction_id) || null,
+    payment_type: cleanText(data.payment_type) || method.paymentType,
+    method_code: method.code,
+    method_label: method.label,
+    amount,
+    status: cleanText(data.transaction_status) || "pending",
+    expires_at: cleanText(data.expiry_time) || null,
+    qr_url: qrUrl,
+    deeplink_url: deeplinkUrl,
+    va_number: cleanText(firstVa.va_number) || null,
+    bank: cleanText(firstVa.bank || method.bank) || null,
+    biller_code: cleanText(data.biller_code) || null,
+    bill_key: cleanText(data.bill_key) || null,
+    permata_va_number: cleanText(data.permata_va_number) || null,
+    payment_code: cleanText(data.payment_code) || null,
+    store: cleanText(data.store || method.store) || null,
+  };
+}
+
+function buildChargePayload(method: MethodSpec, orderId: string, amount: number, profile: Record<string, unknown>, santri: Record<string, unknown>) {
+  const payload: Record<string, unknown> = {
+    payment_type: method.paymentType,
+    transaction_details: { order_id: orderId, gross_amount: amount },
+    customer_details: {
+      first_name: profile.full_name || "Wali Santri",
+      email: profile.email || "wali@alhasanah.local",
+      phone: profile.no_hp || undefined,
+    },
+    item_details: [{
+      id: "DOMPET-SANTRI-TOPUP",
+      name: `Top Up Dompet Santri ${santri.nama || santri.nis}`,
+      price: amount,
+      quantity: 1,
+    }],
+  };
+  if (method.paymentType === "bank_transfer") payload.bank_transfer = { bank: method.bank };
+  if (method.paymentType === "echannel") {
+    payload.echannel = { bill_info1: "Payment For", bill_info2: "Al-Hasanah Media" };
+  }
+  if (method.paymentType === "gopay") {
+    payload.gopay = { enable_callback: true, callback_url: "alhasanahmedia://payment-return" };
+  }
+  if (method.paymentType === "cstore") {
+    const cstore: Record<string, unknown> = {
+      store: method.store,
+      message: "Al-Hasanah",
+    };
+    if (method.store === "alfamart") {
+      cstore.alfamart_free_text_1 = "TOP UP DOMPET SANTRI";
+      cstore.alfamart_free_text_2 = String(santri.nis || "").slice(0, 40);
+      cstore.alfamart_free_text_3 = "Simpan struk pembayaran";
+    }
+    payload.cstore = cstore;
+  }
+  return payload;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
@@ -49,6 +137,7 @@ serve(async (req) => {
     const santriNis = String(body?.santri_nis ?? "").trim();
     const idempotencyKey = String(body?.idempotency_key ?? "").trim();
     const amount = cleanAmount(body?.amount);
+    const method = METHODS[cleanText(body?.payment_method)] ?? METHODS.qris;
 
     if (!santriNis) throw new Error("Data santri wajib diisi.");
     if (idempotencyKey.length < 12) throw new Error("Idempotency key tidak valid.");
@@ -84,7 +173,7 @@ serve(async (req) => {
 
     const existing = await supabase
       .from("wallet_payment_intents")
-      .select("id,santri_nis,amount,status,expires_at,midtrans_order_id,midtrans_snap_token")
+      .select("id,santri_nis,amount,status,expires_at,midtrans_order_id,midtrans_snap_token,provider_payload")
       .eq("idempotency_key", idempotencyKey)
       .maybeSingle();
 
@@ -93,6 +182,7 @@ serve(async (req) => {
         return jsonResponse({ error: "Permintaan top up tidak konsisten. Buat ulang top up." }, 409);
       }
       if (existing.data.status === "posted") {
+        const paymentData = (existing.data.provider_payload as Record<string, unknown> | null)?.payment_data as Record<string, unknown> | undefined;
         return jsonResponse({
           data: {
             payment_intent_id: existing.data.id,
@@ -101,10 +191,12 @@ serve(async (req) => {
             amount: existing.data.amount,
             status: existing.data.status,
             expires_at: existing.data.expires_at,
+            ...(paymentData ?? {}),
           },
         });
       }
-      if (existing.data.midtrans_snap_token) {
+      const existingPaymentData = (existing.data.provider_payload as Record<string, unknown> | null)?.payment_data as Record<string, unknown> | undefined;
+      if (existingPaymentData || existing.data.midtrans_snap_token) {
         return jsonResponse({
           data: {
             payment_intent_id: existing.data.id,
@@ -113,6 +205,7 @@ serve(async (req) => {
             amount: existing.data.amount,
             status: existing.data.status,
             expires_at: existing.data.expires_at,
+            ...(existingPaymentData ?? {}),
           },
         });
       }
@@ -140,32 +233,19 @@ serve(async (req) => {
     }
 
     const orderId = `WALLET-TOPUP-${intent.id}`;
-    const midtransPayload = {
-      transaction_details: {
-        order_id: orderId,
-        gross_amount: amount,
-      },
-      customer_details: {
-        first_name: profile.full_name || "Wali Santri",
-        email: profile.email || userData.user.email || "wali@alhasanah.local",
-        phone: profile.no_hp || undefined,
-      },
-      item_details: [
-        {
-          id: "DOMPET-SANTRI-TOPUP",
-          name: `Top Up Dompet Santri ${santri.nama || santri.nis}`,
-          price: amount,
-          quantity: 1,
-        },
-      ],
-      credit_card: { secure: true },
-    };
+    const midtransPayload = buildChargePayload(
+      method,
+      orderId,
+      amount,
+      { ...profile, email: profile.email || userData.user.email },
+      santri,
+    );
 
-    const snapUrl = isProduction
-      ? "https://app.midtrans.com/snap/v1/transactions"
-      : "https://app.sandbox.midtrans.com/snap/v1/transactions";
+    const coreUrl = isProduction
+      ? "https://api.midtrans.com/v2/charge"
+      : "https://api.sandbox.midtrans.com/v2/charge";
 
-    const response = await fetch(snapUrl, {
+    const response = await fetch(coreUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -176,7 +256,7 @@ serve(async (req) => {
     });
 
     const midtransData = await response.json();
-    if (!response.ok || !midtransData?.token) {
+    if (!response.ok) {
       await supabase
         .from("wallet_payment_intents")
         .update({
@@ -189,14 +269,16 @@ serve(async (req) => {
       return jsonResponse({ error: "Pembayaran top up belum bisa dibuat." }, 400);
     }
 
+    const paymentData = normalizeCoreResponse(midtransData, method, amount);
+
     await supabase
       .from("wallet_payment_intents")
       .update({
         midtrans_order_id: orderId,
-        midtrans_snap_token: midtransData.token,
+        midtrans_snap_token: null,
         provider_payload: {
-          token: midtransData.token,
-          redirect_url: midtransData.redirect_url,
+          payment_data: paymentData,
+          raw_response: midtransData,
           order_id: orderId,
         },
         updated_at: new Date().toISOString(),
@@ -206,27 +288,29 @@ serve(async (req) => {
     await supabase.from("transaksi_keuangan").insert({
       jumlah: amount,
       tanggal_transaksi: new Date().toISOString(),
-      status_transaksi: "pending",
+      status_transaksi: paymentData.status,
       status: "pending",
-      metode_pembayaran: "midtrans",
+      metode_pembayaran: method.code,
+      jenis_pembayaran: method.label,
       jenis_transaksi: "masuk",
       kategori: "wallet_topup",
       santri_nis: santriNis,
       wali_id: userId,
       admin_pencatat_id: null,
       midtrans_order_id: orderId,
-      midtrans_snap_token: midtransData.token,
-      keterangan: "[MIDTRANS] Menunggu top up Dompet Santri",
+      midtrans_snap_token: null,
+      keterangan: "[MIDTRANS CORE] Menunggu top up Dompet Santri",
     });
 
     return jsonResponse({
       data: {
         payment_intent_id: intent.id,
         order_id: orderId,
-        snap_token: midtransData.token,
+        snap_token: null,
         amount,
         status: "pending",
         expires_at: intent.expires_at,
+        ...paymentData,
       },
     });
   } catch (error) {

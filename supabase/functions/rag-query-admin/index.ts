@@ -7,6 +7,7 @@ import { createServiceClient, getAuthenticatedProfile, requireRole } from "../_s
 import { cleanText, RAG_LIMITS } from "../_shared/validation.ts";
 
 type AdminContextType = "financial" | "academic" | "santri" | "kitab" | "operational";
+type AdminRole = "super_admin" | "rois" | "dewan" | "bendahara" | string;
 
 type MatchResult = {
   id: string;
@@ -15,6 +16,8 @@ type MatchResult = {
   metadata: Record<string, unknown>;
   similarity: number;
 };
+
+const FINANCE_CONTEXT_ROLES = new Set<AdminRole>(["super_admin", "rois", "bendahara"]);
 
 function normalizeContextType(value: unknown): AdminContextType {
   if (
@@ -46,6 +49,18 @@ function buildRagText(label: string, matches: MatchResult[]) {
   ].join("\n\n");
 }
 
+function topSimilarity(matches: MatchResult[]) {
+  return matches.reduce((max, match) => Math.max(max, Number(match.similarity || 0)), 0);
+}
+
+function confidenceLabel(hasDbContext: boolean, matches: MatchResult[]) {
+  const top = topSimilarity(matches);
+  if (hasDbContext && top >= 0.78) return "high";
+  if (hasDbContext || top >= 0.72) return "medium";
+  if (matches.length > 0) return "low";
+  return "none";
+}
+
 serve(async (req) => {
   const options = handleOptions(req);
   if (options) return options;
@@ -73,6 +88,10 @@ serve(async (req) => {
 
     if (!query || query.length > RAG_LIMITS.maxQueryLength) {
       return jsonResponse({ error: "Query wajib diisi dan maksimal 500 karakter." }, 400);
+    }
+
+    if (contextType === "financial" && !FINANCE_CONTEXT_ROLES.has(profile.role)) {
+      return jsonResponse({ error: "Konteks financial hanya tersedia untuk super_admin, rois, dan bendahara." }, 403);
     }
 
     const embedding = await embedQuery(query);
@@ -121,11 +140,16 @@ serve(async (req) => {
       buildRagText("Dokumen Internal", internalMatches),
     ].filter(Boolean).join("\n\n").slice(0, Number(Deno.env.get("RAG_MAX_CONTEXT_CHARS") || 4000));
 
+    const allMatches = [...kitabMatches, ...internalMatches];
+    const confidence = confidenceLabel(Boolean(dbContext), allMatches);
+
     const systemPrompt = [
       "Kamu adalah asisten pengambilan keputusan untuk manajemen Pesantren Al-Hasanah.",
       "Berikan rekomendasi berdasarkan data agregat dan referensi yang diberikan.",
       "Jangan mengarang data yang tidak tersedia dalam konteks.",
+      "Jika konteks tidak cukup, jawab bahwa bukti belum cukup dan sarankan data/dokumen yang perlu dilengkapi.",
       "Bedakan dengan jelas antara temuan berbasis data, referensi kitab, dan rekomendasi operasional.",
+      "Saat memakai dokumen RAG, sebutkan sumber dokumen yang dipakai secara ringkas.",
       "Jangan meminta, menampilkan, atau menyimpulkan data sensitif seperti NIK, NIS, alamat lengkap, nomor HP, token, rekening, atau data pribadi rinci.",
       "Gunakan Bahasa Indonesia yang jelas, sopan, dan ringkas.",
     ].join("\n");
@@ -157,6 +181,8 @@ serve(async (req) => {
         db_context_used: Boolean(dbContext),
         kitab_matches: kitabMatches.length,
         internal_matches: internalMatches.length,
+        top_similarity: topSimilarity(allMatches),
+        confidence,
       },
     });
 
@@ -175,7 +201,14 @@ serve(async (req) => {
           similarity: match.similarity,
         })),
       },
-      confidence_note: "Jawaban bergantung pada kelengkapan dokumen RAG dan data agregat yang tersedia pada periode/filter yang dipilih.",
+      confidence_note: confidence === "high"
+        ? "Confidence tinggi karena data agregat tersedia dan dokumen RAG relevan ditemukan."
+        : confidence === "medium"
+          ? "Confidence sedang. Jawaban memakai sebagian data agregat/dokumen; tetap cek dashboard untuk validasi."
+          : confidence === "low"
+            ? "Confidence rendah. Ada dokumen terkait, tetapi relevansinya terbatas."
+            : "Belum ada konteks data atau dokumen relevan yang cukup.",
+      confidence,
       remaining_requests: rate.remaining,
     });
   } catch (error) {
