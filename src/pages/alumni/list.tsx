@@ -94,6 +94,15 @@ const buildWaLink = (phone?: string) => {
     return `https://wa.me/${international}`;
 };
 
+const getErrorMessage = (error: unknown, fallback: string) => {
+    if (error instanceof Error && error.message) return error.message;
+    if (error && typeof error === "object") {
+        const messageText = (error as { message?: unknown }).message;
+        if (typeof messageText === "string" && messageText.trim()) return messageText;
+    }
+    return fallback;
+};
+
 export const AlumniList = () => {
     const [form] = Form.useForm<AlumniProfileFormValues>();
     const [activeTab, setActiveTab] = useState<AlumniTab>("pending");
@@ -313,7 +322,7 @@ export const AlumniList = () => {
                     message.success("Akses Forum Alumni telah dibuka.");
                     refreshAll();
                 } catch (error) {
-                    const text = error instanceof Error ? error.message : "Gagal memverifikasi alumni.";
+                    const text = getErrorMessage(error, "Gagal memverifikasi alumni.");
                     message.error(text);
                     throw error;
                 }
@@ -345,7 +354,7 @@ export const AlumniList = () => {
                     message.success("Akses alumni telah dinonaktifkan.");
                     refreshAll();
                 } catch (error) {
-                    const text = error instanceof Error ? error.message : "Gagal menonaktifkan alumni.";
+                    const text = getErrorMessage(error, "Gagal menonaktifkan alumni.");
                     message.error(text);
                     throw error;
                 }
@@ -403,7 +412,7 @@ export const AlumniList = () => {
             setEditingAlumni(null);
             refreshAll();
         } catch (error) {
-            const text = error instanceof Error ? error.message : "Gagal menyimpan profil alumni.";
+            const text = getErrorMessage(error, "Gagal menyimpan profil alumni.");
             message.error(text);
         } finally {
             setIsSavingProfile(false);

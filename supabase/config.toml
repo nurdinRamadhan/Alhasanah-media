@@ -1,0 +1,109 @@
+# Edge Function auth manifest.
+# Keep this file aligned with the deployed Supabase function settings after JWT
+# signing key rotations. Functions invoked by webhooks/cron are public at the
+# platform layer and must authenticate inside the handler.
+
+[functions.create-user-wali]
+verify_jwt = true
+
+[functions.midtrans-payment]
+verify_jwt = false
+
+[functions.midtrans-snap]
+verify_jwt = false
+
+[functions.gemini-consultant]
+verify_jwt = true
+
+[functions.create-admin-account]
+verify_jwt = true
+
+[functions.delete-admin-account]
+verify_jwt = true
+
+[functions.geocode-single]
+verify_jwt = true
+
+[functions.geocode-batch]
+verify_jwt = true
+
+[functions.choropleth-aggregate]
+verify_jwt = true
+
+[functions.push-notifications]
+verify_jwt = false
+
+[functions.ai-agent]
+verify_jwt = true
+
+[functions.telegram-webhook]
+verify_jwt = false
+
+[functions.rag-ingest]
+verify_jwt = true
+
+[functions.rag-query-public]
+verify_jwt = false
+
+[functions.rag-query-admin]
+verify_jwt = true
+
+[functions.rag-query-wali]
+verify_jwt = true
+
+[functions.register-alumni]
+verify_jwt = false
+
+[functions.upload-santri-photo]
+verify_jwt = true
+
+[functions.validate-santri-emis]
+verify_jwt = true
+
+[functions.export-santri-emis]
+verify_jwt = true
+
+[functions.wallet-admin]
+verify_jwt = true
+
+[functions.wallet-register]
+verify_jwt = true
+
+[functions.wallet-update-limits]
+verify_jwt = true
+
+[functions.wallet-kantin-authorize]
+verify_jwt = true
+
+[functions.wallet-kantin-confirm]
+verify_jwt = true
+
+[functions.wallet-security-ai-auditor]
+verify_jwt = true
+
+[functions.wallet-kantin-student-confirm]
+verify_jwt = true
+
+[functions.wallet-kantin-register-device]
+verify_jwt = true
+
+[functions.wallet-merchant-settlement-request]
+verify_jwt = true
+
+[functions.wallet-topup-create]
+verify_jwt = true
+
+[functions.wallet-admin-topup-create]
+verify_jwt = true
+
+[functions.wallet-kantin-provision]
+verify_jwt = true
+
+[functions.wallet-kantin-card-lookup]
+verify_jwt = true
+
+[functions.wallet-merchant-settlement-admin]
+verify_jwt = true
+
+[functions.wallet-dispute-create]
+verify_jwt = true

@@ -73,14 +73,26 @@ Deno.serve(async (req) => {
       if (error) throw error;
       if (data) itemsToProcess = [data as QueueItem];
     } else {
-      const { data, error } = await supabase
+      const { data: pendingItems, error: pendingError } = await supabase
         .from("notification_queue")
-        .update({ status: "sending" })
+        .select("id")
         .eq("status", "pending")
         .lte("scheduled_at", new Date().toISOString())
         .order("priority", { ascending: false })
         .order("created_at", { ascending: true })
-        .limit(limit)
+        .limit(limit);
+      if (pendingError) throw pendingError;
+
+      const pendingIds = (pendingItems || []).map((item) => item.id).filter(Boolean);
+      if (pendingIds.length === 0) {
+        return json({ message: "No pending notifications" });
+      }
+
+      const { data, error } = await supabase
+        .from("notification_queue")
+        .update({ status: "sending" })
+        .in("id", pendingIds)
+        .eq("status", "pending")
         .select("id,user_id,title,body,data,source_table,event_type,priority,status");
       if (error) throw error;
       itemsToProcess = (data || []) as QueueItem[];

@@ -10767,7 +10767,7 @@ CREATE OR REPLACE TRIGGER "sanitize_chat_notification_queue" BEFORE INSERT OR UP
 
 
 
-CREATE OR REPLACE TRIGGER "send_push_notification" AFTER INSERT ON "public"."notification_queue" FOR EACH ROW EXECUTE FUNCTION "supabase_functions"."http_request"('https://sldobkbolvrahlnowrga.supabase.co/functions/v1/push-notifications', 'POST', '{"Content-type":"application/json","Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNsZG9ia2JvbHZyYWhsbm93cmdhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTE4OTEwMiwiZXhwIjoyMDgwNzY1MTAyfQ.mTQjlsp9-rDD4PSA3SpxyaajX7iRsbaGdLQqkwh0AGI"}', '{}', '5000');
+CREATE OR REPLACE TRIGGER "send_push_notification" AFTER INSERT ON "public"."notification_queue" FOR EACH ROW EXECUTE FUNCTION "supabase_functions"."http_request"('https://sldobkbolvrahlnowrga.supabase.co/functions/v1/push-notifications', 'POST', '{"Content-type":"application/json","Authorization":"Bearer ${SUPABASE_FUNCTION_INTERNAL_TOKEN_SET_AT_DEPLOY_TIME}"}', '{}', '5000');
 
 
 
