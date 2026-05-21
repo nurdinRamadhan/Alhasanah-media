@@ -21,7 +21,8 @@ const getCachedIdentity = async () => {
 const getCanonicalResource = (resource?: string) => {
     if (!resource) return "";
     if (resource === "diklat_list" || resource === "diklat_master") return "diklat";
-    if (resource === "alumni_data" || resource === "forum_reports" || resource === "chat_monitoring") return resource;
+    if (resource === "forum_threads") return "forum_moderation_actions";
+    if (resource === "alumni_data" || resource === "forum_reports" || resource === "chat_monitoring" || resource === "forum_moderation_actions") return resource;
     return resource;
 };
 
@@ -77,10 +78,11 @@ export const accessControlProvider: AccessControlProvider = {
     // 2. KESANTRIAN
     if (role === "kesantrian") {
         const allowedKesantrian = [
+            "data_pesantren_menu",
             "kesantrian_menu", "pelanggaran_santri", "kesehatan_santri", "perizinan_santri",
-            "tahfidz_menu", "hafalan_tahfidz", "murojaah_tahfidz", "hafalan_kitab",
+            "prestasi_santri", "akademik_menu", "tahfidz_menu", "hafalan_tahfidz", "murojaah_tahfidz", "hafalan_kitab",
             "ulangan_menu", "weekly_tests", "ulangan_arsip",
-            "santri", "diklat", "berita", "alumni_menu", "alumni_data", "forum_reports", "chat_monitoring",
+            "santri", "diklat", "berita", "komunikasi_menu", "alumni_menu", "alumni_data", "forum_reports", "chat_monitoring",
             "forum_threads", "forum_comments", "forum_moderation_actions"
         ];
         
@@ -93,7 +95,10 @@ export const accessControlProvider: AccessControlProvider = {
     // 3. BENDAHARA
     if (role === "bendahara") {
         const allowedBendahara = [
-            "tagihan_santri", "transaksi_keuangan", "dompet_menu", "dompet_santri", "dompet_operasional", "dompet_security_audit", "kantin_management", "pengeluaran", "santri", "diklat", "inventaris"
+            "data_pesantren_menu", "keuangan_menu", "tagihan_santri", "transaksi_keuangan",
+            "dompet_menu", "dompet_santri", "dompet_operasional", "dompet_security_audit",
+            "kantin_management", "pengeluaran", "santri", "akademik_menu", "diklat",
+            "operasional_menu", "inventaris"
         ];
 
         if (allowedBendahara.includes(targetResource)) {

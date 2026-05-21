@@ -11,6 +11,7 @@ type QueueItem = {
   event_type: string | null;
   priority: string | null;
   status: string | null;
+  original_status?: string | null;
 };
 
 const invalidFcmCodes = new Set([
@@ -61,22 +62,41 @@ Deno.serve(async (req) => {
     const limit = Number.isInteger(Number(payload?.limit)) ? Math.min(Number(payload.limit), 100) : 25;
 
     let itemsToProcess: QueueItem[] = [];
+    const claimableStatuses = ["pending", "read"];
+    const originalStatusById = new Map<string, string | null>();
 
     if (recordId) {
+      const { data: existing, error: existingError } = await supabase
+        .from("notification_queue")
+        .select("id,status")
+        .eq("id", recordId)
+        .is("sent_at", null)
+        .in("status", claimableStatuses)
+        .maybeSingle();
+      if (existingError) throw existingError;
+      if (existing?.id) originalStatusById.set(existing.id, existing.status);
+
       const { data, error } = await supabase
         .from("notification_queue")
         .update({ status: "sending" })
         .eq("id", recordId)
-        .in("status", ["pending", "sending"])
+        .is("sent_at", null)
+        .in("status", claimableStatuses)
         .select("id,user_id,title,body,data,source_table,event_type,priority,status")
         .maybeSingle();
       if (error) throw error;
-      if (data) itemsToProcess = [data as QueueItem];
+      if (data) {
+        itemsToProcess = [{
+          ...(data as QueueItem),
+          original_status: originalStatusById.get(data.id) ?? data.status,
+        }];
+      }
     } else {
       const { data: pendingItems, error: pendingError } = await supabase
         .from("notification_queue")
-        .select("id")
-        .eq("status", "pending")
+        .select("id,status")
+        .in("status", claimableStatuses)
+        .is("sent_at", null)
         .lte("scheduled_at", new Date().toISOString())
         .order("priority", { ascending: false })
         .order("created_at", { ascending: true })
@@ -85,20 +105,27 @@ Deno.serve(async (req) => {
 
       const pendingIds = (pendingItems || []).map((item) => item.id).filter(Boolean);
       if (pendingIds.length === 0) {
-        return json({ message: "No pending notifications" });
+        return json({ message: "No unsent notifications" });
+      }
+      for (const item of pendingItems || []) {
+        originalStatusById.set(item.id, item.status);
       }
 
       const { data, error } = await supabase
         .from("notification_queue")
         .update({ status: "sending" })
         .in("id", pendingIds)
-        .eq("status", "pending")
+        .is("sent_at", null)
+        .in("status", claimableStatuses)
         .select("id,user_id,title,body,data,source_table,event_type,priority,status");
       if (error) throw error;
-      itemsToProcess = (data || []) as QueueItem[];
+      itemsToProcess = ((data || []) as QueueItem[]).map((item) => ({
+        ...item,
+        original_status: originalStatusById.get(item.id) ?? item.status,
+      }));
     }
 
-    if (itemsToProcess.length === 0) return json({ message: "No pending notifications" });
+    if (itemsToProcess.length === 0) return json({ message: "No unsent notifications" });
 
     const results = [];
 
@@ -163,7 +190,9 @@ Deno.serve(async (req) => {
         await supabase
           .from("notification_queue")
           .update({
-            status: response.successCount > 0 ? "sent" : "failed",
+            status: response.successCount > 0
+              ? (item.original_status === "read" ? "read" : "sent")
+              : "failed",
             sent_at: response.successCount > 0 ? new Date().toISOString() : null,
             error_message: failed.length > 0
               ? `${failed.length} token(s) failed, ${invalidTokens.length} token invalid dinonaktifkan`
@@ -173,7 +202,9 @@ Deno.serve(async (req) => {
 
         results.push({
           id: item.id,
-          status: response.successCount > 0 ? "sent" : "failed",
+          status: response.successCount > 0
+            ? (item.original_status === "read" ? "read" : "sent")
+            : "failed",
           success_count: response.successCount,
           failure_count: response.failureCount,
         });

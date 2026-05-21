@@ -28,6 +28,7 @@ import {
   ErrorComponent,
   ThemedLayoutV2,
   ThemedSiderV2,
+  useThemedLayoutContext,
   useNotificationProvider,
 } from "@refinedev/antd";
 
@@ -58,6 +59,7 @@ import { Header }                from "./pages/components/header";
 import { Title }                 from "./pages/components/title";
 import { ColorModeContextProvider, useColorMode } from "./contexts/color-mode";
 import { supabaseClient }        from "./utility/supabaseClient";
+import { resources }             from "./utility/resources";
 import { IUserIdentity }         from "./types";
 
 import {
@@ -68,7 +70,7 @@ import {
   SettingOutlined, FormOutlined, ProjectOutlined,
   DashboardOutlined, BankOutlined, ShoppingCartOutlined, ShopOutlined,
   SafetyCertificateOutlined, MailOutlined, LockOutlined,
-  HistoryOutlined, DatabaseOutlined,
+  HistoryOutlined, DatabaseOutlined, TrophyOutlined,
 } from "@ant-design/icons";
 
 // ── Lazy Loading Pages ──
@@ -76,14 +78,15 @@ import {
   DashboardPage, InstansiPage, SantriList, SantriCreate, SantriEdit, SantriShow, 
   PersebaranSantriPage, PelanggaranList, PelanggaranCreate, PelanggaranEdit, 
   PerizinanList, PerizinanCreate, PerizinanEdit, KesehatanList, KesehatanCreate, 
-  KesehatanEdit, HafalanList, HafalanCreate, HafalanEdit, HafalanShow, 
+  KesehatanEdit, PrestasiList, HafalanList, HafalanCreate, HafalanEdit, HafalanShow,
   BeritaList, BeritaCreate, BeritaEdit, InventarisList, InventarisCreate, 
   InventarisShow, TagihanList, TagihanCreate, TagihanEdit, TransaksiList, 
   TransaksiCreate, DompetSantriList, DompetOperasionalList, DompetSecurityAuditList, KantinManagementList,
   MurojaahList, MurojaahCreate, MurojaahShow, HafalanKitabList, 
   HafalanKitabCreate, HafalanKitabShow, PengeluaranList, DiklatList, 
   MasterDataPage, AuditLogList, AkademikPage, ScanQR, CreateAdminPage, 
-  AdminList, AlumniList, WeeklyTestList, WeeklyTestCreate, WeeklyTestArsip, 
+  AdminList, AlumniList, ForumModerationList, ForumReportsList, AlumniChatMonitoringList,
+  WeeklyTestList, WeeklyTestCreate, WeeklyTestArsip,
   NotificationList, NotificationCreate, SelfHealingCenterPage, BackendDiagnosticsPage,
   PrivateAuditLogPage, RagKnowledgePage, LoadingFallback
 } from "./lazyPages";
@@ -162,7 +165,6 @@ const buildSidebarCSS = (mode: "light" | "dark"): string => {
   box-shadow: 4px 0 48px rgba(0,0,0,0.45) !important;
   overflow: visible !important;
 }
-
 /* Islamic geometric mosaic — pseudo-element only possible here */
 .ant-layout-sider::after {
   content: '';
@@ -204,6 +206,17 @@ const buildSidebarCSS = (mode: "light" | "dark"): string => {
   font-weight: 500 !important;
   color: rgba(255,255,255,0.46) !important;
   transition: background 0.15s, color 0.15s !important;
+}
+.ant-layout-sider .ant-menu-title-content {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+.ant-layout-sider:not(.ant-layout-sider-collapsed) .ant-menu-title-content {
+  white-space: nowrap !important;
+}
+.ant-layout-sider:not(.ant-layout-sider-collapsed) .ant-menu-submenu-title {
+  padding-right: 32px !important;
 }
 .ant-layout-sider .ant-menu-item:hover,
 .ant-layout-sider .ant-menu-submenu-title:hover {
@@ -981,6 +994,50 @@ const PremiumLoginPage: React.FC = () => {
   );
 };
 
+const AutoCollapseSider: React.FC<any> = (props) => {
+  const { siderCollapsed, setSiderCollapsed } = useThemedLayoutContext();
+  const timerRef = React.useRef<number | null>(null);
+
+  const clearTimer = React.useCallback(() => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  const scheduleCollapse = React.useCallback(() => {
+    clearTimer();
+    timerRef.current = window.setTimeout(() => {
+      if (window.innerWidth >= 992) {
+        setSiderCollapsed(true);
+      }
+    }, 5000);
+  }, [clearTimer, setSiderCollapsed]);
+
+  const openAndRefresh = React.useCallback(() => {
+    if (window.innerWidth >= 992 && siderCollapsed) {
+      setSiderCollapsed(false);
+    }
+    scheduleCollapse();
+  }, [scheduleCollapse, setSiderCollapsed, siderCollapsed]);
+
+  React.useEffect(() => {
+    scheduleCollapse();
+    return clearTimer;
+  }, [clearTimer, scheduleCollapse]);
+
+  return (
+    <div
+      onMouseEnter={openAndRefresh}
+      onMouseMove={openAndRefresh}
+      onFocus={openAndRefresh}
+      onClick={openAndRefresh}
+    >
+      <ThemedSiderV2 {...props} fixed Title={Title} />
+    </div>
+  );
+};
+
 
 // ╔══════════════════════════════════════════════════════════════════════════╗
 // ║  § 5  HELPERS                                                            ║
@@ -1076,71 +1133,7 @@ const InnerApp: React.FC = () => {
               useNewQueryKeys:        true,
               projectId:              "alhasanah-admin-panel",
             }}
-            resources={[
-              { name:"dashboard",      list:"/",         meta:{ label:"Dashboard",                icon:<DashboardOutlined /> } },
-              { name:"instansi_info",  list:"/instansi", meta:{ label:"Profil Pesantren",          icon:<BankOutlined /> } },
-              { name:"admin_management", list:"/admin-management/list", create:"/admin-management/create",
-                meta:{ label:"Manajemen Admin", icon:<UserOutlined /> } },
-              { name:"santri", list:"/santri", create:"/santri/create", edit:"/santri/edit/:id", show:"/santri/show/:id",
-                meta:{ label:"Data Santri", icon:<UserOutlined />, idColumnName:"nis" } },
-              { name:"persebaran_santri", list:"/persebaran-santri",
-                meta:{ label:"Persebaran Santri", icon:<GlobalOutlined /> } },
-              { name:"berita", list:"/berita", create:"/berita/create", edit:"/berita/edit/:id",
-                meta:{ label:"Informasi & Berita", icon:<GlobalOutlined /> } },
-              { name:"kesantrian_menu", meta:{ label:"Kesantrian", icon:<TeamOutlined /> } },
-              { name:"pelanggaran_santri", list:"/pelanggaran", create:"/pelanggaran/create", edit:"/pelanggaran/edit/:id",
-                meta:{ label:"Pelanggaran", parent:"kesantrian_menu", icon:<WarningOutlined /> } },
-              { name:"perizinan_santri", list:"/perizinan", create:"/perizinan/create", edit:"/perizinan/edit/:id",
-                meta:{ label:"Perizinan", parent:"kesantrian_menu", icon:<FileProtectOutlined /> } },
-              { name:"kesehatan_santri", list:"/kesehatan", create:"/kesehatan/create", edit:"/kesehatan/edit/:id",
-                meta:{ label:"Kesehatan (UKS)", parent:"kesantrian_menu", icon:<MedicineBoxOutlined /> } },
-              { name:"tahfidz_menu", meta:{ label:"Tahfidz Quran", icon:<ReadOutlined /> } },
-              { name:"hafalan_tahfidz", list:"/hafalan", create:"/hafalan/create", edit:"/hafalan/edit/:id", show:"/hafalan/show/:id",
-                meta:{ label:"Ziyadah (Baru)", parent:"tahfidz_menu", icon:<BookOutlined /> } },
-              { name:"murojaah_tahfidz", list:"/murojaah", create:"/murojaah/create", show:"/murojaah/show/:id",
-                meta:{ label:"Murojaah (Ulang)", parent:"tahfidz_menu", icon:<SyncOutlined /> } },
-              { name:"hafalan_kitab", list:"/hafalan-kitab", create:"/hafalan-kitab/create", show:"/hafalan-kitab/show/:id",
-                meta:{ label:"Hafalan Kitab", parent:"tahfidz_menu", icon:<BookOutlined /> } },
-              { name:"alumni_data",  list:"/alumni",      meta:{ label:"Manajemen Alumni",            icon:<GlobalOutlined /> } },
-              { name:"audit_logs",   list:"/audit-logs",  meta:{ label:"Log Aktivitas (Permanen)",     icon:<SafetyCertificateOutlined /> } },
-              { name:"rag_knowledge", list:"/rag",         meta:{ label:"RAG Knowledge Base",           icon:<DatabaseOutlined /> } },
-              { name:"akademik",     list:"/akademik",    meta:{ label:"Laporan Nilai",                icon:<BookOutlined /> } },
-              { name:"tagihan_santri", list:"/tagihan", create:"/tagihan/create", edit:"/tagihan/edit/:id",
-                meta:{ label:"Keuangan & SPP", icon:<WalletOutlined /> } },
-              { name:"transaksi_keuangan", list:"/transaksi", create:"/transaksi/create",
-                meta:{ label:"Riwayat Transaksi", icon:<HistoryOutlined /> } },
-              { name:"dompet_menu", meta:{ label:"Dompet Santri", icon:<WalletOutlined /> } },
-              { name:"dompet_santri", list:"/dompet-santri",
-                meta:{ label:"Akun & Saldo", parent:"dompet_menu", icon:<WalletOutlined /> } },
-              { name:"dompet_operasional", list:"/dompet-operasional",
-                meta:{ label:"Operasional & Peringatan", parent:"dompet_menu", icon:<SafetyCertificateOutlined /> } },
-              { name:"dompet_security_audit", list:"/dompet-security-audit",
-                meta:{ label:"Audit Keamanan", parent:"dompet_menu", icon:<DatabaseOutlined /> } },
-              { name:"kantin_management", list:"/kantin-management",
-                meta:{ label:"Manajemen Kantin", parent:"dompet_menu", icon:<ShopOutlined /> } },
-              { name:"diklat", meta:{ label:"Diklat & Pasaran", icon:<RocketOutlined /> } },
-              { name:"diklat_list",   list:"/diklat",        meta:{ label:"Daftar Peserta",     parent:"diklat", icon:<TeamOutlined /> } },
-              { name:"diklat_master", list:"/diklat/master", meta:{ label:"Master Data Diklat", parent:"diklat", icon:<SettingOutlined /> } },
-              { name:"pengeluaran",  list:"/pengeluaran", meta:{ label:"Pengeluaran", icon:<ShoppingCartOutlined /> } },
-              { name:"scan-qr",      list:"/scanQr",      meta:{ label:"Scan QR",     icon:<BarcodeOutlined /> } },
-              { name:"inventaris", list:"/inventaris", create:"/inventaris/create",
-                edit:"/inventaris/edit/:id", show:"/inventaris/show/:id",
-                meta:{ label:"Inventaris Aset", icon:<BarcodeOutlined /> } },
-              { name:"ulangan_menu", meta:{ label:"Ulangan Mingguan", icon:<FormOutlined /> } },
-              { name:"weekly_tests", list:"/ulangan", create:"/ulangan/create",
-                meta:{ label:"Bank & Buat Ulangan", parent:"ulangan_menu", icon:<ProjectOutlined /> } },
-              { name:"ulangan_arsip", list:"/ulangan/arsip",
-                meta:{ label:"Arsip & Nilai", parent:"ulangan_menu", icon:<FileProtectOutlined /> } },
-              { name:"notification_queue", list:"/notifications", create:"/notifications/create",
-                meta:{ label:"Notifikasi Push", icon:<BellOutlined /> } },
-              { name:"backend_command_center", meta:{ label:"Backend Command Center", icon:<DatabaseOutlined /> } },
-              { name:"backend_self_healing", list:"/backend-command-center/self-healing",
-                meta:{ label:"Self-Healing Center", parent:"backend_command_center", icon:<SafetyCertificateOutlined /> } },
-              { name:"backend_diagnostics", list:"/backend-command-center/diagnostics",
-                meta:{ label:"Backend Diagnostics", parent:"backend_command_center", icon:<DatabaseOutlined /> } },
-              { name:"backend_private_audit_log", list:"/backend-command-center/private-audit-log",
-                meta:{ label:"Private Audit Log", parent:"backend_command_center", icon:<FileProtectOutlined /> } },
-            ]}
+            resources={resources}
           >
             <Routes>
               {/* LOGIN */}
@@ -1153,7 +1146,7 @@ const InnerApp: React.FC = () => {
                 <Authenticated key="authenticated-inner" fallback={<CatchAllNavigate to="/login" />}>
                   <ThemedLayoutV2
                     Header={() => <Header sticky />}
-                    Sider={(props) => <ThemedSiderV2 {...props} fixed Title={Title} />}
+                    Sider={(props) => <AutoCollapseSider {...props} />}
                   >
                     {/* ✅ FIX #1: AnimatePresence dipindah ke dalam PageWrapper.
                         PageWrapper menggunakan useLocation().pathname sebagai key
@@ -1195,6 +1188,7 @@ const InnerApp: React.FC = () => {
                   <Route path="create"  element={<KesehatanCreate />} />
                   <Route path="edit/:id" element={<KesehatanEdit />}  />
                 </Route>
+                <Route path="/prestasi" element={<PrestasiList />} />
 
                 <Route path="/hafalan">
                   <Route index          element={<HafalanList />}   />
@@ -1214,6 +1208,9 @@ const InnerApp: React.FC = () => {
                 </Route>
 
                 <Route path="/alumni">    <Route index element={<AlumniList />}    /></Route>
+                <Route path="/forum-alumni" element={<ForumModerationList />} />
+                <Route path="/forum-reports" element={<ForumReportsList />} />
+                <Route path="/chat-alumni" element={<AlumniChatMonitoringList />} />
                 <Route path="/audit-logs"><Route index element={<AuditLogList />}  /></Route>
                 <Route path="/rag">       <Route index element={<RagKnowledgePage />} /></Route>
                 <Route path="/akademik">  <Route index element={<AkademikPage />} /></Route>

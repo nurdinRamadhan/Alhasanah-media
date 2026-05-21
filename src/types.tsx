@@ -419,13 +419,13 @@ export interface IPrestasiSantri {
     created_at: string;
     santri_nis: string;
     santri?: ISantri;
-    kategori: 'TAHFIDZ' | 'KITAB' | 'UMUM' | 'KHATAM';
+    kategori: 'TAHFIDZ' | 'KITAB' | 'KHATAM' | 'AKADEMIK' | 'LOMBA' | 'AKHLAK' | 'OLAHRAGA' | 'SENI' | 'UMUM' | 'LAINNYA';
     judul_prestasi: string;
-    keterangan: string;
+    keterangan: string | null;
     tanggal_prestasi: string;
-    sertifikat_url?: string;
-    poin_prestasi: number;
-    dicatat_oleh_id: string;
+    sertifikat_url?: string | null;
+    poin_prestasi: number | null;
+    dicatat_oleh_id: string | null;
 }
 
 export interface IMataPelajaran {

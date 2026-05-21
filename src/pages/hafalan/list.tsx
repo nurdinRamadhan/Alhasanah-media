@@ -17,20 +17,87 @@ import { formatHijri } from "../../utility/dateHelper";
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { santriAlias } from "../../utility/privacy";
+import { supabaseClient } from "../../utility/supabaseClient";
 
 const { Text } = Typography;
+
+type LatestHafalan = {
+    santri_nis: string;
+    tanggal: string | null;
+    surat: string | null;
+    ayat_awal: number | null;
+    ayat_akhir: number | null;
+    juz: number | null;
+};
+
+const formatTotalHafalan = (value?: string | number | null) => {
+    if (value === null || value === undefined || value === "") return "0 Juz";
+    const raw = String(value).trim();
+    return /juz/i.test(raw) ? raw : `${raw} Juz`;
+};
+
+const formatLatestHafalan = (record?: LatestHafalan) => {
+    if (!record) return "Belum ada setoran";
+    if (record.surat) {
+        const ayat = record.ayat_awal && record.ayat_akhir
+            ? ` (Ayat ${record.ayat_awal}-${record.ayat_akhir})`
+            : "";
+        return `${record.surat}${ayat}`;
+    }
+    return record.juz ? `Juz ${record.juz}` : "Belum ada setoran";
+};
 
 export const HafalanList = () => {
     // 1. Fetch Data Santri
     const { tableProps, tableQueryResult } = useTable<ISantri>({
         resource: "santri",
         syncWithLocation: true,
-        meta: { select: "nama, nis, kelas, jurusan, jenis_kelamin, status_santri, total_hafalan, hafalan_kitab, foto_url" },
+        meta: { select: "nama, nis, kelas, jurusan, jenis_kelamin, status_santri, pembimbing, total_hafalan, hafalan_kitab, foto_url" },
+        filters: {
+            permanent: [
+                { field: "jurusan", operator: "eq", value: "TAHFIDZ" },
+                { field: "status_santri", operator: "eq", value: "AKTIF" },
+            ],
+        },
         // Kita sorting berdasarkan Kelas dulu biar rapi
         sorters: { initial: [{ field: "kelas", order: "asc" }] },
     });
 
     const { push } = useNavigation();
+    const [latestByNis, setLatestByNis] = React.useState<Record<string, LatestHafalan>>({});
+
+    React.useEffect(() => {
+        const nisList = (tableQueryResult?.data?.data || [])
+            .map((item) => item.nis)
+            .filter(Boolean);
+
+        if (nisList.length === 0) {
+            setLatestByNis({});
+            return;
+        }
+
+        let mounted = true;
+        supabaseClient
+            .from("hafalan_tahfidz")
+            .select("santri_nis,tanggal,surat,ayat_awal,ayat_akhir,juz")
+            .in("santri_nis", nisList)
+            .order("tanggal", { ascending: false })
+            .order("id", { ascending: false })
+            .then(({ data }) => {
+                if (!mounted) return;
+                const next: Record<string, LatestHafalan> = {};
+                (data || []).forEach((item) => {
+                    if (item.santri_nis && !next[item.santri_nis]) {
+                        next[item.santri_nis] = item as LatestHafalan;
+                    }
+                });
+                setLatestByNis(next);
+            });
+
+        return () => {
+            mounted = false;
+        };
+    }, [tableQueryResult?.data?.data]);
 
     // --- FITUR EXPORT (GOLD THEME) ---
     const exportProgres = async () => {
@@ -94,8 +161,8 @@ export const HafalanList = () => {
                 item.kelas,
                 item.jurusan,
                 item.pembimbing || '-',
-                item.total_hafalan || '0',
-                item.hafalan_kitab || '-' 
+                formatTotalHafalan(item.total_hafalan),
+                formatLatestHafalan(latestByNis[item.nis])
             ]);
             row.eachCell((cell) => {
                 cell.border = { top: {style:'thin', color:{argb:'FFE5E7EB'}}, left: {style:'thin', color:{argb:'FFE5E7EB'}}, bottom: {style:'thin', color:{argb:'FFE5E7EB'}}, right: {style:'thin', color:{argb:'FFE5E7EB'}} };
@@ -187,7 +254,7 @@ export const HafalanList = () => {
                     <div className="flex items-center justify-between bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded">
                         <span className="text-xs text-emerald-600 font-medium">Total</span>
                         <Tag color="gold" className="m-0 font-bold border-0">
-                            {record.total_hafalan ? `${record.total_hafalan}` : "0 Juz"}
+                            {formatTotalHafalan(record.total_hafalan)}
                         </Tag>
                     </div>
 
@@ -197,7 +264,7 @@ export const HafalanList = () => {
                         <Space direction="vertical" size={0}>
                             <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Capaian Terakhir:</span>
                             <Text strong className="text-[13px] text-emerald-700 dark:text-emerald-400 leading-normal block">
-                                {record.hafalan_kitab || "Belum ada setoran"}
+                                {formatLatestHafalan(latestByNis[record.nis])}
                             </Text>
                         </Space>
                     </div>

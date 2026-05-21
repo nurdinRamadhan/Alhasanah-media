@@ -23,11 +23,74 @@ import { santriAlias } from "../../utility/privacy";
 const { Text } = Typography;
 const { RangePicker } = DatePicker;
 
+type MurojaahSummary = {
+    santri_nis: string;
+    total_count: number;
+    week_count: number;
+    month_count: number;
+    last_tanggal: string | null;
+    last_jenis_murojaah: "SABAQ" | "MANZIL" | null;
+    last_juz: number | null;
+    last_surat: string | null;
+    last_ayat_awal: number | null;
+    last_ayat_akhir: number | null;
+    last_halaman_awal: number | null;
+    last_halaman_akhir: number | null;
+    last_predikat: string | null;
+};
+
+const formatMurojaahCoverage = (item?: Partial<MurojaahSummary> | null) => {
+    if (!item) return "Belum ada log";
+    if (item.last_surat) {
+        const ayat = item.last_ayat_awal && item.last_ayat_akhir
+            ? ` Ayat ${item.last_ayat_awal}-${item.last_ayat_akhir}`
+            : "";
+        return `${item.last_surat}${ayat}`;
+    }
+    if (item.last_halaman_awal && item.last_halaman_akhir) {
+        return `Hal. ${item.last_halaman_awal}-${item.last_halaman_akhir}`;
+    }
+    return item.last_juz ? `Juz ${item.last_juz}` : "Belum ada log";
+};
+
+const fetchAllMurojaahLogs = async (params: {
+    startDate: string;
+    endDate: string;
+    santriNis?: string;
+}) => {
+    const pageSize = 1000;
+    let from = 0;
+    const rows: any[] = [];
+
+    while (true) {
+        let query = supabaseClient
+            .from("murojaah_tahfidz")
+            .select("*, santri(nama, nis, kelas)")
+            .gte("tanggal", params.startDate)
+            .lte("tanggal", params.endDate)
+            .order("tanggal", { ascending: false })
+            .range(from, from + pageSize - 1);
+
+        if (params.santriNis) {
+            query = query.eq("santri_nis", params.santriNis);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        rows.push(...(data || []));
+        if (!data || data.length < pageSize) break;
+        from += pageSize;
+    }
+
+    return rows;
+};
+
 export const MurojaahList = () => {
-    const { tableProps } = useTable<ISantri>({
+    const { tableProps, tableQueryResult } = useTable<ISantri>({
         resource: "santri",
         syncWithLocation: true,
-        meta: { select: "nama, nis, kelas, jurusan, jenis_kelamin, status_santri, total_hafalan, foto_url" },
+        meta: { select: "nama, nis, kelas, jurusan, jenis_kelamin, status_santri, pembimbing, total_hafalan, foto_url" },
         filters: {
             permanent: [
                 { field: "jurusan", operator: "eq", value: "TAHFIDZ" },
@@ -38,6 +101,39 @@ export const MurojaahList = () => {
     });
 
     const { push } = useNavigation();
+    const [summariesByNis, setSummariesByNis] = useState<Record<string, MurojaahSummary>>({});
+
+    React.useEffect(() => {
+        const nisList = (tableQueryResult?.data?.data || [])
+            .map((item) => item.nis)
+            .filter(Boolean);
+
+        if (nisList.length === 0) {
+            setSummariesByNis({});
+            return;
+        }
+
+        let mounted = true;
+        supabaseClient
+            .rpc("get_admin_murojaah_summaries", { p_santri_nis: nisList })
+            .then(({ data, error }) => {
+                if (!mounted) return;
+                if (error) {
+                    console.error("Gagal memuat ringkasan murojaah:", error);
+                    setSummariesByNis({});
+                    return;
+                }
+                const next: Record<string, MurojaahSummary> = {};
+                (data || []).forEach((item: MurojaahSummary) => {
+                    next[item.santri_nis] = item;
+                });
+                setSummariesByNis(next);
+            });
+
+        return () => {
+            mounted = false;
+        };
+    }, [tableQueryResult?.data?.data]);
 
     // --- STATE EXPORT CENTER ---
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -76,15 +172,7 @@ export const MurojaahList = () => {
                 // --- EXPORT GLOBAL (SEMUA SANTRI) ---
                 const ws = wb.addWorksheet('Rekap Murojaah');
                 
-                // Ambil data dengan join santri
-                const { data: logs, error } = await supabaseClient
-                    .from('murojaah_tahfidz')
-                    .select('*, santri(nama, nis, kelas)')
-                    .gte('tanggal', startDate)
-                    .lte('tanggal', endDate)
-                    .order('tanggal', { ascending: false }); // Urutkan tanggal terbaru
-
-                if (error) throw error;
+                const logs = await fetchAllMurojaahLogs({ startDate, endDate });
 
                 // Header Info
                 ws.mergeCells('A1:G1');
@@ -102,7 +190,7 @@ export const MurojaahList = () => {
                     { key: 'predikat', width: 15 }, { key: 'note', width: 30 }
                 ];
 
-                logs?.forEach(item => {
+                logs.forEach(item => {
                     // Logic gabungan Surat vs Halaman
                     const cakupan = item.surat 
                         ? `${item.surat} (Ayat ${item.ayat_awal}-${item.ayat_akhir})` 
@@ -134,13 +222,7 @@ export const MurojaahList = () => {
                     .eq('nis', selectedSantri)
                     .single();
                 if (!santri) throw new Error("Data santri tidak ditemukan.");
-                const { data: logs } = await supabaseClient
-                    .from('murojaah_tahfidz')
-                    .select('*')
-                    .eq('santri_nis', selectedSantri)
-                    .gte('tanggal', startDate)
-                    .lte('tanggal', endDate)
-                    .order('tanggal', { ascending: false });
+                const logs = await fetchAllMurojaahLogs({ startDate, endDate, santriNis: selectedSantri });
 
                 const ws = wb.addWorksheet(`Murojaah - ${(santri.nama || santriAlias(santri.nis)).substring(0, 20)}`);
 
@@ -160,7 +242,7 @@ export const MurojaahList = () => {
                     { width: 18 }, { width: 22 }, { width: 12 }, { width: 8 }, { width: 40 }, { width: 15 }, { width: 15 }
                 ];
 
-                logs?.forEach(item => {
+                logs.forEach(item => {
                     const cakupan = item.surat 
                         ? `QS. ${item.surat} : ${item.ayat_awal}-${item.ayat_akhir}` 
                         : `Halaman ${item.halaman_awal} - ${item.halaman_akhir}`;
@@ -222,12 +304,58 @@ export const MurojaahList = () => {
             render: (val) => val || "-"
         },
         {
+            title: "Ringkasan",
+            key: "summary",
+            width: 230,
+            search: false,
+            render: (_, record) => {
+                const summary = summariesByNis[record.nis];
+                return (
+                    <Space size={4} wrap>
+                        <Tag color="purple" className="m-0">Total {summary?.total_count ?? 0}</Tag>
+                        <Tag color="blue" className="m-0">Pekan {summary?.week_count ?? 0}</Tag>
+                        <Tag color="geekblue" className="m-0">Bulan {summary?.month_count ?? 0}</Tag>
+                    </Space>
+                );
+            }
+        },
+        {
+            title: "Terakhir",
+            key: "last_murojaah",
+            width: 280,
+            search: false,
+            render: (_, record) => {
+                const summary = summariesByNis[record.nis];
+                return (
+                    <div className="flex flex-col gap-1">
+                        <Space size={4} wrap>
+                            {summary?.last_jenis_murojaah && (
+                                <Tag color={summary.last_jenis_murojaah === "SABAQ" ? "blue" : "purple"} className="m-0">
+                                    {summary.last_jenis_murojaah}
+                                </Tag>
+                            )}
+                            {summary?.last_predikat && <Tag color="success" className="m-0">{summary.last_predikat}</Tag>}
+                        </Space>
+                        <Text className="text-xs" ellipsis={{ tooltip: formatMurojaahCoverage(summary) }}>
+                            {formatMurojaahCoverage(summary)}
+                        </Text>
+                        {summary?.last_tanggal && (
+                            <Text type="secondary" className="text-[11px]">
+                                {formatMasehi(summary.last_tanggal)}
+                            </Text>
+                        )}
+                    </div>
+                );
+            }
+        },
+        {
             title: "Status",
             key: "status",
-            width: 200,
-            render: () => (
+            width: 120,
+            search: false,
+            render: (_, record) => (
                 <div className="flex items-center gap-2 text-gray-500 text-xs">
-                     <SyncOutlined /> Data log ada di detail
+                     <SyncOutlined /> {summariesByNis[record.nis]?.last_tanggal ? "Aktif" : "Kosong"}
                 </div>
             )
         },
@@ -294,7 +422,7 @@ export const MurojaahList = () => {
                 ]}
                 options={{ density: true, fullScreen: true, reload: true }}
                 search={{ labelWidth: 'auto', layout: 'vertical' }}
-                pagination={{ defaultPageSize: 10 }}
+                pagination={{ defaultPageSize: 20, showSizeChanger: true }}
                 className="bg-white dark:bg-[#141414] rounded-xl shadow-sm border border-gray-100 dark:border-gray-800"
             />
 

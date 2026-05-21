@@ -1,16 +1,29 @@
 import React, { useState } from "react";
 import { logActivity } from "../../utility/logger";
 import { Create, useForm, useSelect } from "@refinedev/antd";
-import { Form, Input, Select, DatePicker, Card, Row, Col, InputNumber, Radio, Divider } from "antd";
+import { Form, Input, Select, DatePicker, Card, Row, Col, InputNumber, Radio, Divider, Typography } from "antd";
 import dayjs from "dayjs";
 import { ISantri } from "../../types";
 import { useGetIdentity, useUpdate } from "@refinedev/core"; //
-import { DATA_SURAT } from "../../utility/quran-data"; 
+import { DATA_SURAT } from "../../utility/quran-data";
+import { useSearchParams } from "react-router-dom";
+import { supabaseClient } from "../../utility/supabaseClient";
+
+const { Text } = Typography;
+
+const parseTotalHafalan = (value?: string | number | null) => {
+    if (value === null || value === undefined || value === "") return 0;
+    const match = String(value).replace(",", ".").match(/\d+(\.\d+)?/);
+    return match ? Number(match[0]) : 0;
+};
 
 export const HafalanCreate = () => {
     const { formProps, saveButtonProps, form } = useForm();
     const { data: user } = useGetIdentity<{ id: string }>();
+    const [searchParams] = useSearchParams();
     const [selectedSuratMaxAyat, setSelectedSuratMaxAyat] = useState<number>(286);
+    const [currentTotalSource, setCurrentTotalSource] = useState<string | null>(null);
+    const selectedSantriNis = Form.useWatch("santri_nis", form);
 
     // Hook untuk melakukan update ke tabel santri
     const { mutate: updateSantri } = useUpdate();
@@ -26,6 +39,41 @@ export const HafalanCreate = () => {
             { field: "nis", operator: "contains", value },
         ],
     });
+
+    React.useEffect(() => {
+        const nisFromUrl = searchParams.get("nis");
+        if (nisFromUrl && !form.getFieldValue("santri_nis")) {
+            form.setFieldValue("santri_nis", nisFromUrl);
+        }
+    }, [form, searchParams]);
+
+    React.useEffect(() => {
+        if (!selectedSantriNis) {
+            setCurrentTotalSource(null);
+            return;
+        }
+
+        let mounted = true;
+        supabaseClient
+            .from("santri")
+            .select("total_hafalan")
+            .eq("nis", selectedSantriNis)
+            .maybeSingle()
+            .then(({ data, error }) => {
+                if (!mounted) return;
+                if (error) {
+                    console.error("Gagal mengambil total hafalan santri:", error);
+                    return;
+                }
+                const total = data?.total_hafalan ?? "0";
+                setCurrentTotalSource(String(total));
+                form.setFieldValue("total_hafalan", parseTotalHafalan(total));
+            });
+
+        return () => {
+            mounted = false;
+        };
+    }, [form, selectedSantriNis]);
 
     const handleSuratChange = (value: string) => {
         const surat = DATA_SURAT.find(s => s.nama === value);
@@ -51,7 +99,7 @@ export const HafalanCreate = () => {
         }
 
         // Jika ada input total_hafalan, update tabel 'santri'
-        if (values.santri_nis && values.total_hafalan) {
+        if (values.santri_nis && values.total_hafalan !== undefined && values.total_hafalan !== null) {
             updateSantri({
                 resource: "santri",
                 id: values.santri_nis,
@@ -131,18 +179,26 @@ export const HafalanCreate = () => {
                             <Form.Item 
                                 label="Total Juz yang Sudah Dihafal" 
                                 name="total_hafalan" 
-                                help="Update total pencapaian juz santri ini"
+                                help={
+                                    currentTotalSource
+                                        ? `Terisi otomatis dari data santri saat ini: ${currentTotalSource}. Ubah hanya jika total capaian memang berubah.`
+                                        : "Terisi otomatis setelah santri dipilih. Nilai ini akan tersimpan ke profil santri."
+                                }
                                 rules={[{ required: true, message: 'Harap isi total juz hafalan' }]}
                             >
                                 <InputNumber 
                                     min={0} 
                                     max={30} 
-                                    step={0.5} // Mengizinkan setengah juz jika perlu, atau ubah ke 1
+                                    step={1}
+                                    precision={0}
                                     style={{ width: '100%' }} 
                                     placeholder="Contoh: 5"
                                     addonAfter="Juz"
                                 />
                             </Form.Item>
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                                Nilai ini adalah total capaian santri, bukan tambahan setoran hari ini.
+                            </Text>
 
                         </Card>
                     </Col>

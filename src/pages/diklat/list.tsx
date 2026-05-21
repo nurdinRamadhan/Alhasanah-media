@@ -681,7 +681,7 @@ export const DiklatList = () => {
                             <div style={{ fontSize: "11px", fontWeight: 900, color: "white", backgroundColor: "#111827", padding: "5px 13px", borderRadius: "4px", marginBottom: "7px", display: "inline-block" }}>II. PERSYARATAN PESERTA</div>
                             <div style={{ border: "1.5px solid #F3F4F6", borderRadius: "9px", padding: "8px 12px", backgroundColor: "#FCFCFD" }}>
                                 <div style={{ fontSize: "11px", fontWeight: 800, color: "#111827", marginBottom: "5px" }}>
-                                    Dengan mendaftar pada Program Pasaran Ma'had Al-Hasanah, peserta menyatakan sanggup memenuhi ketentuan berikut:
+                                    Dengan mendaftar pada Program Diklat di Ma'had Al-Hasanah, peserta menyatakan sanggup memenuhi ketentuan berikut:
                                 </div>
                                 <ol style={{ margin: 0, paddingLeft: "18px", fontSize: "10px", color: "#4B5563", lineHeight: 1.35 }}>
                                     <li>Menyerahkan pas foto ukuran 3x4 sebanyak 2 lembar.</li>
