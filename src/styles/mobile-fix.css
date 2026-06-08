@@ -1,58 +1,417 @@
-/* --- 1. GLOBAL PADDING FIX --- */
-/* Di HP, padding konten utama dikurangi drastis agar tabel muat */
-@media (max-width: 768px) {
-    .ant-layout-content {
-        padding: 8px !important; /* Default Refine 24px -> 8px */
-    }
-    
-    .ant-card-body {
-        padding: 12px !important;
-    }
+/* ================================================================
+   MOBILE + ANDROID WEBVIEW HARDENING
+   Scope: global safety layer for Refine, Ant Design, and ProTable.
+   ================================================================ */
 
-    /* Judul Halaman diperkecil */
-    h1, .ant-typography-title {
-        font-size: 18px !important;
-    }
+:root {
+  --alh-mobile-page-padding: 12px;
+  --alh-mobile-card-padding: 12px;
+  --alh-mobile-control-height: 40px;
 }
 
-/* --- 2. TABLE SCROLL FIX --- */
-/* Paksa tabel punya scrollbar sendiri, JANGAN geser layout utama */
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+}
+
+body {
+  overscroll-behavior-x: none;
+}
+
+img,
+svg,
+canvas,
+video {
+  max-width: 100%;
+}
+
+.ant-layout,
+.ant-layout-has-sider,
+.ant-layout-content,
+.ant-pro-layout,
+.ant-pro-layout-container,
+.ant-pro-layout-content,
+.ant-pro-page-container,
+.ant-pro-page-container-children-container {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+.ant-layout-content {
+  overflow-x: clip;
+}
+
+.ant-card,
+.ant-pro-card,
+.ant-pro-table,
+.ant-table-wrapper,
+.ant-form,
+.ant-tabs,
+.ant-descriptions,
+.ant-list,
+.ant-collapse,
+.ant-alert {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+/* Tables must scroll inside their own surface instead of pushing the page. */
+.ant-table-wrapper,
+.ant-pro-table .ant-pro-card,
+.ant-pro-table .ant-pro-card-body {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
 .ant-table-wrapper {
-    width: 100%;
+  overflow-x: auto !important;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+}
+
+.ant-table-container,
+.ant-table-content,
+.ant-table-body,
+.ant-table-summary {
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ant-table {
+  width: max-content;
+  min-width: 100%;
+}
+
+.ant-table-cell {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.ant-table-cell .ant-space,
+.ant-table-cell .ant-btn-group,
+.ant-table-cell .ant-tag {
+  max-width: 100%;
+}
+
+.ant-table-cell .ant-space {
+  flex-wrap: wrap;
+}
+
+.ant-table-cell .ant-typography,
+.ant-table-cell p,
+.ant-table-cell span {
+  max-width: 100%;
+}
+
+/* ProTable toolbar/search/filter areas frequently cause horizontal overflow. */
+.ant-pro-table-list-toolbar,
+.ant-pro-table-list-toolbar-container,
+.ant-pro-table-list-toolbar-left,
+.ant-pro-table-list-toolbar-right,
+.ant-pro-table-list-toolbar-setting-items,
+.ant-pro-table-search,
+.ant-pro-query-filter,
+.ant-pro-query-filter-row,
+.ant-pro-query-filter-actions,
+.ant-pro-form,
+.ant-pro-form-group,
+.ant-pro-form-list-container,
+.ant-form,
+.ant-form-item,
+.ant-form-item-control,
+.ant-form-item-control-input,
+.ant-form-item-control-input-content,
+.ant-space {
+  min-width: 0 !important;
+}
+
+.ant-pro-table-list-toolbar,
+.ant-pro-table-list-toolbar-container,
+.ant-pro-table-list-toolbar-left,
+.ant-pro-table-list-toolbar-right,
+.ant-pro-table-list-toolbar-setting-items,
+.ant-pro-query-filter-actions,
+.ant-space-wrap {
+  flex-wrap: wrap !important;
+}
+
+.ant-pro-table-list-toolbar-container {
+  row-gap: 8px !important;
+}
+
+.ant-pro-table-list-toolbar-title {
+  min-width: 0 !important;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ant-pagination {
+  max-width: 100%;
+  flex-wrap: wrap !important;
+  row-gap: 8px;
+}
+
+.ant-pagination-options {
+  max-width: 100%;
+}
+
+.ant-tabs-nav,
+.ant-tabs-nav-wrap,
+.ant-tabs-nav-list {
+  min-width: 0 !important;
+  max-width: 100%;
+}
+
+.ant-tabs-nav-wrap {
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 768px) {
+  html,
+  body,
+  #root {
+    min-height: 100dvh;
+  }
+
+  body {
+    font-size: 13px;
+    overflow-x: hidden;
+  }
+
+  .ant-layout-content {
+    padding: var(--alh-mobile-page-padding) !important;
+    width: 100% !important;
+  }
+
+  .ant-card-body,
+  .ant-pro-card-body {
+    padding: var(--alh-mobile-card-padding) !important;
+  }
+
+  .ant-card-head,
+  .ant-pro-card-title {
+    padding-inline: var(--alh-mobile-card-padding) !important;
+  }
+
+  .ant-typography h1,
+  h1.ant-typography,
+  .ant-typography-title {
+    font-size: 18px !important;
+    line-height: 1.25 !important;
+  }
+
+  h2.ant-typography,
+  h3.ant-typography,
+  h4.ant-typography {
+    line-height: 1.3 !important;
+  }
+
+  .ant-layout-header {
+    padding-inline: 10px !important;
+    max-width: 100vw;
+  }
+
+  .ant-layout-sider {
+    max-width: min(84vw, 280px) !important;
+  }
+
+  .ant-pro-table-list-toolbar,
+  .ant-pro-table-list-toolbar-container {
+    display: flex !important;
+    align-items: stretch !important;
+  }
+
+  .ant-pro-table-list-toolbar-left,
+  .ant-pro-table-list-toolbar-right {
+    width: 100% !important;
+    justify-content: flex-start !important;
+    row-gap: 8px !important;
+  }
+
+  .ant-pro-table-list-toolbar-right > *,
+  .ant-pro-table-list-toolbar-setting-items > *,
+  .ant-pro-query-filter-actions > *,
+  .ant-space > .ant-space-item {
+    max-width: 100%;
+  }
+
+  .ant-pro-query-filter,
+  .ant-pro-query-filter .ant-row,
+  .ant-pro-query-filter .ant-col,
+  .ant-form .ant-row,
+  .ant-form .ant-col {
+    max-width: 100% !important;
+  }
+
+  .ant-pro-query-filter .ant-col,
+  .ant-form .ant-col {
+    flex: 0 0 100% !important;
+  }
+
+  .ant-form-inline {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+
+  .ant-form-inline .ant-form-item {
+    margin-inline-end: 0 !important;
+    width: 100% !important;
+  }
+
+  .ant-input,
+  .ant-input-affix-wrapper,
+  .ant-input-number,
+  .ant-picker,
+  .ant-select,
+  .ant-select-selector,
+  .ant-cascader-picker,
+  .ant-mentions,
+  .ant-btn {
+    max-width: 100% !important;
+  }
+
+  .ant-input,
+  .ant-input-affix-wrapper,
+  .ant-input-number,
+  .ant-picker,
+  .ant-select-selector,
+  .ant-btn {
+    min-height: var(--alh-mobile-control-height);
+  }
+
+  .ant-table-wrapper {
+    border-radius: 10px;
+  }
+
+  .ant-table-thead > tr > th {
+    padding: 10px 12px !important;
+    font-size: 10px !important;
+    white-space: nowrap;
+  }
+
+  .ant-table-tbody > tr > td,
+  .ant-table-summary > tr > td {
+    padding: 10px 12px !important;
+    vertical-align: top;
+  }
+
+  .ant-table-sticky-holder {
+    overflow: hidden !important;
+  }
+
+  .ant-table-sticky-scroll {
+    display: none !important;
+  }
+
+  .ant-table-cell-fix-left,
+  .ant-table-cell-fix-right {
+    position: static !important;
+    left: auto !important;
+    right: auto !important;
+    z-index: auto !important;
+    box-shadow: none !important;
+  }
+
+  .ant-table-cell-fix-left-last::after,
+  .ant-table-cell-fix-right-first::after {
+    display: none !important;
+  }
+
+  .ant-pagination {
+    justify-content: flex-start !important;
+  }
+
+  .ant-pagination-total-text,
+  .ant-pagination-options {
+    flex: 0 0 100%;
+    margin-inline-start: 0 !important;
+  }
+
+  .ant-modal {
+    width: calc(100vw - 16px) !important;
+    max-width: calc(100vw - 16px) !important;
+    margin: 8px auto !important;
+    padding-bottom: 0 !important;
+  }
+
+  .ant-modal-content {
+    max-height: calc(100dvh - 16px);
+    overflow: hidden;
+    border-radius: 14px !important;
+  }
+
+  .ant-modal-body {
+    max-height: calc(100dvh - 150px);
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .ant-drawer-content-wrapper {
+    width: min(100vw, 420px) !important;
+  }
+
+  .ant-popover,
+  .ant-dropdown,
+  .ant-select-dropdown {
+    max-width: calc(100vw - 16px) !important;
+  }
+
+  .mobile-hidden {
+    display: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --alh-mobile-page-padding: 8px;
+    --alh-mobile-card-padding: 10px;
+  }
+
+  .ant-table-tbody > tr > td,
+  .ant-table-summary > tr > td {
+    font-size: 12px;
+  }
+
+  .ant-btn {
+    padding-inline: 10px !important;
+  }
+
+  .ant-btn > span:not(.anticon) {
+    white-space: normal;
+    line-height: 1.2;
+  }
+
+  .ant-segmented,
+  .ant-radio-group,
+  .ant-checkbox-group {
+    max-width: 100%;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
-/* Fix Header Tabel Tabrakan */
-/* Saat di mobile, matikan sticky header tabel jika sangat mengganggu */
-@media (max-width: 768px) {
-    .ant-table-sticky-holder {
-        display: none !important; /* Opsi ekstrim: matikan sticky header tabel di HP */
-    }
-    
-    /* Atau opsi soft: turunkan z-indexnya */
-    .ant-table-thead > tr > th {
-        z-index: 10 !important; 
-    }
+/* Android native WebView injects this attribute after page load. */
+html[data-alhasanah-native="android"],
+html[data-alhasanah-native="android"] body,
+html[data-alhasanah-native="android"] #root {
+  min-height: 100dvh;
+  overflow-x: hidden;
 }
 
-/* --- 3. MODAL RESPONSIVE --- */
-/* Modal memenuhi layar di HP agar tombol terlihat */
-@media (max-width: 768px) {
-    .ant-modal {
-        max-width: 100% !important;
-        margin: 0 !important;
-        padding-bottom: 0 !important;
-    }
-    .ant-modal-content {
-        border-radius: 12px 12px 0 0 !important;
-        min-height: 40vh;
-    }
+html[data-alhasanah-native="android"] .ant-layout-content {
+  padding-bottom: max(12px, env(safe-area-inset-bottom)) !important;
 }
 
-/* --- 4. HIDE COLUMNS ON MOBILE (Utility Class) --- */
-/* Gunakan class ini di kolom tabel yang mau disembunyikan di HP */
-@media (max-width: 768px) {
-    .mobile-hidden {
-        display: none !important;
-    }
+html[data-alhasanah-native="android"] .ant-table-wrapper,
+html[data-alhasanah-native="android"] .ant-table-content,
+html[data-alhasanah-native="android"] .ant-table-body {
+  touch-action: pan-x pan-y;
 }
