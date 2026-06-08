@@ -314,9 +314,26 @@ export interface IInventaris {
 export interface IRefJenisPembayaran {
   id: number;
   nama_pembayaran: string; // SPP, Gedung, Seragam
-  tipe: 'BULANAN' | 'SEKALI' | 'BEBAS';
+  tipe: 'bulanan' | 'sekali_bayar' | 'tabungan' | 'bebas';
   nominal_default: number;
   is_aktif: boolean;
+  created_at?: string;
+}
+
+export interface ITarifKhususSantri {
+  id: string;
+  santri_nis: string;
+  jenis_pembayaran_id: number;
+  nominal_khusus: number;
+  periode_mulai?: string | null;
+  periode_selesai?: string | null;
+  is_aktif: boolean;
+  keterangan?: string | null;
+  created_at: string;
+  updated_at?: string;
+  created_by?: string | null;
+  santri?: ISantri;
+  ref_jenis_pembayaran?: IRefJenisPembayaran;
 }
 
 export interface ITagihanSantri {
@@ -477,6 +494,28 @@ export interface IDetailTransaksi {
   transaksi_id: string;
   tagihan_id: string;
   nominal_dialokasikan: number;
+}
+
+export interface IPembayaranTagihan {
+  id: string;
+  created_at: string;
+  updated_at?: string;
+  tagihan_id: string;
+  transaksi_id?: string | null;
+  santri_nis: string;
+  wali_id?: string | null;
+  recorded_by?: string | null;
+  amount: number;
+  metode_pembayaran: string;
+  source: 'admin_panel' | 'midtrans' | 'system';
+  status: 'pending' | 'posted' | 'failed' | 'cancelled';
+  paid_at?: string | null;
+  provider_order_id?: string | null;
+  provider_payload?: Record<string, unknown>;
+  idempotency_key?: string | null;
+  keterangan?: string | null;
+
+  transaksi?: ITransaksiKeuangan;
 }
 
 // --- SECURITY & WALLET ---

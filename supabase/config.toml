@@ -12,6 +12,9 @@ verify_jwt = false
 [functions.midtrans-snap]
 verify_jwt = false
 
+[functions.tagihan-payment-record]
+verify_jwt = true
+
 [functions.gemini-consultant]
 verify_jwt = true
 

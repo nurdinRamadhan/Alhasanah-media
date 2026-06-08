@@ -28,6 +28,11 @@ serve(async (req) => {
     let finalOrderId = order_id;
     let description = "Pembayaran Tagihan Digital";
 
+    const cleanAmount = Math.round(Number(gross_amount));
+    if (!Number.isFinite(cleanAmount) || cleanAmount <= 0) {
+      throw new Error("Nominal pembayaran tidak valid.");
+    }
+
     if (is_donation) {
         // Jika Donasi: Buat Order ID khusus
         const donationType = (Array.isArray(item_details) && item_details.length > 0) 
@@ -47,6 +52,8 @@ serve(async (req) => {
                 .from("tagihan_santri")
                 .select(`
                     santri_nis, 
+                    sisa_tagihan,
+                    status,
                     santri(wali_id)
                 `)
                 .eq("id", order_id)
@@ -61,6 +68,21 @@ serve(async (req) => {
                 console.error(`[SNAP] DB Lookup Error:`, dbErr);
             }
         }
+
+        const { data: payableTagihan, error: payableErr } = await supabase
+            .from("tagihan_santri")
+            .select("id, sisa_tagihan, status")
+            .eq("id", order_id)
+            .maybeSingle();
+
+        if (payableErr) throw payableErr;
+        if (!payableTagihan) throw new Error("Tagihan tidak ditemukan.");
+        if (String(payableTagihan.status).toUpperCase() === "LUNAS") {
+            throw new Error("Tagihan sudah lunas.");
+        }
+        if (cleanAmount > Number(payableTagihan.sisa_tagihan || 0)) {
+            throw new Error("Nominal pembayaran melebihi sisa tagihan.");
+        }
         
         const timestamp = Date.now();
         finalOrderId = `${order_id}_${timestamp}`;
@@ -70,8 +92,6 @@ serve(async (req) => {
     }
 
     // --- FIX 2: MEMBERSIHKAN PAYLOAD MIDTRANS ---
-    const cleanAmount = Math.round(Number(gross_amount));
-
     const midtransPayload: any = {
       transaction_details: {
         order_id: finalOrderId,
@@ -121,6 +141,7 @@ serve(async (req) => {
                 status: "pending",           
                 metode_pembayaran: "midtrans",
                 jenis_transaksi: "masuk",
+                kategori: is_donation ? "donasi" : "tagihan",
                 santri_nis: santri_nis,
                 wali_id: wali_id,
                 admin_pencatat_id: null,      

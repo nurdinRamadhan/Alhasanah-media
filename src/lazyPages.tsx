@@ -34,6 +34,7 @@ export const InventarisShow     = React.lazy(() => import("./pages/inventaris/sh
 export const TagihanList        = React.lazy(() => import("./pages/tagihan/list").then(m => ({ default: m.TagihanList })));
 export const TagihanCreate      = React.lazy(() => import("./pages/tagihan/create").then(m => ({ default: m.TagihanCreate })));
 export const TagihanEdit        = React.lazy(() => import("./pages/tagihan/edit").then(m => ({ default: m.TagihanEdit })));
+export const JenisPembayaranList = React.lazy(() => import("./pages/jenis-pembayaran/list").then(m => ({ default: m.JenisPembayaranList })));
 export const TransaksiList      = React.lazy(() => import("./pages/transaksi/list").then(m => ({ default: m.TransaksiList })));
 export const TransaksiCreate    = React.lazy(() => import("./pages/transaksi/create").then(m => ({ default: m.TransaksiCreate })));
 export const DompetSantriList   = React.lazy(() => import("./pages/dompet-santri/list").then(m => ({ default: m.DompetSantriList })));

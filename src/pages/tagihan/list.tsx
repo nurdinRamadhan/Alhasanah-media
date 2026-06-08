@@ -1,23 +1,24 @@
-import React, { useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useTable, useSelect } from "@refinedev/antd";
 import { ProTable, ProColumns } from "@ant-design/pro-components";
 import {
-    Tag, Space, Button, Typography, Tooltip, Avatar, Modal, Form,
+    Space, Button, Typography, Tooltip, Avatar, Modal, Form,
     Select, InputNumber, Input, message, DatePicker, Card, Row, Col,
-    QRCode, theme, Progress, Divider,
+    QRCode, theme, Progress, Drawer,
 } from "antd";
 import {
-    PlusOutlined, DollarOutlined, CreditCardOutlined, DownloadOutlined,
+    PlusOutlined, CreditCardOutlined, DownloadOutlined,
     UsergroupAddOutlined, CheckCircleOutlined, WalletOutlined,
     EditOutlined, PrinterOutlined, ShopOutlined, CalendarOutlined,
-    BankOutlined, FilterOutlined, FileExcelOutlined, TeamOutlined,
+    FilterOutlined, FileExcelOutlined, TeamOutlined,
     ThunderboltOutlined, DeleteOutlined, BarChartOutlined,
-    ClockCircleOutlined, ExclamationCircleOutlined, RiseOutlined,
+    ClockCircleOutlined, ExclamationCircleOutlined,
 } from "@ant-design/icons";
-import { ITagihanSantri, ISantri, IUserIdentity } from "../../types";
-import { useNavigation, useDelete, useUpdate, useCreate, useGetIdentity } from "@refinedev/core";
+import { IRefJenisPembayaran, ITagihanSantri, ISantri, IPembayaranTagihan, StatusTagihan } from "../../types";
+import { useNavigation, useDelete } from "@refinedev/core";
 import { formatHijri, formatMasehi } from "../../utility/dateHelper";
 import { santriAlias } from "../../utility/privacy";
+import { buildSpecialRateMap, loadSpecialRates, resolveNominalWithSpecialRate } from "../../utility/paymentRates";
 import dayjs from "dayjs";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
@@ -38,6 +39,23 @@ const formatRupiah = (val: number) =>
         minimumFractionDigits: 0,
     }).format(val);
 
+const formatPaymentPeriod = (value: dayjs.Dayjs) => value.format("MMMM YYYY");
+
+type TagihanSantriGroup = {
+    key: string;
+    santri_nis: string;
+    santri?: ISantri;
+    tagihan: ITagihanSantri[];
+    total_nominal: number;
+    total_dibayar: number;
+    total_sisa: number;
+    total_tagihan: number;
+    jumlah_belum: number;
+    jumlah_cicilan: number;
+    jumlah_lunas: number;
+    status: StatusTagihan;
+};
+
 // ─────────────────────────────────────────────
 //  COMPONENT
 // ─────────────────────────────────────────────
@@ -45,9 +63,6 @@ export const TagihanList = () => {
     const { token } = theme.useToken();
     const { push } = useNavigation();
     const { mutate: deleteMutate } = useDelete();
-    const { mutate: updateMutate } = useUpdate();
-    const { mutate: createTransaksi } = useCreate();
-    const { data: user } = useGetIdentity<IUserIdentity>();
 
     // ── Dark Mode Detection ──────────────────
     const isDark = token.colorBgBase !== "#ffffff";
@@ -74,6 +89,7 @@ export const TagihanList = () => {
     const [filterMonth, setFilterMonth] = useState<dayjs.Dayjs>(dayjs());
     const [filterKelas, setFilterKelas] = useState<string | null>(null);
     const [filterJurusan, setFilterJurusan] = useState<string | null>(null);
+    const [filterStatus, setFilterStatus] = useState<StatusTagihan | null>(null);
 
     // ── Table Config ─────────────────────────
     const { tableProps, tableQueryResult } = useTable<ITagihanSantri>({
@@ -96,6 +112,7 @@ export const TagihanList = () => {
         },
         meta: { select: "*, santri!inner(nama, nis, kelas, jurusan, wali_id)" },
         sorters: { initial: [{ field: "created_at", order: "desc" }] },
+        pagination: { mode: "client", pageSize: 50 },
     });
 
     // ── Client-Side Filtering ────────────────
@@ -104,14 +121,61 @@ export const TagihanList = () => {
             let pass = true;
             if (filterKelas && item.santri?.kelas !== filterKelas) pass = false;
             if (filterJurusan && item.santri?.jurusan !== filterJurusan) pass = false;
+            if (filterStatus && item.status !== filterStatus) pass = false;
             return pass;
         }) || [];
 
+    const groupedData = Array.from(
+        filteredData.reduce((map, item) => {
+            const key = item.santri_nis || item.santri?.nis || item.id;
+            const current = map.get(key) || {
+                key,
+                santri_nis: key,
+                santri: item.santri,
+                tagihan: [],
+                total_nominal: 0,
+                total_dibayar: 0,
+                total_sisa: 0,
+                total_tagihan: 0,
+                jumlah_belum: 0,
+                jumlah_cicilan: 0,
+                jumlah_lunas: 0,
+                status: "LUNAS" as StatusTagihan,
+            };
+
+            const nominal = Number(item.nominal_tagihan || 0);
+            const sisa = Number(item.sisa_tagihan || 0);
+            current.tagihan.push(item);
+            current.total_nominal += nominal;
+            current.total_sisa += sisa;
+            current.total_dibayar += Math.max(nominal - sisa, 0);
+            current.total_tagihan += 1;
+            if (item.status === "BELUM") current.jumlah_belum += 1;
+            if (item.status === "CICILAN") current.jumlah_cicilan += 1;
+            if (item.status === "LUNAS") current.jumlah_lunas += 1;
+            current.status = current.jumlah_belum > 0
+                ? "BELUM"
+                : current.jumlah_cicilan > 0
+                    ? "CICILAN"
+                    : "LUNAS";
+            map.set(key, current);
+            return map;
+        }, new Map<string, TagihanSantriGroup>()).values()
+    ).sort((a, b) => {
+        const latestA = Math.max(...a.tagihan.map((item) => dayjs(item.created_at).valueOf()));
+        const latestB = Math.max(...b.tagihan.map((item) => dayjs(item.created_at).valueOf()));
+        return latestB - latestA;
+    });
+
     const finalTableProps = {
-        ...tableProps,
-        dataSource: filteredData,
-        pagination: { ...tableProps.pagination, total: filteredData.length },
-        scroll: { x: 1100 },
+        dataSource: groupedData,
+        loading: tableQueryResult.isLoading || tableQueryResult.isFetching,
+        pagination: {
+            ...(typeof tableProps.pagination === "object" ? tableProps.pagination : {}),
+            total: groupedData.length,
+            pageSize: typeof tableProps.pagination === "object" ? tableProps.pagination.pageSize || 50 : 50,
+        },
+        scroll: { x: 980 },
     };
 
     // ── Modal States ─────────────────────────
@@ -119,13 +183,92 @@ export const TagihanList = () => {
     const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+    const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
 
     // ── Logic States ─────────────────────────
     const [selectedTagihan, setSelectedTagihan] = useState<ITagihanSantri | null>(null);
+    const [selectedGroup, setSelectedGroup] = useState<TagihanSantriGroup | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [isLoadingExport, setIsLoadingExport] = useState(false);
+    const [paymentRefs, setPaymentRefs] = useState<IRefJenisPembayaran[]>([]);
+    const [isLoadingPaymentRefs, setIsLoadingPaymentRefs] = useState(false);
+    const [paymentHistory, setPaymentHistory] = useState<IPembayaranTagihan[]>([]);
+    const [isLoadingPaymentHistory, setIsLoadingPaymentHistory] = useState(false);
     const receiptRef = useRef(null);
     const [formBulk] = Form.useForm();
+    const [formPay] = Form.useForm();
+
+    const loadPaymentRefs = async () => {
+        setIsLoadingPaymentRefs(true);
+        try {
+            const { data, error } = await supabaseClient
+                .from("ref_jenis_pembayaran")
+                .select("*")
+                .eq("is_aktif", true)
+                .order("id", { ascending: true });
+
+            if (error) throw error;
+            setPaymentRefs((data || []) as IRefJenisPembayaran[]);
+        } catch (err: any) {
+            message.error(`Gagal memuat master pembayaran: ${err.message}`);
+        } finally {
+            setIsLoadingPaymentRefs(false);
+        }
+    };
+
+    useEffect(() => {
+        loadPaymentRefs();
+    }, []);
+
+    const openBulkGenerateModal = () => {
+        const monthlyRefs = paymentRefs
+            .filter((item) => item.tipe === "bulanan")
+            .map((item) => item.id);
+
+        formBulk.setFieldsValue({
+            kelas: ["1", "2", "3"],
+            payment_ref_ids: monthlyRefs,
+            periode: dayjs(),
+            jatuh_tempo: dayjs().endOf("month"),
+        });
+        setIsBulkModalOpen(true);
+    };
+
+    const loadPaymentHistory = async (tagihanId: string) => {
+        setIsLoadingPaymentHistory(true);
+        try {
+            const { data, error } = await supabaseClient
+                .from("pembayaran_tagihan")
+                .select("*, transaksi:transaksi_id(id, metode_pembayaran, status_transaksi, status, midtrans_order_id)")
+                .eq("tagihan_id", tagihanId)
+                .order("paid_at", { ascending: false, nullsFirst: false })
+                .order("created_at", { ascending: false });
+
+            if (error) throw error;
+            setPaymentHistory((data || []) as IPembayaranTagihan[]);
+        } catch (err: any) {
+            message.error(`Gagal memuat riwayat cicilan: ${err.message}`);
+        } finally {
+            setIsLoadingPaymentHistory(false);
+        }
+    };
+
+    const openPaymentModal = (record: ITagihanSantri) => {
+        setSelectedTagihan(record);
+        setPaymentHistory([]);
+        formPay.setFieldsValue({
+            amount: Number(record.sisa_tagihan || 0),
+            metode_pembayaran: "cash",
+            keterangan: "",
+        });
+        setIsPayModalOpen(true);
+        loadPaymentHistory(record.id);
+    };
+
+    const openDetailDrawer = (group: TagihanSantriGroup) => {
+        setSelectedGroup(group);
+        setIsDetailDrawerOpen(true);
+    };
 
     // ── Export States ────────────────────────
     const [exportType, setExportType] = useState<"GLOBAL" | "PERSONAL">("GLOBAL");
@@ -150,14 +293,15 @@ export const TagihanList = () => {
     // ── Statistics ───────────────────────────
     const totalData = filteredData.length;
     const totalLunas = filteredData.filter((i) => i.status === "LUNAS").length;
-    const totalBelum = totalData - totalLunas;
+    const totalBelum = filteredData.filter((i) => i.status === "BELUM").length;
+    const totalCicilan = filteredData.filter((i) => i.status === "CICILAN").length;
     const totalNominal = filteredData.reduce((acc, curr) => acc + Number(curr.nominal_tagihan), 0);
     const totalTunggakan = filteredData.reduce(
-        (acc, curr) => acc + (curr.status === "BELUM" ? Number(curr.sisa_tagihan) : 0),
+        (acc, curr) => acc + (curr.status !== "LUNAS" ? Number(curr.sisa_tagihan) : 0),
         0
     );
     const totalTerpenuhi = filteredData.reduce(
-        (acc, curr) => acc + (curr.status === "LUNAS" ? Number(curr.nominal_tagihan) : 0),
+        (acc, curr) => acc + Math.max(Number(curr.nominal_tagihan || 0) - Number(curr.sisa_tagihan || 0), 0),
         0
     );
     const persentaseLunas = totalData > 0 ? Math.round((totalLunas / totalData) * 100) : 0;
@@ -165,35 +309,50 @@ export const TagihanList = () => {
     // ══════════════════════════════════════════
     //  LOGIC 1 — BAYAR TUNAI
     // ══════════════════════════════════════════
-    const handleCashPayment = () => {
+    const handleCashPayment = async () => {
         if (!selectedTagihan) return;
         setIsProcessing(true);
-
-        // Update Status Tagihan (Sinkronisasi ke Transaksi Keuangan ditangani Trigger DB v2.0)
-        updateMutate(
-            {
-                resource: "tagihan_santri",
-                id: selectedTagihan.id,
-                values: { status: "LUNAS", sisa_tagihan: 0 },
-                successNotification: {
-                    message: "Pembayaran Tunai Berhasil",
-                    description: `Tagihan atas nama ${selectedTagihan?.santri?.nama || santriAlias(selectedTagihan?.santri?.nis)} telah lunas.`,
-                    type: "success",
-                },
-            },
-            {
-                onSuccess: () => {
-                    setIsProcessing(false);
-                    setIsPayModalOpen(false);
-                    const updatedRec = { ...selectedTagihan, status: "LUNAS" as const, sisa_tagihan: 0 };
-                    handlePrintReceipt(updatedRec);
-                },
-                onError: () => {
-                    setIsProcessing(false);
-                    message.error("Gagal memproses pembayaran tunai.");
-                },
+        try {
+            const values = await formPay.validateFields();
+            const remaining = Number(selectedTagihan.sisa_tagihan || 0);
+            let amount = Number(values.amount || 0);
+            if (amount <= 0) throw new Error("Nominal pembayaran harus lebih dari 0.");
+            if (amount > remaining) {
+                amount = remaining;
+                formPay.setFieldValue("amount", remaining);
+                message.info("Nominal pembayaran disesuaikan otomatis ke sisa tagihan.");
             }
-        );
+
+            const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+            if (sessionError) throw sessionError;
+            const accessToken = sessionData.session?.access_token;
+            if (!accessToken) throw new Error("Sesi admin tidak ditemukan. Silakan login ulang.");
+
+            const { error } = await supabaseClient.functions.invoke("tagihan-payment-record", {
+                headers: { Authorization: `Bearer ${accessToken}` },
+                body: {
+                    tagihan_id: selectedTagihan.id,
+                    amount,
+                    metode_pembayaran: values.metode_pembayaran || "cash",
+                    keterangan: values.keterangan?.trim() || `Pembayaran manual ${selectedTagihan.deskripsi_tagihan}`,
+                },
+            });
+
+            if (error) throw error;
+            message.success(amount >= Number(selectedTagihan.sisa_tagihan || 0) ? "Tagihan lunas." : "Cicilan berhasil dicatat.");
+            tableQueryResult.refetch();
+            await loadPaymentHistory(selectedTagihan.id);
+            setIsPayModalOpen(false);
+            setIsDetailDrawerOpen(false);
+
+            if (amount >= Number(selectedTagihan.sisa_tagihan || 0)) {
+                handlePrintReceipt({ ...selectedTagihan, status: "LUNAS", sisa_tagihan: 0 });
+            }
+        } catch (err: any) {
+            message.error(err.message || "Gagal memproses pembayaran manual.");
+        } finally {
+            setIsProcessing(false);
+        }
     };
 
     // ══════════════════════════════════════════
@@ -202,11 +361,21 @@ export const TagihanList = () => {
     const handleMidtransPayment = async () => {
         if (!selectedTagihan) return;
         try {
+            const values = await formPay.validateFields();
+            const remaining = Number(selectedTagihan.sisa_tagihan || 0);
+            let amount = Number(values.amount || 0);
+            if (amount <= 0) throw new Error("Nominal pembayaran harus lebih dari 0.");
+            if (amount > remaining) {
+                amount = remaining;
+                formPay.setFieldValue("amount", remaining);
+                message.info("Nominal pembayaran disesuaikan otomatis ke sisa tagihan.");
+            }
+
             message.loading("Membuka Payment Gateway...", 1);
             const { data, error } = await supabaseClient.functions.invoke("midtrans-snap", {
                 body: {
                     order_id: selectedTagihan.id,
-                    gross_amount: selectedTagihan.sisa_tagihan,
+                    gross_amount: amount,
                     santri_nis: selectedTagihan.santri_nis,
                     wali_id: selectedTagihan.santri?.wali_id,
                     customer_details: {
@@ -217,20 +386,22 @@ export const TagihanList = () => {
                     item_details: [
                         {
                             id: selectedTagihan.id,
-                            price: selectedTagihan.sisa_tagihan,
+                            price: amount,
                             quantity: 1,
-                            name: selectedTagihan.deskripsi_tagihan.substring(0, 50),
+                            name: `${amount < Number(selectedTagihan.sisa_tagihan || 0) ? "Cicilan " : ""}${selectedTagihan.deskripsi_tagihan}`.substring(0, 50),
                         },
                     ],
                 },
             });
             if (error) throw error;
             if (!data.token) throw new Error("Gagal mendapatkan token");
-            // @ts-ignore
+            // @ts-expect-error Snap.js is injected globally by the Midtrans script.
             window.snap.pay(data.token, {
                 onSuccess: () => {
                     message.success("Pembayaran Berhasil!");
                     setIsPayModalOpen(false);
+                    setIsDetailDrawerOpen(false);
+                    tableQueryResult.refetch();
                 },
                 onPending: () => {
                     message.warning("Menunggu Pembayaran...");
@@ -250,34 +421,91 @@ export const TagihanList = () => {
     const handleBulkCreate = async (values: any) => {
         try {
             message.loading({ content: "Memproses tagihan massal...", key: "bulk" });
+            const selectedRefIds = (values.payment_ref_ids || []).map((id: number | string) => Number(id));
+            const selectedRefs = paymentRefs.filter((ref) => selectedRefIds.includes(Number(ref.id)));
+            const invalidRefs = selectedRefs.filter((ref) => Number(ref.nominal_default || 0) <= 0);
+
+            if (!selectedRefs.length) {
+                throw new Error("Pilih minimal satu jenis pembayaran.");
+            }
+            if (invalidRefs.length) {
+                throw new Error(
+                    `Nominal default belum valid untuk: ${invalidRefs
+                        .map((ref) => ref.nama_pembayaran)
+                        .join(", ")}. Perbarui dulu di Master Pembayaran.`
+                );
+            }
+
+            const targetKelas = Array.isArray(values.kelas) ? values.kelas : [values.kelas].filter(Boolean);
             const { data: santris, error } = await supabaseClient
                 .from("santri")
-                .select("nis")
-                .eq("kelas", values.kelas)
+                .select("nis, kelas")
+                .in("kelas", targetKelas)
                 .eq("status_santri", "AKTIF");
 
             if (error || !santris?.length)
-                throw new Error("Tidak ada santri aktif di kelas tersebut");
+                throw new Error("Tidak ada santri aktif di kelas target.");
 
-            const batchData = santris.map((s) => ({
-                santri_nis: s.nis,
-                deskripsi_tagihan: values.deskripsi,
-                nominal_tagihan: values.nominal,
-                sisa_tagihan: values.nominal,
-                tanggal_jatuh_tempo: values.jatuh_tempo.toISOString(),
-                status: "BELUM",
-                jenis_pembayaran_id: 1,
-            }));
+            const periode = values.periode ? dayjs(values.periode) : dayjs();
+            const periodLabel = formatPaymentPeriod(periode);
+            const periodStart = periode.startOf("month").toISOString();
+            const periodEnd = periode.endOf("month").toISOString();
+            const santriNisList = santris.map((s) => s.nis);
+            const specialRates = await loadSpecialRates(santriNisList, selectedRefIds);
+            const specialRateMap = buildSpecialRateMap(specialRates);
+
+            const { data: existingRows, error: existingError } = await supabaseClient
+                .from("tagihan_santri")
+                .select("santri_nis, jenis_pembayaran_id")
+                .in("santri_nis", santriNisList)
+                .in("jenis_pembayaran_id", selectedRefIds)
+                .gte("created_at", periodStart)
+                .lte("created_at", periodEnd);
+
+            if (existingError) throw existingError;
+
+            const existingKey = new Set(
+                (existingRows || []).map((row) => `${row.santri_nis}:${row.jenis_pembayaran_id}`)
+            );
+
+            const batchData = santris.flatMap((s) =>
+                selectedRefs
+                    .filter((ref) => !existingKey.has(`${s.nis}:${ref.id}`))
+                    .map((ref) => {
+                        const nominal = resolveNominalWithSpecialRate(
+                            specialRateMap,
+                            s.nis,
+                            Number(ref.id),
+                            Number(ref.nominal_default),
+                        );
+
+                        return {
+                            santri_nis: s.nis,
+                            deskripsi_tagihan: `${ref.nama_pembayaran} ${periodLabel}`,
+                            nominal_tagihan: nominal,
+                            sisa_tagihan: nominal,
+                            tanggal_jatuh_tempo: values.jatuh_tempo.toISOString(),
+                            status: "BELUM",
+                            jenis_pembayaran_id: ref.id,
+                        };
+                    })
+            );
+
+            if (!batchData.length) {
+                throw new Error("Semua tagihan untuk kombinasi kelas, periode, dan jenis pembayaran ini sudah dibuat.");
+            }
 
             const { error: insertErr } = await supabaseClient
                 .from("tagihan_santri")
                 .insert(batchData);
             if (insertErr) throw insertErr;
 
+            const skipped = santris.length * selectedRefs.length - batchData.length;
             message.success({
-                content: `Sukses membuat tagihan untuk ${santris.length} santri`,
+                content: `Sukses membuat ${batchData.length} tagihan untuk ${santris.length} santri${skipped > 0 ? `, ${skipped} dilewati karena sudah ada` : ""}.`,
                 key: "bulk",
             });
+            tableQueryResult.refetch();
             setIsBulkModalOpen(false);
         } catch (err: any) {
             message.error({ content: err.message, key: "bulk" });
@@ -648,7 +876,29 @@ export const TagihanList = () => {
     // ══════════════════════════════════════════
     //  TABLE COLUMNS
     // ══════════════════════════════════════════
-    const columns: ProColumns<ITagihanSantri>[] = [
+    const renderStatusBadge = (status: StatusTagihan) => {
+        const isLunas = status === "LUNAS";
+        const isCicilan = status === "CICILAN";
+        return (
+            <span style={{
+                display: "inline-flex", alignItems: "center", gap: 5,
+                padding: "5px 14px", borderRadius: 20,
+                fontSize: 11, fontWeight: 800, letterSpacing: "0.6px",
+                background: isLunas
+                    ? "rgba(16,185,129,0.10)"
+                    : isCicilan
+                        ? "rgba(245,158,11,0.12)"
+                        : "rgba(239,68,68,0.08)",
+                color: isLunas ? "#059669" : isCicilan ? "#B45309" : "#DC2626",
+                border: `1.5px solid ${isLunas ? "rgba(16,185,129,0.28)" : isCicilan ? "rgba(245,158,11,0.30)" : "rgba(239,68,68,0.22)"}`,
+            }}>
+                {isLunas ? <CheckCircleOutlined /> : <ClockCircleOutlined />}
+                {status}
+            </span>
+        );
+    };
+
+    const tagihanColumns: ProColumns<ITagihanSantri>[] = [
         {
             title: "TANGGAL",
             dataIndex: "created_at",
@@ -745,22 +995,7 @@ export const TagihanList = () => {
             dataIndex: "status",
             width: 135,
             align: "center",
-            render: (_, r) => {
-                const isLunas = r.status === "LUNAS";
-                return (
-                    <span style={{
-                        display: "inline-flex", alignItems: "center", gap: 5,
-                        padding: "5px 14px", borderRadius: 20,
-                        fontSize: 11, fontWeight: 800, letterSpacing: "0.6px",
-                        background: isLunas ? "rgba(16,185,129,0.10)" : "rgba(239,68,68,0.08)",
-                        color: isLunas ? "#059669" : "#DC2626",
-                        border: `1.5px solid ${isLunas ? "rgba(16,185,129,0.28)" : "rgba(239,68,68,0.22)"}`,
-                    }}>
-                        {isLunas ? <CheckCircleOutlined /> : <ClockCircleOutlined />}
-                        {r.status}
-                    </span>
-                );
-            },
+            render: (_, r) => renderStatusBadge(r.status),
         },
         {
             title: "AKSI",
@@ -784,7 +1019,7 @@ export const TagihanList = () => {
                                     boxShadow: "0 3px 10px rgba(180,83,9,0.28)",
                                     height: 30,
                                 }}
-                                onClick={() => { setSelectedTagihan(record); setIsPayModalOpen(true); }}
+                                onClick={() => openPaymentModal(record)}
                             >
                                 Bayar
                             </Button>
@@ -844,6 +1079,132 @@ export const TagihanList = () => {
                         </>
                     )}
                 </Space>
+            ),
+        },
+    ];
+
+    const groupColumns: ProColumns<TagihanSantriGroup>[] = [
+        {
+            title: "SANTRI",
+            dataIndex: "santri_nis",
+            width: 300,
+            fixed: "left",
+            render: (_, record) => (
+                <Space size={12} align="center">
+                    <Avatar
+                        src={record.santri?.foto_url}
+                        size={48}
+                        icon={<UsergroupAddOutlined />}
+                        style={{
+                            background: G.bg,
+                            border: `2px solid ${G.border}`,
+                            color: G.text,
+                            flexShrink: 0,
+                        }}
+                    />
+                    <div>
+                        <div style={{ fontWeight: 800, fontSize: 14, color: token.colorText, lineHeight: 1.25 }}>
+                            {record.santri?.nama || santriAlias(record.santri_nis)}
+                        </div>
+                        <Space size={5} style={{ marginTop: 6 }}>
+                            <span style={{
+                                fontSize: 10, padding: "1px 8px", borderRadius: 4,
+                                background: token.colorFillAlter,
+                                border: `1px solid ${token.colorBorderSecondary}`,
+                                color: token.colorTextSecondary, fontWeight: 700,
+                            }}>
+                                NIS {record.santri_nis}
+                            </span>
+                            <span style={{
+                                fontSize: 10, padding: "1px 8px", borderRadius: 4,
+                                background: token.colorFillAlter,
+                                border: `1px solid ${token.colorBorderSecondary}`,
+                                color: token.colorTextSecondary, fontWeight: 700,
+                            }}>
+                                Kelas {record.santri?.kelas}
+                            </span>
+                            <span style={{
+                                fontSize: 10, padding: "1px 8px", borderRadius: 4,
+                                background: "rgba(6,182,212,0.08)",
+                                border: "1px solid rgba(6,182,212,0.22)",
+                                color: "#0891B2", fontWeight: 700,
+                            }}>
+                                {record.santri?.jurusan}
+                            </span>
+                        </Space>
+                    </div>
+                </Space>
+            ),
+        },
+        {
+            title: "RINGKASAN TAGIHAN",
+            dataIndex: "total_tagihan",
+            width: 220,
+            render: (_, record) => (
+                <Space size={6} wrap>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: token.colorText }}>
+                        {record.total_tagihan} tagihan
+                    </span>
+                    <span style={{ fontSize: 11, color: "#DC2626", fontWeight: 700 }}>
+                        {record.jumlah_belum} belum
+                    </span>
+                    <span style={{ fontSize: 11, color: "#B45309", fontWeight: 700 }}>
+                        {record.jumlah_cicilan} cicilan
+                    </span>
+                    <span style={{ fontSize: 11, color: "#059669", fontWeight: 700 }}>
+                        {record.jumlah_lunas} lunas
+                    </span>
+                </Space>
+            ),
+        },
+        {
+            title: "NOMINAL",
+            dataIndex: "total_nominal",
+            width: 240,
+            align: "right",
+            render: (_, record) => (
+                <div style={{ textAlign: "right" }}>
+                    <div style={{ fontFamily: "ui-monospace, 'Courier New', monospace", fontWeight: 900, fontSize: 15 }}>
+                        {formatRupiah(record.total_nominal)}
+                    </div>
+                    <div style={{ fontSize: 11, color: "#059669", fontWeight: 700, marginTop: 3 }}>
+                        Dibayar: {formatRupiah(record.total_dibayar)}
+                    </div>
+                    {record.total_sisa > 0 && (
+                        <div style={{ fontSize: 11, color: "#DC2626", fontWeight: 700, marginTop: 2 }}>
+                            Sisa: {formatRupiah(record.total_sisa)}
+                        </div>
+                    )}
+                </div>
+            ),
+        },
+        {
+            title: "STATUS",
+            dataIndex: "status",
+            width: 135,
+            align: "center",
+            render: (_, record) => renderStatusBadge(record.status),
+        },
+        {
+            title: "AKSI",
+            valueType: "option",
+            width: 140,
+            fixed: "right",
+            render: (_, record) => (
+                <Button
+                    type="primary"
+                    size="small"
+                    icon={<WalletOutlined />}
+                    onClick={() => openDetailDrawer(record)}
+                    style={{
+                        background: G.gradient,
+                        border: "none",
+                        fontWeight: 800,
+                        borderRadius: 8,
+                    }}
+                >
+                    Detail
+                </Button>
             ),
         },
     ];
@@ -1002,7 +1363,7 @@ export const TagihanList = () => {
                 <Space size={8}>
                     <Button
                         icon={<ThunderboltOutlined />}
-                        onClick={() => setIsBulkModalOpen(true)}
+                        onClick={openBulkGenerateModal}
                         style={{
                             border: `1.5px solid ${G.border}`,
                             color: G.text, background: G.bg,
@@ -1063,7 +1424,7 @@ export const TagihanList = () => {
                                 {formatRupiah(totalTerpenuhi)}
                             </span>
                         }
-                        sub={`${totalLunas} santri telah lunas`}
+                        sub={`${totalLunas} lunas · ${totalCicilan} cicilan`}
                         color="#059669"
                         gradient="linear-gradient(135deg, #065F46 0%, #059669 55%, #10B981 100%)"
                         icon={<CheckCircleOutlined />}
@@ -1077,7 +1438,7 @@ export const TagihanList = () => {
                                 {formatRupiah(totalTunggakan)}
                             </span>
                         }
-                        sub={`${totalBelum} santri belum lunas`}
+                        sub={`${totalBelum} tagihan belum lunas`}
                         color="#DC2626"
                         gradient="linear-gradient(135deg, #7F1D1D 0%, #DC2626 55%, #F87171 100%)"
                         icon={<ExclamationCircleOutlined />}
@@ -1224,6 +1585,25 @@ export const TagihanList = () => {
                                 onChange={setFilterJurusan}
                             />
                         </div>
+                        <div style={{ minWidth: 155 }}>
+                            <div style={{
+                                fontSize: 9, fontWeight: 800, letterSpacing: "1px",
+                                textTransform: "uppercase", color: token.colorTextTertiary, marginBottom: 5,
+                            }}>
+                                Status
+                            </div>
+                            <Select
+                                allowClear
+                                placeholder="Semua Status"
+                                style={{ width: "100%" }}
+                                options={[
+                                    { label: "Belum", value: "BELUM" },
+                                    { label: "Cicilan", value: "CICILAN" },
+                                    { label: "Lunas", value: "LUNAS" },
+                                ]}
+                                onChange={(value) => setFilterStatus((value as StatusTagihan | undefined) || null)}
+                            />
+                        </div>
                     </div>
 
                     <div style={{ marginLeft: "auto" }}>
@@ -1254,10 +1634,10 @@ export const TagihanList = () => {
                 borderRadius: 16, overflow: "hidden",
                 boxShadow: G.shadow, border: G.cardBorder,
             }}>
-                <ProTable<ITagihanSantri>
+                <ProTable<TagihanSantriGroup>
                     {...finalTableProps}
-                    columns={columns}
-                    rowKey="id"
+                    columns={groupColumns}
+                    rowKey="key"
                     search={false}
                     className="alhasanah-table"
                     headerTitle={
@@ -1311,10 +1691,92 @@ export const TagihanList = () => {
                         showSizeChanger: true,
                         showQuickJumper: true,
                         showTotal: (total, range) =>
-                            `${range[0]}-${range[1]} dari ${total} tagihan`,
+                            `${range[0]}-${range[1]} dari ${total} santri`,
                     }}
                 />
             </div>
+
+            <Drawer
+                title={null}
+                open={isDetailDrawerOpen}
+                onClose={() => setIsDetailDrawerOpen(false)}
+                width={920}
+                styles={{ body: { padding: 0 } }}
+            >
+                {selectedGroup && (
+                    <div style={{ minHeight: "100%", background: token.colorBgLayout }}>
+                        <div style={{
+                            background: G.gradient,
+                            padding: "24px 28px",
+                            color: "#fff",
+                        }}>
+                            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "1.5px", opacity: 0.75, marginBottom: 6 }}>
+                                Detail Tagihan Santri
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+                                <Space size={12} align="center">
+                                    <Avatar
+                                        src={selectedGroup.santri?.foto_url}
+                                        size={48}
+                                        icon={<UsergroupAddOutlined />}
+                                        style={{ background: "rgba(255,255,255,0.18)", color: "#fff" }}
+                                    />
+                                    <div>
+                                        <div style={{ fontSize: 20, fontWeight: 900 }}>
+                                            {selectedGroup.santri?.nama || santriAlias(selectedGroup.santri_nis)}
+                                        </div>
+                                        <div style={{ fontSize: 12, opacity: 0.82, marginTop: 3 }}>
+                                            NIS {selectedGroup.santri_nis} · Kelas {selectedGroup.santri?.kelas} · {selectedGroup.santri?.jurusan}
+                                        </div>
+                                    </div>
+                                </Space>
+                                {renderStatusBadge(selectedGroup.status)}
+                            </div>
+                        </div>
+
+                        <div style={{ padding: 22 }}>
+                            <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+                                <Col xs={24} md={8}>
+                                    <Card bordered={false} style={{ borderRadius: 12, boxShadow: G.shadow }}>
+                                        <Text type="secondary">Total Tagihan</Text>
+                                        <div style={{ fontSize: 20, fontWeight: 900, marginTop: 6 }}>
+                                            {formatRupiah(selectedGroup.total_nominal)}
+                                        </div>
+                                    </Card>
+                                </Col>
+                                <Col xs={24} md={8}>
+                                    <Card bordered={false} style={{ borderRadius: 12, boxShadow: G.shadow }}>
+                                        <Text type="secondary">Sudah Dibayar</Text>
+                                        <div style={{ fontSize: 20, fontWeight: 900, color: "#059669", marginTop: 6 }}>
+                                            {formatRupiah(selectedGroup.total_dibayar)}
+                                        </div>
+                                    </Card>
+                                </Col>
+                                <Col xs={24} md={8}>
+                                    <Card bordered={false} style={{ borderRadius: 12, boxShadow: G.shadow }}>
+                                        <Text type="secondary">Sisa Tagihan</Text>
+                                        <div style={{ fontSize: 20, fontWeight: 900, color: selectedGroup.total_sisa > 0 ? "#DC2626" : "#059669", marginTop: 6 }}>
+                                            {formatRupiah(selectedGroup.total_sisa)}
+                                        </div>
+                                    </Card>
+                                </Col>
+                            </Row>
+
+                            <ProTable<ITagihanSantri>
+                                dataSource={selectedGroup.tagihan}
+                                columns={tagihanColumns.filter((column) => column.title !== "SANTRI")}
+                                rowKey="id"
+                                search={false}
+                                options={false}
+                                pagination={false}
+                                scroll={{ x: 860 }}
+                                cardProps={{ bodyStyle: { padding: 0 } }}
+                                tableStyle={{ padding: 0 }}
+                            />
+                        </div>
+                    </div>
+                )}
+            </Drawer>
 
             {/* ══════════════════════════════════════
                 MODAL: METODE PEMBAYARAN
@@ -1324,7 +1786,7 @@ export const TagihanList = () => {
                 open={isPayModalOpen}
                 onCancel={() => setIsPayModalOpen(false)}
                 footer={null}
-                width={490}
+                width={720}
                 centered
                 styles={{ content: { padding: 0, borderRadius: 20, overflow: "hidden" } }}
             >
@@ -1355,75 +1817,174 @@ export const TagihanList = () => {
                 </div>
 
                 <div style={{ padding: "22px 24px 26px", background: token.colorBgContainer }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                        {/* Tunai */}
-                        <button
-                            className="pay-card-cash"
-                            onClick={handleCashPayment}
-                            disabled={isProcessing}
-                            style={{
-                                display: "flex", flexDirection: "column", alignItems: "center",
-                                padding: "26px 18px", borderRadius: 16,
-                                border: `2px solid ${G.border}`,
-                                cursor: "pointer", background: G.bg,
-                                boxShadow: `0 4px 14px rgba(180,83,9,0.07)`,
-                                outline: "none",
-                            }}
-                        >
+                    <Row gutter={[16, 16]}>
+                        <Col xs={24} lg={11}>
                             <div style={{
-                                width: 58, height: 58, background: G.gradient,
-                                borderRadius: 15, marginBottom: 14,
-                                display: "flex", alignItems: "center", justifyContent: "center",
-                                fontSize: 26, color: "#fff",
-                                boxShadow: "0 6px 20px rgba(180,83,9,0.32)",
+                                border: `1px solid ${G.border}`,
+                                borderRadius: 14,
+                                padding: 16,
+                                background: G.bg,
+                                marginBottom: 14,
                             }}>
-                                <ShopOutlined />
+                                <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: "1px", textTransform: "uppercase", color: G.text, marginBottom: 10 }}>
+                                    Ringkasan Tagihan
+                                </div>
+                                {[
+                                    ["Nominal", selectedTagihan?.nominal_tagihan || 0],
+                                    ["Sudah Dibayar", Math.max(Number(selectedTagihan?.nominal_tagihan || 0) - Number(selectedTagihan?.sisa_tagihan || 0), 0)],
+                                    ["Sisa", selectedTagihan?.sisa_tagihan || 0],
+                                ].map(([label, value]) => (
+                                    <div key={String(label)} style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
+                                        <Text type="secondary">{label}</Text>
+                                        <Text strong>{formatRupiah(Number(value))}</Text>
+                                    </div>
+                                ))}
+                                <Progress
+                                    percent={
+                                        selectedTagihan?.nominal_tagihan
+                                            ? Math.round(((Number(selectedTagihan.nominal_tagihan) - Number(selectedTagihan.sisa_tagihan || 0)) / Number(selectedTagihan.nominal_tagihan)) * 100)
+                                            : 0
+                                    }
+                                    strokeColor={G.gradient}
+                                    showInfo={false}
+                                />
                             </div>
-                            <div style={{ fontWeight: 800, fontSize: 15, color: token.colorText, marginBottom: 5 }}>
-                                Tunai (Cash)
-                            </div>
-                            <div style={{ fontSize: 11, color: token.colorTextTertiary, textAlign: "center" }}>
-                                Bayar langsung di tempat
-                            </div>
-                        </button>
 
-                        {/* QRIS / Midtrans */}
-                        <button
-                            className="pay-card-qris"
-                            onClick={handleMidtransPayment}
-                            style={{
-                                display: "flex", flexDirection: "column", alignItems: "center",
-                                padding: "26px 18px", borderRadius: 16,
-                                border: "2px solid rgba(6,182,212,0.22)",
-                                cursor: "pointer", background: "rgba(6,182,212,0.05)",
-                                boxShadow: "0 4px 14px rgba(6,182,212,0.05)",
-                                outline: "none",
-                            }}
-                        >
                             <div style={{
-                                width: 58, height: 58,
-                                background: "linear-gradient(135deg, #0891B2 0%, #06B6D4 55%, #22D3EE 100%)",
-                                borderRadius: 15, marginBottom: 14,
-                                display: "flex", alignItems: "center", justifyContent: "center",
-                                fontSize: 26, color: "#fff",
-                                boxShadow: "0 6px 20px rgba(6,182,212,0.32)",
+                                border: `1px solid ${token.colorBorderSecondary}`,
+                                borderRadius: 14,
+                                maxHeight: 260,
+                                overflowY: "auto",
+                                padding: 12,
                             }}>
-                                <CreditCardOutlined />
+                                <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: "1px", textTransform: "uppercase", color: token.colorTextTertiary, marginBottom: 10 }}>
+                                    Riwayat Cicilan
+                                </div>
+                                {isLoadingPaymentHistory ? (
+                                    <Text type="secondary">Memuat riwayat...</Text>
+                                ) : paymentHistory.length ? (
+                                    <Space direction="vertical" size={8} style={{ width: "100%" }}>
+                                        {paymentHistory.map((payment) => (
+                                            <div
+                                                key={payment.id}
+                                                style={{
+                                                    display: "flex",
+                                                    justifyContent: "space-between",
+                                                    gap: 12,
+                                                    padding: "9px 10px",
+                                                    borderRadius: 10,
+                                                    background: token.colorFillQuaternary,
+                                                }}
+                                            >
+                                                <div style={{ minWidth: 0 }}>
+                                                    <Text strong style={{ display: "block" }}>{formatRupiah(payment.amount)}</Text>
+                                                    <Text type="secondary" style={{ fontSize: 11 }}>
+                                                        {payment.source === "midtrans" ? "Midtrans" : "Manual"} · {payment.metode_pembayaran}
+                                                    </Text>
+                                                </div>
+                                                <Text type="secondary" style={{ fontSize: 11, whiteSpace: "nowrap" }}>
+                                                    {payment.paid_at ? dayjs(payment.paid_at).format("DD MMM HH:mm") : "-"}
+                                                </Text>
+                                            </div>
+                                        ))}
+                                    </Space>
+                                ) : (
+                                    <Text type="secondary">Belum ada cicilan yang tercatat.</Text>
+                                )}
                             </div>
-                            <div style={{ fontWeight: 800, fontSize: 15, color: token.colorText, marginBottom: 5 }}>
-                                QRIS / Transfer
+                        </Col>
+
+                        <Col xs={24} lg={13}>
+                            <Form form={formPay} layout="vertical">
+                                <Form.Item
+                                    label="Nominal Pembayaran"
+                                    name="amount"
+                                    rules={[
+                                        { required: true, message: "Nominal pembayaran wajib diisi" },
+                                        {
+                                            validator: (_, value) => {
+                                                const amount = Number(value || 0);
+                                                const max = Number(selectedTagihan?.sisa_tagihan || 0);
+                                                if (amount <= 0) return Promise.reject(new Error("Nominal harus lebih dari 0"));
+                                                if (amount > max) {
+                                                    formPay.setFieldValue("amount", max);
+                                                    message.info("Nominal pembayaran disesuaikan otomatis ke sisa tagihan.");
+                                                }
+                                                return Promise.resolve();
+                                            },
+                                        },
+                                    ]}
+                                >
+                                    <InputNumber<number>
+                                        min={1}
+                                        max={Number(selectedTagihan?.sisa_tagihan || 0)}
+                                        precision={0}
+                                        style={{ width: "100%" }}
+                                        formatter={(value) => `Rp ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
+                                        parser={(value) => Number((value || "").replace(/[^\d]/g, ""))}
+                                    />
+                                </Form.Item>
+
+                                <Form.Item label="Metode Manual" name="metode_pembayaran">
+                                    <Select
+                                        options={[
+                                            { label: "Tunai / Cash", value: "cash" },
+                                            { label: "Transfer Bank", value: "transfer" },
+                                            { label: "QRIS Manual", value: "qris_manual" },
+                                            { label: "Lainnya", value: "lainnya" },
+                                        ]}
+                                    />
+                                </Form.Item>
+
+                                <Form.Item label="Keterangan" name="keterangan">
+                                    <Input.TextArea rows={3} placeholder="Contoh: cicilan pertama SPP bulan ini" />
+                                </Form.Item>
+
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                                    <Button
+                                        className="pay-card-cash"
+                                        icon={<ShopOutlined />}
+                                        loading={isProcessing}
+                                        onClick={handleCashPayment}
+                                        style={{
+                                            height: 46,
+                                            borderRadius: 11,
+                                            fontWeight: 800,
+                                            border: `1.5px solid ${G.border}`,
+                                            color: G.text,
+                                            background: G.bg,
+                                        }}
+                                    >
+                                        Catat Manual
+                                    </Button>
+                                    <Button
+                                        className="pay-card-qris"
+                                        icon={<CreditCardOutlined />}
+                                        onClick={handleMidtransPayment}
+                                        style={{
+                                            height: 46,
+                                            borderRadius: 11,
+                                            fontWeight: 800,
+                                            border: "1.5px solid rgba(6,182,212,0.30)",
+                                            color: "#0891B2",
+                                            background: "rgba(6,182,212,0.06)",
+                                        }}
+                                    >
+                                        Midtrans
+                                    </Button>
+                                </div>
+                            </Form>
+
+                            <div style={{
+                                marginTop: 14,
+                                fontSize: 11,
+                                color: token.colorTextTertiary,
+                                lineHeight: 1.5,
+                            }}>
+                                Jika nominal sama dengan sisa tagihan, status otomatis menjadi LUNAS. Jika lebih kecil, status menjadi CICILAN.
                             </div>
-                            <div style={{ fontSize: 11, color: token.colorTextTertiary, textAlign: "center" }}>
-                                Otomatis via Midtrans
-                            </div>
-                        </button>
-                    </div>
-                    <div style={{
-                        textAlign: "center", marginTop: 16,
-                        fontSize: 11, color: token.colorTextTertiary, fontStyle: "italic",
-                    }}>
-                        Struk digital tercetak otomatis setelah transaksi berhasil
-                    </div>
+                        </Col>
+                    </Row>
                 </div>
             </Modal>
 
@@ -1459,7 +2020,7 @@ export const TagihanList = () => {
                                 Generate Tagihan Massal
                             </div>
                             <div style={{ fontSize: 12, color: "rgba(255,255,255,0.75)", marginTop: 2 }}>
-                                Buat tagihan serentak untuk satu kelas
+                                Buat SPP, listrik, kas, dan item bulanan lain dari master pembayaran
                             </div>
                         </div>
                     </div>
@@ -1467,64 +2028,100 @@ export const TagihanList = () => {
 
                 <div style={{ padding: "24px 28px 28px", background: token.colorBgContainer }}>
                     <Form form={formBulk} layout="vertical" onFinish={handleBulkCreate}>
-                        {[
-                            {
-                                name: "kelas",
-                                label: "Target Kelas",
-                                node: (
-                                    <Select
-                                        placeholder="Pilih Kelas"
-                                        options={[1, 2, 3].map((k) => ({ label: `Kelas ${k}`, value: `${k}` }))}
-                                    />
-                                ),
-                                rules: [{ required: true, message: "Pilih kelas target" }],
-                            },
-                            {
-                                name: "deskripsi",
-                                label: "Deskripsi Tagihan",
-                                initialValue: `SPP ${dayjs().format("MMMM YYYY")}`,
-                                node: <Input placeholder="contoh: SPP Januari 2025" />,
-                                rules: [{ required: true }],
-                            },
-                            {
-                                name: "nominal",
-                                label: "Nominal (Rp)",
-                                initialValue: 500000,
-                                node: (
-                                    <InputNumber
-                                        style={{ width: "100%" }}
-                                        formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
-                                        parser={(v) => v!.replace(/,*/g, "") as unknown as number}
-                                    />
-                                ),
-                                rules: [{ required: true }],
-                            },
-                            {
-                                name: "jatuh_tempo",
-                                label: "Jatuh Tempo",
-                                initialValue: dayjs().endOf("month"),
-                                node: <DatePicker style={{ width: "100%" }} format="DD MMM YYYY" />,
-                                rules: [{ required: true }],
-                            },
-                        ].map((f) => (
-                            <Form.Item
-                                key={f.name}
-                                name={f.name}
-                                label={
-                                    <span style={{
-                                        fontSize: 11, fontWeight: 800,
-                                        letterSpacing: "0.7px", textTransform: "uppercase",
-                                        color: token.colorTextSecondary,
-                                    }}>
-                                        {f.label}
-                                    </span>
-                                }
-                                initialValue={f.initialValue}
-                                rules={f.rules as any}
-                            >
-                                {f.node}
-                            </Form.Item>
-                        ))}
+                        <Form.Item
+                            name="kelas"
+                            label={
+                                <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.7px", textTransform: "uppercase", color: token.colorTextSecondary }}>
+                                    Target Kelas
+                                </span>
+                            }
+                            rules={[{ required: true, message: "Pilih minimal satu kelas target" }]}
+                        >
+                            <Select
+                                mode="multiple"
+                                placeholder="Pilih kelas"
+                                options={[1, 2, 3].map((k) => ({ label: `Kelas ${k}`, value: `${k}` }))}
+                            />
+                        </Form.Item>
+
+                        <Form.Item
+                            name="payment_ref_ids"
+                            label={
+                                <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.7px", textTransform: "uppercase", color: token.colorTextSecondary }}>
+                                    Jenis Pembayaran
+                                </span>
+                            }
+                            rules={[{ required: true, message: "Pilih minimal satu jenis pembayaran" }]}
+                        >
+                            <Select
+                                mode="multiple"
+                                loading={isLoadingPaymentRefs}
+                                placeholder="Pilih SPP, listrik, kas, dan item lain"
+                                optionLabelProp="label"
+                                options={paymentRefs.map((ref) => ({
+                                    label: ref.nama_pembayaran,
+                                    value: ref.id,
+                                    disabled: Number(ref.nominal_default || 0) <= 0,
+                                }))}
+                            />
+                        </Form.Item>
+
+                        <div style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                            gap: 8,
+                            marginTop: -8,
+                            marginBottom: 18,
+                        }}>
+                            {paymentRefs.map((ref) => (
+                                <div
+                                    key={ref.id}
+                                    style={{
+                                        border: `1px solid ${token.colorBorderSecondary}`,
+                                        borderRadius: 10,
+                                        padding: "10px 12px",
+                                        background: Number(ref.nominal_default || 0) > 0 ? token.colorFillQuaternary : "rgba(239,68,68,0.06)",
+                                    }}
+                                >
+                                    <div style={{ fontSize: 12, fontWeight: 800, color: token.colorText }}>
+                                        {ref.nama_pembayaran}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: token.colorTextSecondary, marginTop: 3 }}>
+                                        {formatRupiah(Number(ref.nominal_default || 0))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <Row gutter={12}>
+                            <Col xs={24} md={12}>
+                                <Form.Item
+                                    name="periode"
+                                    label={
+                                        <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.7px", textTransform: "uppercase", color: token.colorTextSecondary }}>
+                                            Periode Tagihan
+                                        </span>
+                                    }
+                                    rules={[{ required: true, message: "Pilih periode tagihan" }]}
+                                >
+                                    <DatePicker picker="month" style={{ width: "100%" }} format="MMMM YYYY" />
+                                </Form.Item>
+                            </Col>
+                            <Col xs={24} md={12}>
+                                <Form.Item
+                                    name="jatuh_tempo"
+                                    label={
+                                        <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.7px", textTransform: "uppercase", color: token.colorTextSecondary }}>
+                                            Jatuh Tempo
+                                        </span>
+                                    }
+                                    rules={[{ required: true, message: "Pilih jatuh tempo" }]}
+                                >
+                                    <DatePicker style={{ width: "100%" }} format="DD MMM YYYY" />
+                                </Form.Item>
+                            </Col>
+                        </Row>
+
                         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8 }}>
                             <Button onClick={() => setIsBulkModalOpen(false)} style={{ borderRadius: 9, fontWeight: 600 }}>
                                 Batal

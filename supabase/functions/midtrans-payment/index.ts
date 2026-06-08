@@ -181,6 +181,7 @@ Deno.serve(async (req) => {
     let santriNis = null;
     let waliId = null;
     let deskripsiFinal = `[MIDTRANS] Pembayaran Berhasil (${paymentType})`;
+    let trxId: string | null = null;
 
     if (!isDonasi) {
       const { data: tagihan } = await supabase
@@ -192,7 +193,7 @@ Deno.serve(async (req) => {
       if (tagihan) {
         santriNis = tagihan.santri_nis;
         waliId = tagihan.santri?.wali_id;
-        await supabase.from("tagihan_santri").update({ status: "LUNAS" }).eq("id", tagihanId);
+        deskripsiFinal = `[MIDTRANS] Pembayaran Tagihan: ${tagihan.deskripsi_tagihan}`;
       }
     } else {
       const { data: existingTrx } = await supabase
@@ -210,7 +211,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const { error: errTrx } = await supabase
+    const { data: trx, error: errTrx } = await supabase
       .from("transaksi_keuangan")
       .upsert({
         midtrans_order_id: orderIdRaw,
@@ -225,9 +226,28 @@ Deno.serve(async (req) => {
         wali_id: waliId,
         admin_pencatat_id: null,
         keterangan: deskripsiFinal,
-      }, { onConflict: "midtrans_order_id" });
+      }, { onConflict: "midtrans_order_id" })
+      .select("id")
+      .single();
 
     if (errTrx) throw errTrx;
+    trxId = trx?.id ?? null;
+
+    if (!isDonasi) {
+      const { error: paymentError } = await supabase.rpc("record_tagihan_payment", {
+        p_tagihan_id: tagihanId,
+        p_amount: grossAmount,
+        p_metode_pembayaran: paymentType,
+        p_source: "midtrans",
+        p_provider_order_id: orderIdRaw,
+        p_transaksi_id: trxId,
+        p_keterangan: deskripsiFinal,
+        p_idempotency_key: `midtrans-tagihan:${orderIdRaw}`,
+        p_provider_payload: notification,
+      });
+
+      if (paymentError) throw paymentError;
+    }
 
     return jsonResponse({ message: "OK" });
   } catch (err) {

@@ -57,6 +57,8 @@ export const resources: ResourceProps[] = [
     meta:{ label:"Prestasi Santri", parent:"kesantrian_menu", icon:<TrophyOutlined /> } },
 
   { name:"keuangan_menu", meta:{ label:"Keuangan", icon:<WalletOutlined /> } },
+  { name:"ref_jenis_pembayaran", list:"/jenis-pembayaran",
+    meta:{ label:"Master Pembayaran", parent:"keuangan_menu", icon:<SettingOutlined /> } },
   { name:"tagihan_santri", list:"/tagihan", create:"/tagihan/create", edit:"/tagihan/edit/:id",
     meta:{ label:"Tagihan & SPP", parent:"keuangan_menu", icon:<WalletOutlined /> } },
   { name:"transaksi_keuangan", list:"/transaksi", create:"/transaksi/create",

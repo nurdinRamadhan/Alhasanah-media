@@ -17,7 +17,7 @@ function extensionOf(file: File) {
 
 function cleanExtractedText(text: string) {
   return text
-    .replace(/\u0000/g, "")
+    .split("\u0000").join("")
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{4,}/g, "\n\n\n")
     .trim();
