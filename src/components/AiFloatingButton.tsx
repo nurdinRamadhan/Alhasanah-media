@@ -12,6 +12,18 @@ import { santriAlias } from "../utility/privacy";
 const { Text } = Typography;
 const { useToken } = theme;
 
+const SUCCESS_TRANSACTION_STATUSES = new Set(["success", "settlement", "capture", "paid", "posted"]);
+const FAILED_TRANSACTION_STATUSES = new Set(["failed", "expire", "expired", "cancel", "deny", "failure"]);
+const PENDING_TRANSACTION_STATUSES = new Set(["pending", "challenge"]);
+
+const isSuccessTransaction = (trx: any) => {
+    const status = String(trx?.status || "").toLowerCase();
+    const statusTransaksi = String(trx?.status_transaksi || "").toLowerCase();
+    if (FAILED_TRANSACTION_STATUSES.has(status) || FAILED_TRANSACTION_STATUSES.has(statusTransaksi)) return false;
+    if (PENDING_TRANSACTION_STATUSES.has(status)) return false;
+    return SUCCESS_TRANSACTION_STATUSES.has(status) || SUCCESS_TRANSACTION_STATUSES.has(statusTransaksi);
+};
+
 export const AiFloatingButton = () => {
     const { token } = useToken();
     const [isOpen, setIsOpen] = useState(false);
@@ -49,11 +61,29 @@ export const AiFloatingButton = () => {
         queryOptions: { enabled: isOpen }
     });
 
+    const { data: dataTransaksi, refetch: refetchTransaksi } = useList({
+        resource: "transaksi_keuangan",
+        filters: [{ field: "tanggal_transaksi", operator: "gte", value: startOfMonth }],
+        pagination: { mode: "off" },
+        meta: { select: "id,jumlah,status,status_transaksi,jenis_transaksi,kategori,santri_nis,keterangan" },
+        queryOptions: { enabled: isOpen }
+    });
+
+    const { data: dataTagihan, refetch: refetchTagihan } = useList({
+        resource: "tagihan_santri",
+        filters: [{ field: "created_at", operator: "gte", value: startOfMonth }],
+        pagination: { mode: "off" },
+        meta: { select: "id,status,nominal_tagihan,sisa_tagihan,deskripsi_tagihan" },
+        queryOptions: { enabled: isOpen }
+    });
+
     const handleRefresh = () => {
         setLoading(true);
         refetchSakit();
         refetchPelanggaran();
         refetchPengeluaran();
+        refetchTransaksi();
+        refetchTagihan();
         generateInsight();
     };
 
@@ -91,19 +121,18 @@ export const AiFloatingButton = () => {
 
             // Analisa Keuangan (Bulanan)
             const totalKeluar = dataPengeluaran?.data?.reduce((acc:any, curr:any) => acc + Number(curr.nominal || 0), 0) || 0;
-            if (totalKeluar > 0) {
-                result.push({
-                    type: 'info',
-                    icon: <WalletOutlined style={{ color: '#3b82f6' }}/>,
-                    text: `PENGELUARAN (Bulan Ini): Total operasional mencapai Rp ${totalKeluar.toLocaleString('id-ID')}.`
-                });
-            } else {
-                 result.push({
-                    type: 'info',
-                    icon: <WalletOutlined style={{ color: '#3b82f6' }}/>,
-                    text: `PENGELUARAN (Bulan Ini): Belum ada pengeluaran tercatat bulan ini.`
-                });
-            }
+            const totalMasuk = dataTransaksi?.data
+                ?.filter((trx: any) => trx.jenis_transaksi === "masuk" && trx.kategori === "tagihan" && isSuccessTransaction(trx))
+                .reduce((acc: any, trx: any) => acc + Number(trx.jumlah || 0), 0) || 0;
+            const totalSisa = dataTagihan?.data
+                ?.filter((tagihan: any) => tagihan.status !== "LUNAS")
+                .reduce((acc: any, tagihan: any) => acc + Number(tagihan.sisa_tagihan || 0), 0) || 0;
+            const jumlahCicilan = dataTagihan?.data?.filter((tagihan: any) => tagihan.status === "CICILAN").length || 0;
+            result.push({
+                type: totalMasuk >= totalKeluar ? 'success' : 'warning',
+                icon: <WalletOutlined style={{ color: totalMasuk >= totalKeluar ? '#22c55e' : '#f97316' }}/>,
+                text: `KEUANGAN (Bulan Ini): Kas masuk tagihan Rp ${totalMasuk.toLocaleString('id-ID')}, pengeluaran Rp ${totalKeluar.toLocaleString('id-ID')}, sisa piutang Rp ${totalSisa.toLocaleString('id-ID')}${jumlahCicilan ? ` dari ${jumlahCicilan} tagihan cicilan` : ""}.`
+            });
 
             // Analisa Pelanggaran (Mingguan)
             const jumlahPelanggaran = dataPelanggaran?.total || 0;
@@ -130,7 +159,7 @@ export const AiFloatingButton = () => {
 
     useEffect(() => {
         if (isOpen) generateInsight();
-    }, [isOpen, dataSakit, dataPelanggaran, dataPengeluaran]);
+    }, [isOpen, dataSakit, dataPelanggaran, dataPengeluaran, dataTransaksi, dataTagihan]);
 
     const content = (
         <div style={{ width: 350, maxHeight: 450, overflowY: 'auto' }}>

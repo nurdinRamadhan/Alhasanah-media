@@ -119,9 +119,32 @@ const SUPABASE_URL     = Deno.env.get("SUPABASE_URL")              ?? "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") ?? "";
 const ALLOW_INSECURE_DEV = Deno.env.get("TELEGRAM_ALLOW_INSECURE_DEV") === "true";
+const SUCCESS_TRANSACTION_STATUSES = new Set(["success", "settlement", "capture", "paid", "posted"]);
+const FAILED_TRANSACTION_STATUSES = new Set(["failed", "expire", "expired", "cancel", "deny", "failure"]);
+const PENDING_TRANSACTION_STATUSES = new Set(["pending", "challenge"]);
+const DONATION_KEYWORDS = ["donasi", "infaq", "wakaf", "shadaqah", "sedekah"];
 
 // Base URL Telegram Bot API
 const TG_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
+
+// deno-lint-ignore no-explicit-any
+function isSuccessfulTransaction(trx: any): boolean {
+    const status = String(trx?.status || "").toLowerCase();
+    const statusTransaksi = String(trx?.status_transaksi || "").toLowerCase();
+    if (FAILED_TRANSACTION_STATUSES.has(status) || FAILED_TRANSACTION_STATUSES.has(statusTransaksi)) return false;
+    if (PENDING_TRANSACTION_STATUSES.has(status)) return false;
+    return SUCCESS_TRANSACTION_STATUSES.has(status) || SUCCESS_TRANSACTION_STATUSES.has(statusTransaksi);
+}
+
+// deno-lint-ignore no-explicit-any
+function isTagihanIncomeTransaction(trx: any): boolean {
+    if (trx?.jenis_transaksi !== "masuk" || !isSuccessfulTransaction(trx)) return false;
+    const kategori = String(trx?.kategori || "").toLowerCase();
+    if (kategori === "tagihan") return true;
+    if (kategori === "donasi" || kategori === "wallet_topup") return false;
+    const keterangan = String(trx?.keterangan || "").toLowerCase();
+    return !kategori && !!trx?.santri_nis && !DONATION_KEYWORDS.some((keyword) => keterangan.includes(keyword));
+}
 
 // Emoji per topik
 const TOPIC_EMOJI: Record<TopicKey, string> = {
@@ -139,7 +162,7 @@ const TOPIC_EMOJI: Record<TopicKey, string> = {
 const TOPIC_TASK: Record<TopicKey, string> = {
     LAPORAN:   "Buat laporan eksekutif menyeluruh lintas modul: santri, kesehatan, kedisiplinan, keuangan bila berwenang, tahfidz, perizinan, prestasi, dan operasional. Sajikan kondisi, risiko, prioritas, dan tindak lanjut.",
     KESEHATAN: "Analisa kondisi kesehatan santri secara menyeluruh. Deteksi pola keluhan, potensi wabah, santri yang perlu dipantau, dan rekomendasikan tindakan.",
-    KEUANGAN:  "Buat laporan kas bulan ini. Tampilkan pemasukan lunas, pengeluaran, saldo bersih, tagihan belum lunas/cicilan, kategori pengeluaran terbesar, risiko, dan prioritas tindak lanjut.",
+    KEUANGAN:  "Buat laporan kas bulan ini. Tampilkan kas masuk dari transaksi tagihan sukses, pengeluaran, saldo bersih, sisa piutang tagihan belum lunas/cicilan, kategori pengeluaran terbesar, risiko, dan prioritas tindak lanjut.",
     DISIPLIN:  "Evaluasi kedisiplinan santri 7 hari terakhir. Tampilkan total kasus, jenis dominan, top pelanggar, santri bersih, risiko pembinaan, dan tindak lanjut.",
     TAHFIDZ:   "Buat laporan progres hafalan. Tampilkan rata-rata hafalan, top hafidz, setoran minggu ini, santri butuh bimbingan, tren murojaah, dan rekomendasi pembinaan.",
     IZIN:      "Ringkas data perizinan aktif. Tampilkan izin aktif, pending, santri belum kembali sesuai jadwal, risiko, dan tindak lanjut.",
@@ -495,6 +518,7 @@ async function buildDataContext(
         resSakitWeek,
         resPelanggaranWeek,
         resPengeluaranMonth,
+        resTransaksiMonth,
         resTagihanMonth,
         resHafalanTahfidz,
         resMurojaah,
@@ -524,6 +548,12 @@ async function buildDataContext(
             .from("pengeluaran")
             .select("nominal, kategori, judul, tanggal_pengeluaran")
             .gte("tanggal_pengeluaran", toISO(monthStart)),
+
+        // Transaksi bulan ini — sumber kas masuk/keluar aktual, termasuk cicilan tagihan
+        supabase
+            .from("transaksi_keuangan")
+            .select("jumlah, tanggal_transaksi, status, status_transaksi, jenis_transaksi, kategori, keterangan, santri_nis")
+            .gte("tanggal_transaksi", toISO(monthStart)),
 
         // Tagihan bulan ini — status LUNAS | BELUM | CICILAN
         supabase
@@ -586,6 +616,7 @@ async function buildDataContext(
     // deno-lint-ignore no-explicit-any
     const pengeluaranList  = safe<any>(resPengeluaranMonth);
     // deno-lint-ignore no-explicit-any
+    const transaksiList    = safe<any>(resTransaksiMonth);
     const tagihanList      = safe<any>(resTagihanMonth);
     // deno-lint-ignore no-explicit-any
     const hafalanList      = safe<any>(resHafalanTahfidz);
@@ -600,12 +631,12 @@ async function buildDataContext(
     // deno-lint-ignore no-explicit-any
     const inventarisRusak  = safe<any>(resInventarisRusak);
     const queryLabels = [
-        "santri", "kesehatan", "pelanggaran", "pengeluaran", "tagihan",
+        "santri", "kesehatan", "pelanggaran", "pengeluaran", "transaksi", "tagihan",
         "hafalan_tahfidz", "murojaah", "hafalan_kitab", "perizinan",
         "prestasi", "inventaris",
     ];
     const queryResults = [
-        resSantri, resSakitWeek, resPelanggaranWeek, resPengeluaranMonth, resTagihanMonth,
+        resSantri, resSakitWeek, resPelanggaranWeek, resPengeluaranMonth, resTransaksiMonth, resTagihanMonth,
         resHafalanTahfidz, resMurojaah, resHafalanKitab, resPerizinanAktif,
         resPrestasiMonth, resInventarisRusak,
     ];
@@ -695,11 +726,17 @@ async function buildDataContext(
         // deno-lint-ignore no-explicit-any
         (a: number, b: any) => a + Number(b.nominal ?? 0), 0
     );
-    const totalMasuk = tagihanList
+    const totalMasuk = transaksiList
         // deno-lint-ignore no-explicit-any
-        .filter((t: any) => t.status === "LUNAS")
+        .filter((t: any) => isTagihanIncomeTransaction(t))
+        // deno-lint-ignore no-explicit-any
+        .reduce((a: number, b: any) => a + Number(b.jumlah ?? 0), 0);
+    const totalTertagih = tagihanList
         // deno-lint-ignore no-explicit-any
         .reduce((a: number, b: any) => a + Number(b.nominal_tagihan ?? 0), 0);
+    const totalTerpenuhi = tagihanList
+        // deno-lint-ignore no-explicit-any
+        .reduce((a: number, b: any) => a + Math.max(Number(b.nominal_tagihan ?? 0) - Number(b.sisa_tagihan ?? 0), 0), 0);
     const totalBelum = tagihanList
         // deno-lint-ignore no-explicit-any
         .filter((t: any) => t.status === "BELUM")
@@ -710,7 +747,34 @@ async function buildDataContext(
         .filter((t: any) => t.status === "CICILAN")
         // deno-lint-ignore no-explicit-any
         .reduce((a: number, b: any) => a + Number(b.sisa_tagihan ?? 0), 0);
+    const sisaPiutang = tagihanList
+        // deno-lint-ignore no-explicit-any
+        .filter((t: any) => t.status !== "LUNAS")
+        // deno-lint-ignore no-explicit-any
+        .reduce((a: number, b: any) => a + Number(b.sisa_tagihan ?? 0), 0);
     const saldo = totalMasuk - totalKeluar;
+    const jenisTagihan: Record<string, { tertagih: number; terpenuhi: number; sisa: number; count: number }> = {};
+    // deno-lint-ignore no-explicit-any
+    tagihanList.forEach((t: any) => {
+        const labelSource = String(t.deskripsi_tagihan || "").toLowerCase();
+        const key = labelSource.includes("spp") || labelSource.includes("syahriah")
+            ? "SPP"
+            : labelSource.includes("listrik")
+                ? "Listrik"
+                : labelSource.includes("kas")
+                    ? "Kas"
+                    : "Lainnya";
+        const nominal = Number(t.nominal_tagihan || 0);
+        const sisa = Number(t.sisa_tagihan || 0);
+        jenisTagihan[key] ||= { tertagih: 0, terpenuhi: 0, sisa: 0, count: 0 };
+        jenisTagihan[key].tertagih += nominal;
+        jenisTagihan[key].terpenuhi += Math.max(nominal - sisa, 0);
+        jenisTagihan[key].sisa += t.status !== "LUNAS" ? sisa : 0;
+        jenisTagihan[key].count += 1;
+    });
+    const jenisTagihanText = Object.entries(jenisTagihan)
+        .map(([k, v]) => `${k}: terpenuhi ${idr(v.terpenuhi)}, sisa ${idr(v.sisa)} (${v.count} dokumen)`)
+        .join(" | ") || "-";
 
     // Distribusi pengeluaran per kategori
     const katMap: Record<string, number> = {};
@@ -790,9 +854,11 @@ async function buildDataContext(
 
     const financeSection = canSeeFinance
         ? `[KEUANGAN — BULAN ${now.toLocaleDateString("id-ID", { month: "long", year: "numeric" }).toUpperCase()}]
-Masuk (Lunas): ${idr(totalMasuk)} | Keluar: ${idr(totalKeluar)}
-Saldo Bersih: ${idr(saldo)} | Status: ${saldo >= 0 ? "SURPLUS" : "DEFISIT"}
-Tagihan Belum Lunas: ${idr(totalBelum)} | Cicilan: ${idr(totalCicilan)}
+Kas Masuk Tagihan Sukses: ${idr(totalMasuk)} | Keluar: ${idr(totalKeluar)}
+Saldo Bersih Berbasis Uang Diterima: ${idr(saldo)} | Status: ${saldo >= 0 ? "SURPLUS" : "DEFISIT"}
+Total Tertagih: ${idr(totalTertagih)} | Terpenuhi: ${idr(totalTerpenuhi)} | Sisa Piutang: ${idr(sisaPiutang)}
+Tagihan Belum Dibayar Penuh: ${idr(totalBelum)} | Sisa Cicilan: ${idr(totalCicilan)}
+Breakdown Tagihan: ${jenisTagihanText}
 Pengeluaran per Kategori: ${topKategori}`
         : `[KEUANGAN]
 Data keuangan disembunyikan karena role ${admin.role} tidak memiliki akses keuangan.`;

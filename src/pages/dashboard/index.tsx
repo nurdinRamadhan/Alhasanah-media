@@ -15,7 +15,7 @@ import {
 } from "recharts";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import dayjs from "dayjs";
-import { ISantri, ITagihanSantri, IPengeluaran, IPesertaDiklat } from "../../types";
+import { ISantri, IPengeluaran, IPesertaDiklat, ITransaksiKeuangan } from "../../types";
 
 const { Title, Text } = Typography;
 const { useToken } = theme;
@@ -65,6 +65,35 @@ const fmtRupiah = (v: number) => {
 
 const fmtFull = (v: number) =>
     new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(v);
+
+const SUCCESS_TRANSACTION_STATUSES = new Set(["success", "settlement", "capture", "paid", "posted"]);
+const FAILED_TRANSACTION_STATUSES = new Set(["failed", "expire", "expired", "cancel", "deny", "failure"]);
+const PENDING_TRANSACTION_STATUSES = new Set(["pending", "challenge"]);
+const DONATION_KEYWORDS = ["donasi", "infaq", "wakaf", "shadaqah", "sedekah"];
+
+const isSuccessTransaction = (trx: ITransaksiKeuangan) => {
+    const status = String(trx.status || "").toLowerCase();
+    const statusTransaksi = String(trx.status_transaksi || "").toLowerCase();
+
+    if (FAILED_TRANSACTION_STATUSES.has(status) || FAILED_TRANSACTION_STATUSES.has(statusTransaksi)) return false;
+    if (PENDING_TRANSACTION_STATUSES.has(status)) return false;
+    if (SUCCESS_TRANSACTION_STATUSES.has(status)) return true;
+    return SUCCESS_TRANSACTION_STATUSES.has(statusTransaksi);
+};
+
+const isTagihanIncomeTransaction = (trx: ITransaksiKeuangan) => {
+    if (trx.jenis_transaksi !== "masuk" || !isSuccessTransaction(trx)) return false;
+
+    const kategori = String(trx.kategori || "").toLowerCase();
+    if (kategori === "tagihan") return true;
+    if (kategori === "donasi" || kategori === "wallet_topup") return false;
+
+    const keterangan = String(trx.keterangan || "").toLowerCase();
+    const isDonation = DONATION_KEYWORDS.some((keyword) => keterangan.includes(keyword));
+
+    // Kompatibilitas data lama sebelum kolom kategori dipakai konsisten.
+    return !kategori && !!trx.santri_nis && !isDonation;
+};
 
 // ─────────────────────────────────────────────
 // PREMIUM TOOLTIP
@@ -274,11 +303,11 @@ export const DashboardPage = () => {
         filters: [{ field: "status_santri", operator: "eq", value: "AKTIF" }],
     });
 
-    const { data: tagihanData, isLoading: tagihanLoading } = useList<ITagihanSantri>({
-        resource: "tagihan_santri", pagination: { mode: "off" },
+    const { data: transaksiData, isLoading: transaksiLoading } = useList<ITransaksiKeuangan>({
+        resource: "transaksi_keuangan", pagination: { mode: "off" },
         filters: [
-            { field: "created_at", operator: "gte", value: dayjs().year(selectedYear).startOf("year").toISOString() },
-            { field: "created_at", operator: "lte", value: dayjs().year(selectedYear).endOf("year").toISOString() },
+            { field: "tanggal_transaksi", operator: "gte", value: dayjs().year(selectedYear).startOf("year").toISOString() },
+            { field: "tanggal_transaksi", operator: "lte", value: dayjs().year(selectedYear).endOf("year").toISOString() },
         ],
     });
 
@@ -299,14 +328,16 @@ export const DashboardPage = () => {
     const cashflowChartData = useMemo(() => {
         const months = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Ags","Sep","Okt","Nov","Des"];
         const data = months.map(m => ({ name: m, income: 0, expense: 0 }));
-        tagihanData?.data?.forEach(t => {
-            if (t.status === "LUNAS") data[dayjs(t.created_at).month()].income += Number(t.nominal_tagihan);
+        transaksiData?.data?.forEach(t => {
+            if (isTagihanIncomeTransaction(t)) {
+                data[dayjs(t.tanggal_transaksi || t.created_at).month()].income += Number(t.jumlah || 0);
+            }
         });
         pengeluaranData?.data?.forEach(p => {
             data[dayjs(p.tanggal_pengeluaran).month()].expense += Number(p.nominal);
         });
         return data;
-    }, [tagihanData, pengeluaranData]);
+    }, [transaksiData, pengeluaranData]);
 
     const expenseCategoryData = useMemo(() => {
         const groups: Record<string, number> = {};
@@ -330,8 +361,9 @@ export const DashboardPage = () => {
 
     // ── KPIs ───────────────────────────────────
     const totalSantri   = santriData?.data?.length || 0;
-    const totalRevenue  = tagihanData?.data?.filter(t => t.status === "LUNAS")
-        .reduce((a, c) => a + Number(c.nominal_tagihan), 0) || 0;
+    const totalRevenue  = transaksiData?.data
+        ?.filter(isTagihanIncomeTransaction)
+        .reduce((a, c) => a + Number(c.jumlah || 0), 0) || 0;
     const totalExpense  = pengeluaranData?.data?.reduce((a, c) => a + Number(c.nominal), 0) || 0;
     const netProfit     = totalRevenue - totalExpense;
     const totalDiklat   = diklatData?.data?.length || 0;
@@ -449,7 +481,7 @@ export const DashboardPage = () => {
                         title: "Pemasukan Syahriah",
                         value: totalRevenue, prefix: "Rp",
                         icon: <ArrowUpOutlined />, color: GOLD_BRIGHT,
-                        loading: tagihanLoading, trend: "up" as const,
+                        loading: transaksiLoading, trend: "up" as const,
                         subtext: (
                             <span style={{ fontSize: 11, color: GOLD, fontWeight: 700,
                                 fontFamily: "'DM Mono', monospace" }}>
@@ -474,7 +506,7 @@ export const DashboardPage = () => {
                         value: netProfit, prefix: "Rp",
                         icon: <WalletOutlined />,
                         color: netProfit >= 0 ? GOLD_BRIGHT : DANGER,
-                        loading: tagihanLoading || pengeluaranLoading,
+                        loading: transaksiLoading || pengeluaranLoading,
                         trend: netProfit >= 0 ? "up" as const : "down" as const,
                         subtext: netProfit >= 0 ? (
                             <span style={{ fontSize: 11, color: GOLD, fontWeight: 800,

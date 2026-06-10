@@ -18,7 +18,15 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "API Key hilang" }), { status: 500, headers: corsHeaders });
     }
 
-    // PENTING: Gunakan 1.5-flash yang stabil & support token banyak
+    const guardedPrompt = `Instruksi keuangan penting:
+- Pendapatan/kas masuk dihitung dari transaksi_keuangan yang sudah sukses/settlement.
+- Nominal tagihan yang belum dibayar adalah invoice/piutang, bukan pendapatan kas.
+- Status CICILAN berarti pembayaran sebagian sudah diterima; sisa_tagihan adalah piutang.
+- Untuk SPP, listrik, kas, dan jenis tagihan lain, bedakan total tertagih, total terpenuhi/terbayar, dan sisa piutang.
+
+${String(prompt || "")}`;
+
+    // PENTING: Gunakan model stabil & support token banyak
     const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
     const response = await fetch(API_URL, {
@@ -26,7 +34,7 @@ serve(async (req) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{
-          parts: [{ text: prompt }]
+          parts: [{ text: guardedPrompt }]
         }],
         generationConfig: {
             temperature: 0.7,

@@ -772,4 +772,4 @@ export const DiklatList = () => {
             </Modal>
         </div>
     );
-};
+}; 

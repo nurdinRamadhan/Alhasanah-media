@@ -34,6 +34,30 @@ const jsonResponse = (data: unknown, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
+const SUCCESS_TRANSACTION_STATUSES = new Set(["success", "settlement", "capture", "paid", "posted"]);
+const FAILED_TRANSACTION_STATUSES = new Set(["failed", "expire", "expired", "cancel", "deny", "failure"]);
+const PENDING_TRANSACTION_STATUSES = new Set(["pending", "challenge"]);
+const DONATION_KEYWORDS = ["donasi", "infaq", "wakaf", "shadaqah", "sedekah"];
+
+// deno-lint-ignore no-explicit-any
+function isSuccessfulTransaction(trx: any): boolean {
+  const status = String(trx?.status || "").toLowerCase();
+  const statusTransaksi = String(trx?.status_transaksi || "").toLowerCase();
+  if (FAILED_TRANSACTION_STATUSES.has(status) || FAILED_TRANSACTION_STATUSES.has(statusTransaksi)) return false;
+  if (PENDING_TRANSACTION_STATUSES.has(status)) return false;
+  return SUCCESS_TRANSACTION_STATUSES.has(status) || SUCCESS_TRANSACTION_STATUSES.has(statusTransaksi);
+}
+
+// deno-lint-ignore no-explicit-any
+function isTagihanIncomeTransaction(trx: any): boolean {
+  if (trx?.jenis_transaksi !== "masuk" || !isSuccessfulTransaction(trx)) return false;
+  const kategori = String(trx?.kategori || "").toLowerCase();
+  if (kategori === "tagihan") return true;
+  if (kategori === "donasi" || kategori === "wallet_topup") return false;
+  const keterangan = String(trx?.keterangan || "").toLowerCase();
+  return !kategori && !!trx?.santri_nis && !DONATION_KEYWORDS.some((keyword) => keterangan.includes(keyword));
+}
+
 // Gemini function declarations only accept a limited OpenAPI subset.
 // Strip keys that are useful for local validation but can make Gemini reject
 // the whole request before the agent has a chance to answer.
@@ -219,7 +243,7 @@ const ALL_TOOLS = [
   {
     name: "query_tagihan",
     description:
-      "Query data tagihan santri. Bisa filter per santri, status, kelas, jurusan, atau bulan. Mengembalikan juga summary total dan jumlah yang belum bayar.",
+      "Query data tagihan santri. Bisa filter per santri, status, kelas, jurusan, jenis pembayaran, atau bulan. Mengembalikan summary tertagih, terpenuhi, sisa piutang, status BELUM/CICILAN/LUNAS, dan breakdown SPP/Listrik/Kas/Lainnya.",
     parameters: {
       type: "object",
       properties: {
@@ -249,7 +273,7 @@ const ALL_TOOLS = [
   {
     name: "query_keuangan",
     description:
-      "Query data keuangan: pengeluaran atau transaksi keuangan umum. Mengembalikan total pengeluaran per kategori/bulan.",
+      "Query data keuangan: pengeluaran atau transaksi keuangan umum. Untuk transaksi, uang masuk dihitung dari transaksi sukses, termasuk cicilan tagihan, bukan dari nominal tagihan yang belum dibayar.",
     parameters: {
       type: "object",
       properties: {
@@ -1018,19 +1042,45 @@ async function executeQueryTool(supabase: any, toolName: string, args: any, call
 
       const totalNominal = data?.reduce((s: number, t: { nominal_tagihan: number }) => s + (t.nominal_tagihan || 0), 0);
       const totalSisa = data?.reduce((s: number, t: { sisa_tagihan: number }) => s + (t.sisa_tagihan || 0), 0);
+      const totalTerpenuhi = data?.reduce((s: number, t: { nominal_tagihan: number; sisa_tagihan: number }) =>
+        s + Math.max(Number(t.nominal_tagihan || 0) - Number(t.sisa_tagihan || 0), 0), 0);
       const jumlahBelum = data?.filter((t: { status: string }) => t.status === "BELUM").length;
       const jumlahCicilan = data?.filter((t: { status: string }) => t.status === "CICILAN").length;
       const jumlahLunas = data?.filter((t: { status: string }) => t.status === "LUNAS").length;
+      // deno-lint-ignore no-explicit-any
+      const perJenis = (data || []).reduce((acc: Record<string, { total: number; terpenuhi: number; sisa: number; count: number; belum: number; cicilan: number; lunas: number }>, t: any) => {
+        const labelSource = `${t?.jenis_bayar?.nama_pembayaran || ""} ${t?.deskripsi_tagihan || ""}`.toLowerCase();
+        const key = labelSource.includes("spp") || labelSource.includes("syahriah")
+          ? "SPP"
+          : labelSource.includes("listrik")
+            ? "Listrik"
+            : labelSource.includes("kas")
+              ? "Kas"
+              : "Lainnya";
+        const nominal = Number(t.nominal_tagihan || 0);
+        const sisa = Number(t.sisa_tagihan || 0);
+        acc[key] ||= { total: 0, terpenuhi: 0, sisa: 0, count: 0, belum: 0, cicilan: 0, lunas: 0 };
+        acc[key].total += nominal;
+        acc[key].terpenuhi += Math.max(nominal - sisa, 0);
+        acc[key].sisa += t.status !== "LUNAS" ? sisa : 0;
+        acc[key].count += 1;
+        if (t.status === "BELUM") acc[key].belum += 1;
+        if (t.status === "CICILAN") acc[key].cicilan += 1;
+        if (t.status === "LUNAS") acc[key].lunas += 1;
+        return acc;
+      }, {});
 
       return {
         data,
         summary: {
-          total_tagihan: totalNominal,
-          total_sisa: totalSisa,
+          total_tertagih: totalNominal,
+          total_terpenuhi: totalTerpenuhi,
+          total_sisa_piutang: totalSisa,
           jumlah_belum: jumlahBelum,
           jumlah_cicilan: jumlahCicilan,
           jumlah_lunas: jumlahLunas,
           total_record: data?.length,
+          per_jenis: perJenis,
         },
       };
     }
@@ -1070,16 +1120,48 @@ async function executeQueryTool(supabase: any, toolName: string, args: any, call
         let q = supabase
           .from("transaksi_keuangan")
           .select("*")
-          .order("created_at", { ascending: false });
+          .order("tanggal_transaksi", { ascending: false });
         if (args.bulan) {
           q = q
-            .gte("created_at", `${args.bulan}-01`)
-            .lt("created_at", getNextMonthStart(args.bulan));
+            .gte("tanggal_transaksi", `${args.bulan}-01`)
+            .lt("tanggal_transaksi", getNextMonthStart(args.bulan));
         }
         q = q.limit(args.limit || 100);
         const { data, error } = await q;
         if (error) throw error;
-        return { data, total: data?.length };
+        const sukses = (data || []).filter(isSuccessfulTransaction);
+        const totalMasukSukses = sukses
+          .filter((t: { jenis_transaksi: string }) => t.jenis_transaksi === "masuk")
+          .reduce((s: number, t: { jumlah: number }) => s + Number(t.jumlah || 0), 0);
+        const totalKeluarSukses = sukses
+          .filter((t: { jenis_transaksi: string }) => t.jenis_transaksi === "keluar")
+          .reduce((s: number, t: { jumlah: number }) => s + Number(t.jumlah || 0), 0);
+        const tagihanMasukSukses = sukses
+          .filter(isTagihanIncomeTransaction)
+          .reduce((s: number, t: { jumlah: number }) => s + Number(t.jumlah || 0), 0);
+        const perKategori: Record<string, number> = {};
+        for (const t of sukses) {
+          if (t.jenis_transaksi !== "masuk") continue;
+          const kategori = String(t.kategori || "lainnya");
+          perKategori[kategori] = (perKategori[kategori] || 0) + Number(t.jumlah || 0);
+        }
+        const statusCount = (data || []).reduce((acc: Record<string, number>, t: { status?: string; status_transaksi?: string }) => {
+          const status = String(t.status || t.status_transaksi || "unknown").toLowerCase();
+          acc[status] = (acc[status] || 0) + 1;
+          return acc;
+        }, {});
+        return {
+          data,
+          total: data?.length,
+          summary: {
+            total_masuk_sukses: totalMasukSukses,
+            total_keluar_sukses: totalKeluarSukses,
+            saldo_bersih_sukses: totalMasukSukses - totalKeluarSukses,
+            tagihan_masuk_sukses: tagihanMasukSukses,
+            per_kategori_masuk_sukses: perKategori,
+            status_count: statusCount,
+          },
+        };
       }
     }
 
@@ -1841,8 +1923,9 @@ ${accessibleToolNames.join(", ")}
 7. **NOMINAL RUPIAH**: Selalu integer tanpa titik/koma. Contoh: 500000 (BUKAN 500.000 atau Rp500.000).
 8. **FORMAT TANGGAL**: Selalu YYYY-MM-DD.
 9. **SCOPE FILTER**: Respek akses_jurusan dan akses_gender caller. Jangan tampilkan data di luar scope.
-10. **BAHASA**: Respons dalam Bahasa Indonesia yang ramah dan profesional.
-11. **INFORMATIF**: Setelah query, berikan ringkasan yang actionable: temuan utama, insight, dan saran tindak lanjut jika relevan.`;
+10. **KEUANGAN & CICILAN**: Untuk pendapatan/kas masuk, gunakan transaksi_keuangan sukses. Jangan menghitung nominal tagihan belum dibayar sebagai pendapatan. Tagihan adalah invoice/piutang; pembayaran cicilan masuk sebagai pendapatan sesuai amount transaksi sukses, dan sisa_tagihan adalah piutang.
+11. **BAHASA**: Respons dalam Bahasa Indonesia yang ramah dan profesional.
+12. **INFORMATIF**: Setelah query, berikan ringkasan yang actionable: temuan utama, insight, dan saran tindak lanjut jika relevan.`;
 }
 
 // ══════════════════════════════════════════════════════════════════

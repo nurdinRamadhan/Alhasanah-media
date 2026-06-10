@@ -21,7 +21,8 @@ import {
   CloseCircleFilled, ExclamationCircleFilled, UserOutlined,
   LoadingOutlined, StarFilled, InfoCircleOutlined, ClearOutlined,
   FileExcelOutlined, FilePdfOutlined, DownloadOutlined,
-  DatabaseOutlined, FilterOutlined,
+  DatabaseOutlined, FilterOutlined, HistoryOutlined, PlusOutlined,
+  DeleteOutlined, FolderOpenOutlined, LockOutlined,
 } from "@ant-design/icons";
 import { useList, useGetIdentity } from "@refinedev/core";
 import { Routes, Route } from "react-router-dom";
@@ -54,6 +55,54 @@ type AppMode  = "analysis" | "agent" | "rag" | "report";
 
 interface CacheEntry { answer: string; savedAt: number; }
 interface Santri { nama?: string; nis?: string; kelas?: string; poin?: number; total_hafalan?: number; }
+
+interface AgentChatSession {
+  id: string;
+  title: string;
+  caller_role: string;
+  akses_gender: string;
+  akses_jurusan: string;
+  gemini_history?: GeminiConvMsg[];
+  action_draft_args?: Record<string, Record<string, unknown>>;
+  last_message_preview?: string | null;
+  message_count?: number;
+  action_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface AgentChatMessageRow {
+  client_message_id: string;
+  role: ChatMessage["role"];
+  content: string;
+  action_data?: ChatMessage["actionData"] | null;
+  action_status?: ChatMessage["actionStatus"] | null;
+  result_data?: ChatMessage["resultData"] | null;
+  metadata?: Record<string, unknown> | null;
+  created_at: string;
+}
+
+const SUCCESS_TRANSACTION_STATUSES = new Set(["success", "settlement", "capture", "paid", "posted"]);
+const FAILED_TRANSACTION_STATUSES = new Set(["failed", "expire", "expired", "cancel", "deny", "failure"]);
+const PENDING_TRANSACTION_STATUSES = new Set(["pending", "challenge"]);
+const DONATION_KEYWORDS = ["donasi", "infaq", "wakaf", "shadaqah", "sedekah"];
+
+const isSuccessfulTransaction = (trx: any) => {
+  const status = String(trx?.status || "").toLowerCase();
+  const statusTransaksi = String(trx?.status_transaksi || "").toLowerCase();
+  if (FAILED_TRANSACTION_STATUSES.has(status) || FAILED_TRANSACTION_STATUSES.has(statusTransaksi)) return false;
+  if (PENDING_TRANSACTION_STATUSES.has(status)) return false;
+  return SUCCESS_TRANSACTION_STATUSES.has(status) || SUCCESS_TRANSACTION_STATUSES.has(statusTransaksi);
+};
+
+const isTagihanIncomeTransaction = (trx: any) => {
+  if (trx?.jenis_transaksi !== "masuk" || !isSuccessfulTransaction(trx)) return false;
+  const kategori = String(trx?.kategori || "").toLowerCase();
+  if (kategori === "tagihan") return true;
+  if (kategori === "donasi" || kategori === "wallet_topup") return false;
+  const keterangan = String(trx?.keterangan || "").toLowerCase();
+  return !kategori && !!trx?.santri_nis && !DONATION_KEYWORDS.some(keyword => keterangan.includes(keyword));
+};
 
 interface ChatMessage {
   id:             string;
@@ -104,6 +153,40 @@ const GOLD_BRIGHT = "#F5C842";
 const GOLD_GLOW   = "rgba(212,160,48,0.45)";
 const CACHE_TTL_MS = 30 * 60 * 1000;
 const RAG_DECISION_ROLES = ["super_admin", "rois", "dewan"];
+const AGENT_SESSION_KEY = "alhasanah.ai-agent.session.v1";
+
+const ROLE_SCOPE_COPY: Record<string, { title: string; allowed: string[]; denied: string }> = {
+  super_admin: {
+    title: "Akses penuh seluruh modul",
+    allowed: ["Semua query dan action agent", "Generate/update tagihan", "Kesantrian, keuangan, akademik, dompet, notifikasi"],
+    denied: "Tetap tidak bisa menghapus data karena tool delete tidak disediakan.",
+  },
+  rois: {
+    title: "Akses pimpinan penuh",
+    allowed: ["Semua query dan action agent seperti super admin", "Lintas keuangan, kesantrian, akademik, dan notifikasi"],
+    denied: "Tetap tidak bisa menghapus data karena tool delete tidak disediakan.",
+  },
+  bendahara: {
+    title: "Scope bendahara",
+    allowed: ["Query santri untuk kebutuhan pembayaran", "Tagihan, transaksi keuangan, jenis pembayaran, dompet", "Generate/update tagihan dan catat pengeluaran"],
+    denied: "Aksi kesantrian seperti pelanggaran, kesehatan, perizinan, prestasi, dan hafalan akan ditolak otomatis.",
+  },
+  kesantrian: {
+    title: "Scope kesantrian",
+    allowed: ["Data santri, pelanggaran, kesehatan, perizinan, prestasi", "Hafalan tahfidz/kitab dan murojaah", "Update status/data santri sesuai scope"],
+    denied: "Aksi keuangan seperti tagihan, pengeluaran, dan dompet akan ditolak otomatis.",
+  },
+  dewan: {
+    title: "Scope dewan baca saja",
+    allowed: ["Query dan analisis data lintas modul sesuai scope gender/jurusan", "Tidak menjalankan action yang mengubah database"],
+    denied: "Semua action eksekusi akan ditolak otomatis karena role ini read-only.",
+  },
+  alumni: {
+    title: "Tidak memiliki akses AI Agent",
+    allowed: ["Tidak ada tool agent aktif untuk role alumni"],
+    denied: "Permintaan agent akan ditolak otomatis.",
+  },
+};
 
 const MENU_ITEMS = [
   { key: "KESEHATAN"   as TopicKey, label: "Analisa Kesehatan", arabic: "التدقيق Medical", icon: <MedicineBoxOutlined />, color: "#F87171" },
@@ -145,6 +228,71 @@ const santriAlias = (nis?: string | null) => {
 };
 
 const santriName = (santri?: Santri | null) => santri?.nama || santriAlias(santri?.nis);
+
+const DATE_FIELD_LABELS: Record<string, string> = {
+  tanggal: "Tanggal",
+  tanggal_jatuh_tempo: "Jatuh Tempo",
+  tanggal_kembali: "Tanggal Kembali",
+  tanggal_pengeluaran: "Tanggal Pengeluaran",
+  tanggal_prestasi: "Tanggal Prestasi",
+};
+
+const isDateArgKey = (key: string) => key === "tanggal" || key.startsWith("tanggal_") || key.includes("jatuh_tempo");
+
+const getActionDateFields = (args?: Record<string, unknown>) =>
+  Object.keys(args || {}).filter(key => isDateArgKey(key));
+
+const normalizeActionDate = (value: unknown) => {
+  if (!value) return null;
+  const parsed = dayjs(String(value));
+  return parsed.isValid() ? parsed : null;
+};
+
+const serializeChatMessages = (messages: ChatMessage[]) =>
+  messages.map(msg => ({ ...msg, timestamp: msg.timestamp.toISOString() }));
+
+const parseChatMessages = (messages: unknown): ChatMessage[] => {
+  if (!Array.isArray(messages)) return [];
+  return messages.map((msg: any) => ({
+    ...msg,
+    timestamp: msg?.timestamp ? new Date(msg.timestamp) : new Date(),
+  }));
+};
+
+const toDbMessage = (sessionId: string, userId: string, msg: ChatMessage) => ({
+  session_id: sessionId,
+  user_id: userId,
+  client_message_id: msg.id,
+  role: msg.role,
+  content: msg.content || "",
+  action_data: msg.actionData ?? null,
+  action_status: msg.actionStatus ?? null,
+  result_data: msg.resultData ?? null,
+  metadata: { timestamp: msg.timestamp.toISOString() },
+});
+
+const fromDbMessage = (row: AgentChatMessageRow): ChatMessage => ({
+  id: row.client_message_id,
+  role: row.role,
+  content: row.content || "",
+  timestamp: row.metadata?.timestamp ? new Date(String(row.metadata.timestamp)) : new Date(row.created_at),
+  actionData: row.action_data ?? undefined,
+  actionStatus: row.action_status ?? undefined,
+  resultData: row.result_data ?? undefined,
+});
+
+const sessionTitleFromText = (text: string) => {
+  const clean = text.replace(/\s+/g, " ").trim();
+  if (!clean) return `Chat Agent ${dayjs().format("DD MMM HH:mm")}`;
+  return clean.length > 58 ? `${clean.slice(0, 58)}...` : clean;
+};
+
+const getRoleScopeInfo = (role?: string | null) =>
+  ROLE_SCOPE_COPY[String(role || "").toLowerCase()] || {
+    title: "Scope belum dikenali",
+    allowed: ["Agent akan mengikuti izin yang dikirim dari profil aktif."],
+    denied: "Jika role tidak dikenali oleh Edge Function, permintaan akan ditolak otomatis.",
+  };
 
 // ══════════════════════════════════════════════════════════════════════════
 // HOOK: TYPEWRITER (analysis mode)
@@ -239,6 +387,12 @@ export const GeminiConsultant: React.FC<GeminiConsultantProps> = ({
   const [agentInput,    setAgentInput]    = useState("");
   const [agentLoading,  setAgentLoading]  = useState(false);
   const [geminiHistory, setGeminiHistory] = useState<GeminiConvMsg[]>([]);
+  const [actionDraftArgs, setActionDraftArgs] = useState<Record<string, Record<string, unknown>>>({});
+  const [agentQuickDate, setAgentQuickDate] = useState<dayjs.Dayjs | null>(null);
+  const [agentSessions, setAgentSessions] = useState<AgentChatSession[]>([]);
+  const [activeAgentSessionId, setActiveAgentSessionId] = useState<string | null>(null);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [isSessionPanelOpen, setIsSessionPanelOpen] = useState(true);
 
   // RAG decision state
   const [ragInput, setRagInput] = useState("");
@@ -271,6 +425,8 @@ export const GeminiConsultant: React.FC<GeminiConsultantProps> = ({
   const analysisEndRef = useRef<HTMLDivElement>(null);
   const chatEndRef     = useRef<HTMLDivElement>(null);
   const inputRef       = useRef<HTMLTextAreaElement>(null);
+  const persistedMessageIdsRef = useRef<Set<string>>(new Set());
+  const loadingSessionRef = useRef(false);
 
   // ── Identity (for agent callerProfile) ───────────────────────────────
   const { data: identity } = useGetIdentity<IUserIdentity>();
@@ -291,10 +447,188 @@ export const GeminiConsultant: React.FC<GeminiConsultantProps> = ({
     () => canUseRagDecision ? ["analysis", "agent", "rag", "report"] : ["analysis", "agent", "report"],
     [canUseRagDecision],
   );
+  const roleScopeInfo = useMemo(() => getRoleScopeInfo(String(callerProfile?.role || "")), [callerProfile?.role]);
 
   useEffect(() => {
     if (mode === "rag" && !canUseRagDecision) setMode("analysis");
   }, [canUseRagDecision, mode]);
+
+  const loadAgentSessions = useCallback(async () => {
+    if (!callerProfile?.id) return;
+    setSessionsLoading(true);
+    const { data, error } = await supabaseClient
+      .from("ai_agent_chat_sessions")
+      .select("id,title,caller_role,akses_gender,akses_jurusan,gemini_history,action_draft_args,last_message_preview,message_count,action_count,created_at,updated_at")
+      .eq("user_id", callerProfile.id)
+      .order("updated_at", { ascending: false })
+      .limit(40);
+    setSessionsLoading(false);
+    if (error) {
+      antMessage.warning(`Riwayat Agent belum bisa dimuat: ${error.message}`);
+      return;
+    }
+    setAgentSessions((data || []) as AgentChatSession[]);
+  }, [callerProfile?.id]);
+
+  const ensureAgentSession = useCallback(async (seedText: string) => {
+    if (activeAgentSessionId) return activeAgentSessionId;
+    if (!callerProfile?.id) throw new Error("Profil pengguna tidak ditemukan.");
+
+    const { data, error } = await supabaseClient
+      .from("ai_agent_chat_sessions")
+      .insert({
+        user_id: callerProfile.id,
+        title: sessionTitleFromText(seedText),
+        caller_role: String(callerProfile.role || ""),
+        akses_gender: String(callerProfile.akses_gender || "ALL"),
+        akses_jurusan: String(callerProfile.akses_jurusan || "ALL"),
+        gemini_history: geminiHistory,
+        action_draft_args: actionDraftArgs,
+      })
+      .select("id,title,caller_role,akses_gender,akses_jurusan,gemini_history,action_draft_args,last_message_preview,message_count,action_count,created_at,updated_at")
+      .single();
+    if (error) throw error;
+
+    const session = data as AgentChatSession;
+    persistedMessageIdsRef.current = new Set();
+    setActiveAgentSessionId(session.id);
+    setAgentSessions(prev => [session, ...prev.filter(item => item.id !== session.id)]);
+    return session.id;
+  }, [activeAgentSessionId, actionDraftArgs, callerProfile, geminiHistory]);
+
+  const openAgentSession = useCallback(async (session: AgentChatSession) => {
+    if (!callerProfile?.id) return;
+    loadingSessionRef.current = true;
+    setActiveAgentSessionId(session.id);
+    setGeminiHistory(Array.isArray(session.gemini_history) ? session.gemini_history : []);
+    setActionDraftArgs(session.action_draft_args && typeof session.action_draft_args === "object" ? session.action_draft_args : {});
+    setSessionsLoading(true);
+
+    const { data, error } = await supabaseClient
+      .from("ai_agent_chat_messages")
+      .select("client_message_id,role,content,action_data,action_status,result_data,metadata,created_at")
+      .eq("session_id", session.id)
+      .order("created_at", { ascending: true });
+    setSessionsLoading(false);
+
+    if (error) {
+      antMessage.error(`Gagal membuka sesi: ${error.message}`);
+      loadingSessionRef.current = false;
+      return;
+    }
+
+    const rows = (data || []) as AgentChatMessageRow[];
+    persistedMessageIdsRef.current = new Set(rows.map(row => row.client_message_id));
+    setChatMessages(rows.map(fromDbMessage));
+    setTimeout(() => { loadingSessionRef.current = false; }, 0);
+  }, [callerProfile?.id]);
+
+  const startNewAgentSession = useCallback(() => {
+    setActiveAgentSessionId(null);
+    setChatMessages([]);
+    setGeminiHistory([]);
+    setActionDraftArgs({});
+    persistedMessageIdsRef.current = new Set();
+    sessionStorage.removeItem(AGENT_SESSION_KEY);
+  }, []);
+
+  const deleteAgentSession = useCallback(async (sessionId: string) => {
+    const { error } = await supabaseClient
+      .from("ai_agent_chat_sessions")
+      .delete()
+      .eq("id", sessionId);
+    if (error) {
+      antMessage.error(`Gagal menghapus sesi: ${error.message}`);
+      return;
+    }
+    setAgentSessions(prev => prev.filter(item => item.id !== sessionId));
+    if (activeAgentSessionId === sessionId) startNewAgentSession();
+    antMessage.success("Sesi chat agent dihapus.");
+  }, [activeAgentSessionId, startNewAgentSession]);
+
+  useEffect(() => {
+    if (callerProfile?.id) loadAgentSessions();
+  }, [callerProfile?.id, loadAgentSessions]);
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(AGENT_SESSION_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      setChatMessages(parseChatMessages(saved.chatMessages));
+      setGeminiHistory(Array.isArray(saved.geminiHistory) ? saved.geminiHistory : []);
+      setActionDraftArgs(saved.actionDraftArgs && typeof saved.actionDraftArgs === "object" ? saved.actionDraftArgs : {});
+    } catch {
+      sessionStorage.removeItem(AGENT_SESSION_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(AGENT_SESSION_KEY, JSON.stringify({
+        chatMessages: serializeChatMessages(chatMessages),
+        geminiHistory,
+        actionDraftArgs,
+      }));
+    } catch {
+      // Session restore is best-effort; never block the agent UI.
+    }
+  }, [chatMessages, geminiHistory, actionDraftArgs]);
+
+  useEffect(() => {
+    if (!activeAgentSessionId || !callerProfile?.id || loadingSessionRef.current) return;
+    if (chatMessages.length === 0) {
+      supabaseClient
+        .from("ai_agent_chat_sessions")
+        .update({ gemini_history: geminiHistory, action_draft_args: actionDraftArgs })
+        .eq("id", activeAgentSessionId)
+        .then(({ error }) => {
+          if (error) console.warn("[AI Agent] Gagal update session metadata:", error.message);
+        });
+      return;
+    }
+
+    const rows = chatMessages.map(msg => toDbMessage(activeAgentSessionId, callerProfile.id, msg));
+    supabaseClient
+      .from("ai_agent_chat_messages")
+      .upsert(rows, { onConflict: "session_id,client_message_id" })
+      .then(({ error }) => {
+        if (error) {
+          console.warn("[AI Agent] Gagal menyimpan pesan:", error.message);
+          return;
+        }
+        chatMessages.forEach(msg => persistedMessageIdsRef.current.add(msg.id));
+        supabaseClient
+          .from("ai_agent_chat_sessions")
+          .update({ gemini_history: geminiHistory, action_draft_args: actionDraftArgs })
+          .eq("id", activeAgentSessionId)
+          .then(({ error: metaError }) => {
+            if (metaError) console.warn("[AI Agent] Gagal update session metadata:", metaError.message);
+            loadAgentSessions();
+          });
+      });
+  }, [activeAgentSessionId, actionDraftArgs, callerProfile?.id, chatMessages, geminiHistory, loadAgentSessions]);
+
+  const hasPendingAgentWork = useMemo(
+    () => agentLoading || chatMessages.some(msg => msg.role === "action" && ["pending", "executing"].includes(String(msg.actionStatus))),
+    [agentLoading, chatMessages],
+  );
+
+  useEffect(() => {
+    if (!hasPendingAgentWork) return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasPendingAgentWork]);
+
+  const lastAssistantAsksDate = useMemo(() => {
+    const last = [...chatMessages].reverse().find(msg => msg.role === "assistant" || msg.role === "system");
+    if (!last || chatMessages.some(msg => msg.role === "action" && msg.actionStatus === "pending")) return false;
+    return /(tanggal|jatuh tempo|kembali|deadline|tempo)/i.test(last.content);
+  }, [chatMessages]);
 
   // ── Theme detection ────────────────────────────────────────────────────
   const { token } = theme.useToken();
@@ -380,7 +714,9 @@ export const GeminiConsultant: React.FC<GeminiConsultantProps> = ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: dataPengeluaran } = useList({ resource: "pengeluaran",        pagination: { mode: "off" }, filters: [{ field: "tanggal_pengeluaran", operator: "gte", value: monthStart }], meta: { select: "id,nominal,kategori,judul,tanggal_pengeluaran" }, queryOptions: stableQueryOptions });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: dataTagihan }     = useList({ resource: "tagihan_santri",     pagination: { mode: "off" }, filters: [{ field: "created_at",         operator: "gte", value: monthStart }], meta: { select: "id,status,nominal_tagihan,sisa_tagihan,created_at" }, queryOptions: stableQueryOptions });
+  const { data: dataTagihan }     = useList({ resource: "tagihan_santri",     pagination: { mode: "off" }, filters: [{ field: "created_at",         operator: "gte", value: monthStart }], meta: { select: "id,status,nominal_tagihan,sisa_tagihan,created_at,deskripsi_tagihan,jenis_pembayaran_id" }, queryOptions: stableQueryOptions });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: dataTransaksi }   = useList({ resource: "transaksi_keuangan", pagination: { mode: "off" }, filters: [{ field: "tanggal_transaksi", operator: "gte", value: monthStart }], meta: { select: "id,jumlah,tanggal_transaksi,status,status_transaksi,jenis_transaksi,kategori,keterangan,santri_nis,metode_pembayaran" }, queryOptions: stableQueryOptions });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: dataAudit }       = useList({ resource: "audit_logs",         pagination: { pageSize: 20 }, sorters: [{ field: "created_at", order: "desc" }], meta: { select: "id,created_at,user_name,action,resource" }, queryOptions: stableQueryOptions });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -530,13 +866,51 @@ export const GeminiConsultant: React.FC<GeminiConsultantProps> = ({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const totalKeluar = dataPengeluaran?.data.reduce((a: number, b: any) => a + Number(b.nominal), 0) ?? 0;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const totalMasuk  = dataTagihan?.data.filter((t: any) => t.status === "LUNAS").reduce((a: number, b: any) => a + Number(b.nominal_tagihan), 0) ?? 0;
+        const totalMasuk  = dataTransaksi?.data.filter(isTagihanIncomeTransaction).reduce((a: number, b: any) => a + Number(b.jumlah || 0), 0) ?? 0;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const totalTertagih = dataTagihan?.data.reduce((a: number, b: any) => a + Number(b.nominal_tagihan || 0), 0) ?? 0;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const totalSisa = dataTagihan?.data.reduce((a: number, b: any) => a + (b.status !== "LUNAS" ? Number(b.sisa_tagihan || 0) : 0), 0) ?? 0;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const totalCicilan = dataTagihan?.data.filter((t: any) => t.status === "CICILAN").reduce((a: number, b: any) => a + Number(b.sisa_tagihan || 0), 0) ?? 0;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const statusCount = (dataTagihan?.data || []).reduce((acc: Record<string, number>, t: any) => {
+          const status = String(t.status || "BELUM");
+          acc[status] = (acc[status] || 0) + 1;
+          return acc;
+        }, {});
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const jenisMap = (dataTagihan?.data || []).reduce((acc: Record<string, { total: number; paid: number; remaining: number; count: number }>, t: any) => {
+          const label = String(t.deskripsi_tagihan || "").toLowerCase().includes("listrik")
+            ? "Listrik"
+            : String(t.deskripsi_tagihan || "").toLowerCase().includes("kas")
+              ? "Kas"
+              : String(t.deskripsi_tagihan || "").toLowerCase().includes("spp") || String(t.deskripsi_tagihan || "").toLowerCase().includes("syahriah")
+                ? "SPP"
+                : "Lainnya";
+          const nominal = Number(t.nominal_tagihan || 0);
+          const sisa = Number(t.sisa_tagihan || 0);
+          acc[label] ||= { total: 0, paid: 0, remaining: 0, count: 0 };
+          acc[label].total += nominal;
+          acc[label].paid += Math.max(nominal - sisa, 0);
+          acc[label].remaining += t.status !== "LUNAS" ? sisa : 0;
+          acc[label].count += 1;
+          return acc;
+        }, {});
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const cats: Record<string, number> = {};
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         dataPengeluaran?.data.forEach((d: any) => { cats[d.kategori ?? "Lain"] = (cats[d.kategori ?? "Lain"] || 0) + Number(d.nominal); });
-        ctx   = `Pemasukan (Lunas): ${fmt(totalMasuk)}\nPengeluaran: ${fmt(totalKeluar)}\nSaldo Bersih: ${fmt(totalMasuk - totalKeluar)}\nPer Kategori: ${JSON.stringify(cats)}`;
-        instr = "Analisa arus kas: surplus atau defisit? Identifikasi pengeluaran terbesar. Berikan 2–3 saran efisiensi konkret untuk bulan depan. Sertakan peringatan jika kondisi keuangan mengkhawatirkan.";
+        ctx   = `Pemasukan diterima dari transaksi tagihan sukses: ${fmt(totalMasuk)}
+Total tertagih/invoice bulan ini: ${fmt(totalTertagih)}
+Sisa piutang tagihan: ${fmt(totalSisa)}
+Sisa pada tagihan cicilan: ${fmt(totalCicilan)}
+Status tagihan: ${JSON.stringify(statusCount)}
+Breakdown tagihan SPP/Listrik/Kas/Lainnya: ${JSON.stringify(jenisMap)}
+Pengeluaran: ${fmt(totalKeluar)}
+Saldo kas berbasis uang diterima: ${fmt(totalMasuk - totalKeluar)}
+Pengeluaran per kategori: ${JSON.stringify(cats)}`;
+        instr = "Analisa arus kas berbasis transaksi sukses, bukan berdasarkan nominal tagihan yang belum dibayar. Jelaskan posisi kas, sisa piutang, dampak cicilan, jenis tagihan yang perlu ditagih, pengeluaran terbesar, dan 2–3 saran prioritas.";
         break;
       }
       case "ADMIN": {
@@ -669,12 +1043,14 @@ ${instr}
     if (!msgText || agentLoading) return;
     if (!callerProfile) { antMessage.error("Profil pengguna tidak ditemukan."); return; }
     setAgentInput("");
+    setAgentQuickDate(null);
 
     const userMsg: ChatMessage = { id: nid(), role: "user", content: msgText, timestamp: new Date() };
-    setChatMessages(prev => [...prev, userMsg]);
     setAgentLoading(true);
 
     try {
+      await ensureAgentSession(msgText);
+      setChatMessages(prev => [...prev, userMsg]);
       const { data, error } = await supabaseClient.functions.invoke("ai-agent", {
         body: { mode: "chat", userMessage: msgText, conversationHistory: geminiHistory, callerProfile },
       });
@@ -687,14 +1063,16 @@ ${instr}
         if (data.updatedHistory) setGeminiHistory(data.updatedHistory);
 
       } else if (data.type === "action_required") {
+        const actionId = nid();
         setChatMessages(prev => [...prev, {
-          id: nid(), role: "action", content: data.actionSummary ?? "",
+          id: actionId, role: "action", content: data.actionSummary ?? "",
           timestamp: new Date(), actionStatus: "pending",
           actionData: {
             toolName: data.toolName, args: data.args,
             actionSummary: data.actionSummary, aiPreMessage: data.aiPreMessage,
           },
         }]);
+        setActionDraftArgs(prev => ({ ...prev, [actionId]: data.args || {} }));
         if (data.updatedHistory) setGeminiHistory(data.updatedHistory);
       }
     } catch (e: unknown) {
@@ -711,13 +1089,14 @@ ${instr}
   const approveAction = async (msgId: string) => {
     const msg = chatMessages.find(m => m.id === msgId);
     if (!msg?.actionData || !callerProfile) return;
+    const args = actionDraftArgs[msgId] || msg.actionData.args;
 
     setChatMessages(prev => prev.map(m => m.id === msgId ? { ...m, actionStatus: "executing" } : m));
     try {
       const { data, error } = await supabaseClient.functions.invoke("ai-agent", {
         body: { 
           mode: "execute", 
-          actionToExecute: { toolName: msg.actionData.toolName, args: msg.actionData.args }, 
+          actionToExecute: { toolName: msg.actionData.toolName, args },
           callerProfile,
           conversationHistory: geminiHistory // Pass history for consistency
         },
@@ -730,6 +1109,11 @@ ${instr}
       setChatMessages(prev => prev.map(m =>
         m.id === msgId ? { ...m, actionStatus: success ? "success" : "failed", resultData: data } : m
       ));
+      setActionDraftArgs(prev => {
+        const next = { ...prev };
+        delete next[msgId];
+        return next;
+      });
       setChatMessages(prev => [...prev, {
         id: nid(), role: "system",
         content: success
@@ -748,6 +1132,11 @@ ${instr}
     const msg = chatMessages.find(m => m.id === msgId);
     if (!msg?.actionData || !callerProfile) return;
     setChatMessages(prev => prev.map(m => m.id === msgId ? { ...m, actionStatus: "rejected" } : m));
+    setActionDraftArgs(prev => {
+      const next = { ...prev };
+      delete next[msgId];
+      return next;
+    });
     setChatMessages(prev => [...prev, {
       id: nid(), role: "system", content: "🚫 Aksi dibatalkan dan dicatat di audit log.", timestamp: new Date(),
     }]);
@@ -756,7 +1145,29 @@ ${instr}
     }).catch(() => null);
   };
 
-  const clearChat = () => { setChatMessages([]); setGeminiHistory([]); };
+  const clearChat = () => {
+    startNewAgentSession();
+  };
+
+  const updateActionDraftArg = (msgId: string, key: string, value: unknown) => {
+    setActionDraftArgs(prev => ({
+      ...prev,
+      [msgId]: {
+        ...(prev[msgId] || chatMessages.find(msg => msg.id === msgId)?.actionData?.args || {}),
+        [key]: value,
+      },
+    }));
+  };
+
+  const applyQuickDateToAgentInput = () => {
+    if (!agentQuickDate) return;
+    const value = agentQuickDate.format("YYYY-MM-DD");
+    const nextText = agentInput.trim()
+      ? `${agentInput.trim()} ${value}`
+      : `Tanggalnya ${value}`;
+    setAgentInput(nextText);
+    inputRef.current?.focus();
+  };
 
   const activeMenu = MENU_ITEMS.find(i => i.key === selectedTopic);
 
@@ -784,6 +1195,8 @@ ${instr}
     if (isAct) {
       const st  = msg.actionStatus ?? "pending";
       const ad  = msg.actionData;
+      const draftArgs = actionDraftArgs[msg.id] || ad?.args || {};
+      const dateFields = getActionDateFields(draftArgs);
       const isPending   = st === "pending";
       const isExecuting = st === "executing";
       const isDone      = ["success","failed","rejected","approved"].includes(st);
@@ -844,6 +1257,41 @@ ${instr}
                   <ReactMarkdown>{ad?.actionSummary ?? msg.content}</ReactMarkdown>
                 </div>
               </div>
+
+              {isPending && dateFields.length > 0 && (
+                <div style={{
+                  margin: "0 16px 12px",
+                  padding: 12,
+                  borderRadius: 12,
+                  border: `1px solid ${T.borderGold}`,
+                  background: isDark ? "rgba(212,160,48,0.07)" : "rgba(255,248,224,0.78)",
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", marginBottom: 10 }}>
+                    <Text style={{ color: GOLD, fontSize: 11, fontWeight: 800, letterSpacing: "1px" }}>
+                      LENGKAPI TANGGAL
+                    </Text>
+                    <Text style={{ color: T.textDim, fontSize: 11 }}>
+                      Nilai ini akan dipakai saat eksekusi
+                    </Text>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: dateFields.length > 1 ? "repeat(auto-fit, minmax(190px, 1fr))" : "1fr", gap: 10 }}>
+                    {dateFields.map(field => (
+                      <div key={field}>
+                        <Text style={{ color: T.textSub, fontSize: 11, display: "block", marginBottom: 5 }}>
+                          {DATE_FIELD_LABELS[field] || field.replace(/_/g, " ")}
+                        </Text>
+                        <DatePicker
+                          value={normalizeActionDate(draftArgs[field])}
+                          onChange={value => updateActionDraftArg(msg.id, field, value ? value.format("YYYY-MM-DD") : null)}
+                          format="DD MMM YYYY"
+                          allowClear={false}
+                          style={{ width: "100%" }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Buttons */}
               {isPending && (
@@ -1290,8 +1738,167 @@ ${instr}
                     </div>
                   </div>
 
-                  {/* Chat messages area */}
-                  <div className="al-chat-area" style={{ background: T.chatBg }}>
+                  <div style={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden" }}>
+                    <div style={{
+                      width: isSessionPanelOpen ? 310 : 52,
+                      flexShrink: 0,
+                      borderRight: `1px solid ${T.borderGold}`,
+                      background: T.sidebarBg,
+                      transition: "width 0.22s ease",
+                      display: "flex",
+                      flexDirection: "column",
+                      overflow: "hidden",
+                    }}>
+                      <div style={{
+                        padding: isSessionPanelOpen ? "12px 12px 10px" : "12px 8px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 8,
+                        borderBottom: `1px solid ${T.border}`,
+                      }}>
+                        {isSessionPanelOpen ? (
+                          <>
+                            <div style={{ minWidth: 0 }}>
+                              <Text style={{ color: GOLD, fontSize: 11, fontWeight: 800, letterSpacing: "1px", display: "block" }}>
+                                RIWAYAT AGENT
+                              </Text>
+                              <Text style={{ color: T.textDim, fontSize: 10 }}>
+                                Terisolasi per user
+                              </Text>
+                            </div>
+                            <Tooltip title="Sembunyikan riwayat">
+                              <Button size="small" icon={<HistoryOutlined />} ghost onClick={() => setIsSessionPanelOpen(false)}
+                                style={{ borderColor: T.border, color: T.textSub }} />
+                            </Tooltip>
+                          </>
+                        ) : (
+                          <Tooltip title="Tampilkan riwayat chat">
+                            <Button size="small" icon={<HistoryOutlined />} ghost onClick={() => setIsSessionPanelOpen(true)}
+                              style={{ borderColor: T.border, color: GOLD, width: 36 }} />
+                          </Tooltip>
+                        )}
+                      </div>
+
+                      {isSessionPanelOpen && (
+                        <>
+                          <div style={{ padding: 12, borderBottom: `1px solid ${T.border}`, display: "flex", flexDirection: "column", gap: 10 }}>
+                            <div style={{
+                              padding: 11,
+                              borderRadius: 12,
+                              border: `1px solid ${T.borderGold}`,
+                              background: isDark ? "rgba(212,160,48,0.07)" : "rgba(255,248,224,0.75)",
+                            }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 7 }}>
+                                <LockOutlined style={{ color: GOLD, fontSize: 12 }} />
+                                <Text style={{ color: T.text, fontSize: 12, fontWeight: 800 }}>{roleScopeInfo.title}</Text>
+                              </div>
+                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                                <Tag style={{ margin: 0, background: `${GOLD}14`, border: `1px solid ${GOLD}40`, color: GOLD }}>
+                                  {String(callerProfile?.role || "-")}
+                                </Tag>
+                                <Tag style={{ margin: 0 }}>Gender: {callerProfile?.akses_gender || "ALL"}</Tag>
+                                <Tag style={{ margin: 0 }}>Jurusan: {callerProfile?.akses_jurusan || "ALL"}</Tag>
+                              </div>
+                              <div style={{ color: T.textSub, fontSize: 11, lineHeight: 1.55 }}>
+                                {roleScopeInfo.allowed.slice(0, 2).map(item => <div key={item}>• {item}</div>)}
+                                <div style={{ color: "#E05050", marginTop: 6 }}>{roleScopeInfo.denied}</div>
+                              </div>
+                            </div>
+
+                            <Button
+                              block
+                              icon={<PlusOutlined />}
+                              onClick={startNewAgentSession}
+                              style={{
+                                borderRadius: 10,
+                                borderColor: T.borderGold,
+                                color: GOLD,
+                                background: isDark ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.7)",
+                                fontWeight: 700,
+                              }}
+                            >
+                              Chat Baru
+                            </Button>
+                          </div>
+
+                          <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 10 }}>
+                            {sessionsLoading && agentSessions.length === 0 ? (
+                              <div style={{ display: "flex", justifyContent: "center", padding: 20 }}>
+                                <Spin size="small" />
+                              </div>
+                            ) : agentSessions.length === 0 ? (
+                              <div style={{ padding: 14, textAlign: "center", color: T.textDim, fontSize: 11 }}>
+                                Belum ada riwayat chat agent.
+                              </div>
+                            ) : (
+                              agentSessions.map(session => {
+                                const active = activeAgentSessionId === session.id;
+                                return (
+                                  <motion.div
+                                    key={session.id}
+                                    whileHover={{ x: 2 }}
+                                    style={{
+                                      padding: 10,
+                                      borderRadius: 12,
+                                      marginBottom: 8,
+                                      cursor: "pointer",
+                                      border: `1px solid ${active ? T.borderGold : T.border}`,
+                                      background: active
+                                        ? (isDark ? "rgba(212,160,48,0.12)" : "rgba(255,248,224,0.9)")
+                                        : (isDark ? "rgba(255,255,255,0.025)" : "rgba(255,255,255,0.62)"),
+                                    }}
+                                    onClick={() => openAgentSession(session)}
+                                  >
+                                    <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                                      <FolderOpenOutlined style={{ color: active ? GOLD : T.textSub, marginTop: 3 }} />
+                                      <div style={{ flex: 1, minWidth: 0 }}>
+                                        <Text style={{ color: T.text, fontSize: 12, fontWeight: 700, display: "block" }} ellipsis>
+                                          {session.title}
+                                        </Text>
+                                        <Text style={{ color: T.textDim, fontSize: 10 }} ellipsis>
+                                          {session.last_message_preview || "Belum ada pesan tersimpan"}
+                                        </Text>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 7 }}>
+                                          <Tag style={{ margin: 0, fontSize: 10 }}>{session.message_count || 0} pesan</Tag>
+                                          {session.action_count ? <Tag color="gold" style={{ margin: 0, fontSize: 10 }}>{session.action_count} aksi</Tag> : null}
+                                          <Text style={{ marginLeft: "auto", color: T.textDim, fontSize: 10 }}>
+                                            {dayjs(session.updated_at).format("DD MMM HH:mm")}
+                                          </Text>
+                                        </div>
+                                      </div>
+                                      <Tooltip title="Hapus sesi">
+                                        <Button
+                                          size="small"
+                                          type="text"
+                                          icon={<DeleteOutlined />}
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            Modal.confirm({
+                                              title: "Hapus sesi chat agent?",
+                                              content: "Riwayat pesan pada sesi ini akan dihapus hanya untuk akun Anda.",
+                                              okText: "Hapus",
+                                              okButtonProps: { danger: true },
+                                              cancelText: "Batal",
+                                              onOk: () => deleteAgentSession(session.id),
+                                            });
+                                          }}
+                                          style={{ color: "#E05050", flexShrink: 0 }}
+                                        />
+                                      </Tooltip>
+                                    </div>
+                                  </motion.div>
+                                );
+                              })
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                      {/* Chat messages area */}
+                      <div className="al-chat-area" style={{ background: T.chatBg }}>
                     {chatMessages.length === 0 && (
                       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
                         style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 20, padding: 32 }}>
@@ -1350,15 +1957,50 @@ ${instr}
                       </motion.div>
                     )}
                     <div ref={chatEndRef} />
-                  </div>
+                      </div>
 
-                  {/* Input Area */}
-                  <div style={{
-                    padding: "14px 24px 18px", flexShrink: 0,
-                    borderTop: `1px solid ${T.borderGold}`,
-                    background: isDark ? "rgba(0,0,0,0.25)" : "rgba(255,255,255,0.7)",
-                    backdropFilter: "blur(12px)",
-                  }}>
+                      {/* Input Area */}
+                      <div style={{
+                        padding: "14px 24px 18px", flexShrink: 0,
+                        borderTop: `1px solid ${T.borderGold}`,
+                        background: isDark ? "rgba(0,0,0,0.25)" : "rgba(255,255,255,0.7)",
+                        backdropFilter: "blur(12px)",
+                      }}>
+                    {lastAssistantAsksDate && (
+                      <div style={{
+                        marginBottom: 10,
+                        padding: 10,
+                        borderRadius: 12,
+                        border: `1px solid ${T.borderGold}`,
+                        background: isDark ? "rgba(212,160,48,0.07)" : "rgba(255,248,224,0.8)",
+                        display: "flex",
+                        gap: 10,
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                      }}>
+                        <Text style={{ color: GOLD, fontSize: 11, fontWeight: 800, letterSpacing: "0.8px" }}>
+                          PILIH TANGGAL
+                        </Text>
+                        <DatePicker
+                          value={agentQuickDate}
+                          onChange={setAgentQuickDate}
+                          format="DD MMM YYYY"
+                          style={{ minWidth: 180 }}
+                        />
+                        <Button
+                          size="small"
+                          type="primary"
+                          disabled={!agentQuickDate}
+                          onClick={applyQuickDateToAgentInput}
+                          style={{ border: "none", background: `linear-gradient(135deg,${GOLD} 0%,#7A5010 100%)`, fontWeight: 700 }}
+                        >
+                          Gunakan
+                        </Button>
+                        <Text style={{ color: T.textDim, fontSize: 11 }}>
+                          Format dikirim sebagai YYYY-MM-DD
+                        </Text>
+                      </div>
+                    )}
                     <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
                       <div style={{ flex: 1, position: "relative" }}>
                         <TextArea
@@ -1394,6 +2036,8 @@ ${instr}
                       <Text style={{ color: T.textDim, fontSize: 10, letterSpacing: "0.3px" }}>
                         Agent tidak dapat menghapus data · Semua aksi terlog di audit_logs · Selalu butuh konfirmasi Anda
                       </Text>
+                    </div>
+                      </div>
                     </div>
                   </div>
                 </motion.div>

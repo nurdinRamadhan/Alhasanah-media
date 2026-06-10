@@ -480,6 +480,7 @@ export interface ITransaksiKeuangan {
   status: StatusTransaksi;
   metode_pembayaran: string; // 'cash', 'bca', 'gopay'
   jenis_transaksi: JenisTransaksi;
+  kategori?: string | null;
   keterangan: string | null;
   created_at: string;
 

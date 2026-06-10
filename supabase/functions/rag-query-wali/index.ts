@@ -477,6 +477,12 @@ async function getChildContext(supabase: ReturnType<typeof createServiceClient>,
   }
 
   const tagihan = (tagihanResult.data || []) as Record<string, unknown>[];
+  const totalTagihan = sumNumber(tagihan, "nominal_tagihan");
+  const totalSisa = sumNumber(tagihan, "sisa_tagihan");
+  const totalTerbayar = tagihan.reduce(
+    (sum, item) => sum + Math.max(Number(item.nominal_tagihan || 0) - Number(item.sisa_tagihan || 0), 0),
+    0,
+  );
   const tahfidz = (tahfidzResult.data || []) as Record<string, unknown>[];
   const kitab = (kitabResult.data || []) as Record<string, unknown>[];
   const kesehatan = (kesehatanResult.data || []) as Record<string, unknown>[];
@@ -496,9 +502,11 @@ async function getChildContext(supabase: ReturnType<typeof createServiceClient>,
     },
     tagihan: {
       total_dokumen: tagihan.length,
-      total_nominal: sumNumber(tagihan, "nominal_tagihan"),
-      total_sisa: sumNumber(tagihan, "sisa_tagihan"),
+      total_nominal: totalTagihan,
+      total_terbayar: totalTerbayar,
+      total_sisa: totalSisa,
       status_count: groupCount(tagihan, "status"),
+      catatan: "Tagihan status CICILAN berarti sudah dibayar sebagian. total_terbayar dihitung dari nominal_tagihan - sisa_tagihan; total_sisa adalah piutang yang masih perlu dibayar.",
       terbaru: compactRows(tagihan, ["deskripsi_tagihan", "nominal_tagihan", "sisa_tagihan", "tanggal_jatuh_tempo", "status"], 8),
     },
     tahfidz: {

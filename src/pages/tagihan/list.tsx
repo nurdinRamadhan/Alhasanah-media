@@ -305,6 +305,35 @@ export const TagihanList = () => {
         0
     );
     const persentaseLunas = totalData > 0 ? Math.round((totalLunas / totalData) * 100) : 0;
+    const paymentRefById = new Map(paymentRefs.map((ref) => [Number(ref.id), ref]));
+    const paymentTypeSummary = filteredData.reduce((summary, item) => {
+        const ref = paymentRefById.get(Number(item.jenis_pembayaran_id));
+        const labelSource = `${ref?.nama_pembayaran || ""} ${item.deskripsi_tagihan || ""}`.toLowerCase();
+        const key = labelSource.includes("spp") || labelSource.includes("syahriah")
+            ? "spp"
+            : labelSource.includes("listrik")
+                ? "listrik"
+                : labelSource.includes("kas")
+                    ? "kas"
+                    : "lainnya";
+        const current = summary[key];
+        const nominal = Number(item.nominal_tagihan || 0);
+        const sisa = Number(item.sisa_tagihan || 0);
+        current.total += nominal;
+        current.paid += Math.max(nominal - sisa, 0);
+        current.remaining += item.status !== "LUNAS" ? sisa : 0;
+        current.count += 1;
+        if (item.status === "BELUM") current.belum += 1;
+        if (item.status === "CICILAN") current.cicilan += 1;
+        if (item.status === "LUNAS") current.lunas += 1;
+        return summary;
+    }, {
+        spp: { label: "SPP", total: 0, paid: 0, remaining: 0, count: 0, belum: 0, cicilan: 0, lunas: 0, color: "#B45309", icon: <WalletOutlined /> },
+        listrik: { label: "Listrik", total: 0, paid: 0, remaining: 0, count: 0, belum: 0, cicilan: 0, lunas: 0, color: "#2563EB", icon: <ThunderboltOutlined /> },
+        kas: { label: "Kas", total: 0, paid: 0, remaining: 0, count: 0, belum: 0, cicilan: 0, lunas: 0, color: "#059669", icon: <ShopOutlined /> },
+        lainnya: { label: "Lainnya", total: 0, paid: 0, remaining: 0, count: 0, belum: 0, cicilan: 0, lunas: 0, color: "#7C3AED", icon: <BarChartOutlined /> },
+    });
+    const paymentTypeSummaryRows = Object.values(paymentTypeSummary);
 
     // ══════════════════════════════════════════
     //  LOGIC 1 — BAYAR TUNAI
@@ -1495,6 +1524,125 @@ export const TagihanList = () => {
                     </Card>
                 </Col>
             </Row>
+
+            <Card
+                bordered={false}
+                bodyStyle={{ padding: "18px 20px" }}
+                style={{
+                    background: token.colorBgContainer,
+                    borderRadius: 16,
+                    boxShadow: G.shadow,
+                    border: G.cardBorder,
+                    overflow: "hidden",
+                }}
+            >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+                    <div>
+                        <div style={{
+                            fontSize: 10,
+                            fontWeight: 900,
+                            letterSpacing: "1.2px",
+                            textTransform: "uppercase",
+                            color: G.text,
+                        }}>
+                            Komposisi Jenis Tagihan
+                        </div>
+                        <div style={{ fontSize: 12, color: token.colorTextSecondary, marginTop: 3 }}>
+                            Pelacakan nominal terpenuhi dan sisa berdasarkan master pembayaran
+                        </div>
+                    </div>
+                    <div style={{
+                        fontSize: 11,
+                        fontWeight: 800,
+                        color: token.colorTextSecondary,
+                        background: token.colorFillQuaternary,
+                        border: `1px solid ${token.colorBorderSecondary}`,
+                        borderRadius: 999,
+                        padding: "5px 10px",
+                    }}>
+                        {filterMonth.format("MMMM YYYY")}
+                    </div>
+                </div>
+
+                <Row gutter={[12, 12]}>
+                    {paymentTypeSummaryRows.map((item) => {
+                        const progress = item.total > 0 ? Math.round((item.paid / item.total) * 100) : 0;
+                        return (
+                            <Col key={item.label} xs={24} sm={12} xl={6}>
+                                <div style={{
+                                    border: `1px solid ${token.colorBorderSecondary}`,
+                                    borderRadius: 13,
+                                    padding: "13px 14px",
+                                    background: token.colorFillQuaternary,
+                                    height: "100%",
+                                }}>
+                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                                            <div style={{
+                                                width: 30,
+                                                height: 30,
+                                                borderRadius: 8,
+                                                background: `${item.color}18`,
+                                                border: `1px solid ${item.color}30`,
+                                                color: item.color,
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                flexShrink: 0,
+                                            }}>
+                                                {item.icon}
+                                            </div>
+                                            <div style={{ minWidth: 0 }}>
+                                                <div style={{ fontSize: 13, fontWeight: 900, color: token.colorText, lineHeight: 1.1 }}>
+                                                    {item.label}
+                                                </div>
+                                                <div style={{ fontSize: 10, color: token.colorTextTertiary, marginTop: 2 }}>
+                                                    {item.count} dokumen
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div style={{ fontSize: 16, fontWeight: 900, color: item.color }}>
+                                            {progress}%
+                                        </div>
+                                    </div>
+
+                                    <Progress
+                                        percent={progress}
+                                        showInfo={false}
+                                        strokeColor={item.color}
+                                        trailColor={isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)"}
+                                        size="small"
+                                        style={{ marginBottom: 10 }}
+                                    />
+
+                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                                        <div>
+                                            <div style={{ fontSize: 9, color: token.colorTextTertiary, textTransform: "uppercase", fontWeight: 800 }}>
+                                                Terpenuhi
+                                            </div>
+                                            <div style={{ fontSize: 12, color: "#059669", fontWeight: 900 }}>
+                                                {formatRupiah(item.paid)}
+                                            </div>
+                                        </div>
+                                        <div style={{ textAlign: "right" }}>
+                                            <div style={{ fontSize: 9, color: token.colorTextTertiary, textTransform: "uppercase", fontWeight: 800 }}>
+                                                Sisa
+                                            </div>
+                                            <div style={{ fontSize: 12, color: item.remaining > 0 ? "#DC2626" : "#059669", fontWeight: 900 }}>
+                                                {formatRupiah(item.remaining)}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ marginTop: 9, fontSize: 10, color: token.colorTextSecondary }}>
+                                        {item.lunas} lunas · {item.cicilan} cicilan · {item.belum} belum
+                                    </div>
+                                </div>
+                            </Col>
+                        );
+                    })}
+                </Row>
+            </Card>
 
             {/* ══════════════════════════════════════
                 FILTER BAR
