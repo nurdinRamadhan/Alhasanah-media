@@ -36,13 +36,13 @@ const fadeUp = {
     hidden: { opacity: 0, y: 20 },
     visible: (i: number) => ({
         opacity: 1, y: 0,
-        transition: { delay: i * 0.08, duration: 0.4, ease: "easeOut" }
+        transition: { delay: i * 0.08, duration: 0.4, ease: "easeOut" as const }
     })
 };
 
 const scaleIn = {
     hidden: { opacity: 0, scale: 0.92 },
-    visible: { opacity: 1, scale: 1, transition: { duration: 0.35, ease: "easeOut" } }
+    visible: { opacity: 1, scale: 1, transition: { duration: 0.35, ease: "easeOut" as const } }
 };
 
 // ─── Animated Counter ─────────────────────────────────────────────────────────
@@ -431,7 +431,7 @@ export const NotificationList = () => {
                     absensi: { label: "Absensi", color: "cyan" },
                     manual: { label: "Manual", color: "geekblue" },
                 };
-                const cfg = labels[val] ?? { label: val || "Manual", color: "default" };
+                const cfg = labels[val as keyof typeof labels] ?? { label: val || "Manual", color: "default" };
                 return (
                     <Tag color={cfg.color} style={{ fontSize: 10, borderRadius: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4 }}>
                         {cfg.label}
@@ -733,7 +733,7 @@ export const NotificationList = () => {
                             defaultCollapsed: false,
                             searchText: "Terapkan Filter",
                             resetText: "Reset",
-                            span: { xs: 24, sm: 12, md: 8, lg: 6 },
+                            span: { xs: 24, sm: 12, md: 8, lg: 6, xl: 6, xxl: 6 },
                         }}
                         headerTitle={
                             <Space size={8}>
