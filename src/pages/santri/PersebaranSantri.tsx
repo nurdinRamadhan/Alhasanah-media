@@ -44,7 +44,7 @@ export default function PersebaranSantriPage() {
                 <Option value="2">Kelas 2</Option>
                 <Option value="3">Kelas 3</Option>
               </Select>
-              <Select placeholder="Semua Jurusan" allowClear style={{ width: "100%", marginTop: 8 }} onChange={(v)=>setJurusan(v ?? null)}>
+              <Select placeholder="Semua Takhasus" allowClear style={{ width: "100%", marginTop: 8 }} onChange={(v)=>setJurusan(v ?? null)}>
                 <Option value="KITAB">Kitab</Option>
                 <Option value="TAHFIDZ">Tahfidz</Option>
               </Select>

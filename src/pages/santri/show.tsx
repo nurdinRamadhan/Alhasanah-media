@@ -864,7 +864,7 @@ export const SantriShow = () => {
                                             value={<strong style={{ color: GOLD_BRIGHT, fontFamily: "'DM Mono', monospace", fontSize: 15 }}>{hafalanJuz} Juz</strong>} />
                                         <InfoRow isDark={isDark} token={token} label="Kitab Selesai" icon={<BookOutlined />}
                                             value={record.hafalan_kitab} />
-                                        <InfoRow isDark={isDark} token={token} label="Jurusan" icon={<AimOutlined />}
+                                        <InfoRow isDark={isDark} token={token} label="Takhasus" icon={<AimOutlined />}
                                             value={record.jurusan} />
                                     </Col>
                                     <Col xs={24} md={12}>
@@ -1223,7 +1223,7 @@ export const SantriShow = () => {
                             <table style={{ width: "100%", fontSize: "9.5pt", borderCollapse: "collapse" }}>
                                 <tbody>
                                     {([
-                                        [["Kelas",         record.kelas],              ["Takhasus/Jurusan", record.jurusan]],
+                                        [["Kelas",         record.kelas],              ["Takhasus", record.jurusan]],
                                         [["Status Santri", record.status_santri],      ["Tanggal Masuk", dayjs(record.created_at).format("DD MMMM YYYY")]],
                                         [["Pembimbing",    record.pembimbing || "—"],  null],
                                         [["Capaian Hafalan", `${hafalanJuz} Juz (${hafalanPct}%)`], ["Kitab Selesai", record.hafalan_kitab || "—"]],

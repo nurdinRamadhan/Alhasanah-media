@@ -483,6 +483,8 @@ export interface ITransaksiKeuangan {
   metode_pembayaran: string; // 'cash', 'bca', 'gopay'
   jenis_transaksi: JenisTransaksi;
   kategori?: string | null;
+  scope_gender?: string | null;
+  scope_jurusan?: string | null;
   keterangan: string | null;
   created_at: string;
 

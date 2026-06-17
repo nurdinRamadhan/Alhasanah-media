@@ -505,7 +505,7 @@ export const MurojaahShow: React.FC = () => {
 
                     {/* Meta */}
                     {[
-                        { label: "Jurusan", val: record.jurusan ?? "–" },
+                        { label: "Takhasus", val: record.jurusan ?? "–" },
                         { label: "Jenis kelamin", val: record.jenis_kelamin ?? "–" },
                     ].map(({ label, val }) => (
                         <div key={label} style={{ display: "flex", justifyContent: "space-between", width: "100%", fontSize: 12, padding: "4px 0", borderBottom: `1px solid ${isDark ? "#1E293B" : "#F1F5F9"}`, }}>

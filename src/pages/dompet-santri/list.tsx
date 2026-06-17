@@ -529,7 +529,7 @@ export const DompetSantriList = () => {
               <Descriptions column={{ xs: 1, md: 4 }} size="small" style={{ marginTop: 16 }}>
                 <Descriptions.Item label="Santri">{lookupResult.santri?.nama || lookupResult.santri_nis}</Descriptions.Item>
                 <Descriptions.Item label="Kelas">{lookupResult.santri?.kelas || "-"}</Descriptions.Item>
-                <Descriptions.Item label="Jurusan">{lookupResult.santri?.jurusan || "-"}</Descriptions.Item>
+                <Descriptions.Item label="Takhasus">{lookupResult.santri?.jurusan || "-"}</Descriptions.Item>
                 <Descriptions.Item label="Saldo">{money(lookupResult.saldo)}</Descriptions.Item>
               </Descriptions>
             )}

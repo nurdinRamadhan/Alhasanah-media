@@ -209,6 +209,8 @@ export const TransaksiList: React.FC = () => {
     const [statusFilter,setStatusFilter]= useState<string>("all");
     const [metodeFilter,setMetodeFilter]= useState<string>("all");
     const [kategoriFilter, setKategoriFilter] = useState<string>("all");
+    const [genderFilter, setGenderFilter] = useState<string>("all");
+    const [jurusanFilter, setJurusanFilter] = useState<string>("all");
     const [isExporting, setIsExporting] = useState(false);
 
     // ── Table Data ────────────────────────────────────────
@@ -229,6 +231,17 @@ export const TransaksiList: React.FC = () => {
 
     const rawData = tableQueryResult?.data?.data ?? [];
 
+    // Normalize metode_pembayaran to canonical filter key
+    const metodeKey = (m: string | null | undefined): string => {
+        const v = (m ?? "").toLowerCase();
+        if (["tunai", "cash"].includes(v)) return "cash";
+        if (v === "qris") return "qris";
+        if (["transfer", "bank_transfer"].includes(v)) return "bank_transfer";
+        if (v === "midtrans") return "midtrans";
+        if (v === "gopay") return "gopay";
+        return v || "cash";
+    };
+
     // ── Client-side multi-filter ──────────────────────────
     const filteredData = useMemo(() => {
         return rawData.filter(r => {
@@ -238,18 +251,13 @@ export const TransaksiList: React.FC = () => {
                 if (statusFilter === "pending" && !isPending(r.status_transaksi)) return false;
                 if (statusFilter === "gagal"   && !isFailed(r.status_transaksi))  return false;
             }
-            if (metodeFilter !== "all" && (r.metode_pembayaran?.toLowerCase() ?? "cash") !== metodeFilter) return false;
-            if (kategoriFilter !== "all") {
-                const isInfaq = r.keterangan?.toLowerCase().includes("infaq") ||
-                                r.keterangan?.toLowerCase().includes("wakaf") ||
-                                r.keterangan?.toLowerCase().includes("shadaqah") ||
-                                r.keterangan?.toLowerCase().includes("sedekah");
-                if (kategoriFilter === "tagihan" && isInfaq)  return false;
-                if (kategoriFilter === "infaq"   && !isInfaq) return false;
-            }
+            if (metodeFilter !== "all" && metodeKey(r.metode_pembayaran) !== metodeFilter) return false;
+            if (kategoriFilter !== "all" && (r.kategori ?? "") !== kategoriFilter) return false;
+            if (genderFilter !== "all" && (r.scope_gender ?? "") !== genderFilter) return false;
+            if (jurusanFilter !== "all" && (r.scope_jurusan ?? "") !== jurusanFilter) return false;
             return true;
         });
-    }, [rawData, jenisFilter, statusFilter, metodeFilter, kategoriFilter]);
+    }, [rawData, jenisFilter, statusFilter, metodeFilter, kategoriFilter, genderFilter, jurusanFilter]);
 
     // ── KPI Calculations ─────────────────────────────────
     const kpi = useMemo(() => {
@@ -262,12 +270,7 @@ export const TransaksiList: React.FC = () => {
         const netSaldo    = totalMasuk - totalKeluar;
 
         const infaqTotal  = sukses
-            .filter(r => r.jenis_transaksi === "masuk" && (
-                r.keterangan?.toLowerCase().includes("infaq") ||
-                r.keterangan?.toLowerCase().includes("wakaf") ||
-                r.keterangan?.toLowerCase().includes("shadaqah") ||
-                r.keterangan?.toLowerCase().includes("sedekah")
-            ))
+            .filter(r => r.jenis_transaksi === "masuk" && r.kategori === "donasi")
             .reduce((s,r) => s+Number(r.jumlah), 0);
 
         const tagihanTotal = totalMasuk - infaqTotal;
@@ -294,13 +297,15 @@ export const TransaksiList: React.FC = () => {
     }, [filteredData]);
 
     // Active filter count
-    const activeFilters = [jenisFilter, statusFilter, metodeFilter, kategoriFilter].filter(f => f !== "all").length;
+    const activeFilters = [jenisFilter, statusFilter, metodeFilter, kategoriFilter, genderFilter, jurusanFilter].filter(f => f !== "all").length;
 
     const resetFilters = () => {
         setJenisFilter("all");
         setStatusFilter("all");
         setMetodeFilter("all");
         setKategoriFilter("all");
+        setGenderFilter("all");
+        setJurusanFilter("all");
     };
 
     // ═══════════════════════════════════════════════════════
@@ -1229,7 +1234,29 @@ export const TransaksiList: React.FC = () => {
                                     options={[
                                         { label:"Semua Kategori", value:"all"      },
                                         { label:"📋 Tagihan",     value:"tagihan"  },
-                                        { label:"❤️ Infaq/Wakaf", value:"infaq"    },
+                                        { label:"❤️ Donasi",      value:"donasi"   },
+                                    ]}
+                                />
+                            </div>
+                            <div>
+                                <span className="gl-filter-label" style={{ color:isDark?GOLD_LIGHT:GOLD_DARK }}>Gender</span>
+                                <Select value={genderFilter} onChange={setGenderFilter} style={{ width:"100%" }}
+                                    options={[
+                                        { label:"Semua Gender", value:"all" },
+                                        { label:"👦 Laki-laki",  value:"L"  },
+                                        { label:"👧 Perempuan",  value:"P"  },
+                                        { label:"🌐 Global",     value:"ALL"},
+                                    ]}
+                                />
+                            </div>
+                            <div>
+                                <span className="gl-filter-label" style={{ color:isDark?GOLD_LIGHT:GOLD_DARK }}>Takhasus</span>
+                                <Select value={jurusanFilter} onChange={setJurusanFilter} style={{ width:"100%" }}
+                                    options={[
+                                        { label:"Semua Takhasus", value:"all"     },
+                                        { label:"📖 Tahfidz",     value:"TAHFIDZ" },
+                                        { label:"📚 Kitab",       value:"KITAB"   },
+                                        { label:"🌐 Global",      value:"ALL"    },
                                     ]}
                                 />
                             </div>

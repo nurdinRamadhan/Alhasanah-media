@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useTable } from "@refinedev/antd";
 import { logActivity } from "../../utility/logger";
 import { ProTable, ProColumns } from "@ant-design/pro-components";
@@ -38,14 +38,26 @@ const { useToken } = theme;
 // ═══════════════════════════════════
 // KATEGORI & SCOPE CONFIG
 // ═══════════════════════════════════
-const KATEGORI_LIST = ["OPERASIONAL", "DAPUR", "PEMBANGUNAN", "KEGIATAN", "LAINNYA"] as const;
+const KATEGORI_LIST = ["OPERASIONAL", "PENDIDIKAN", "SARANA", "KEGIATAN", "LAINNYA"] as const;
 
 const KATEGORI_META: Record<string, { color: string; antColor: string; icon: string }> = {
     OPERASIONAL:  { color: "#4EA8F8", antColor: "blue",   icon: "⚙️" },
-    DAPUR:        { color: "#F09840", antColor: "orange",  icon: "🍽️" },
-    PEMBANGUNAN:  { color: "#B07CF0", antColor: "purple",  icon: "🏗️" },
-    KEGIATAN:     { color: "#3DC97A", antColor: "cyan",    icon: "🎯" },
-    LAINNYA:      { color: "#D4AF37", antColor: "gold",    icon: "📋" },
+    PENDIDIKAN:   { color: "#7C3AED", antColor: "purple", icon: "📚" },
+    SARANA:       { color: "#F09840", antColor: "orange", icon: "🏗️" },
+    KEGIATAN:     { color: "#3DC97A", antColor: "cyan",   icon: "🎯" },
+    LAINNYA:      { color: "#D4AF37", antColor: "gold",   icon: "📋" },
+};
+
+const SCOPE_LABEL: Record<string, { label: string; color: string }> = {
+    "L-TAHFIDZ": { label: "Putra Tahfidz",  color: "#2563EB" },
+    "L-KITAB":   { label: "Putra Kitab",    color: "#7C3AED" },
+    "P-ALL":     { label: "Putri",           color: "#DC2626" },
+};
+
+const USER_SCOPE_LABEL = (u: IProfile | undefined): string => {
+    if (!u || ["super_admin", "rois", "dewan"].includes(u.role)) return "Semua Unit";
+    if (u.akses_gender === 'P') return "Putri";
+    return `Putra ${u.akses_jurusan === 'ALL' ? '' : u.akses_jurusan}`.trim() || "Putra";
 };
 
 const IDR = (n: number) =>
@@ -81,25 +93,31 @@ export const PengeluaranList = () => {
     const isDark = mode === "dark";
 
     // ── RBAC LOGIC (Scoping) ──────────────────────────
+    const isDewan = user?.role === 'dewan';
+    const isScopeFree = user?.role === 'super_admin' || user?.role === 'rois';
+
+    const autoScope = useMemo(() => {
+        if (!user || isScopeFree || isDewan) return null;
+        if (user.akses_gender === 'P') return 'P-ALL';
+        if (user.akses_gender === 'L' && user.akses_jurusan === 'TAHFIDZ') return 'L-TAHFIDZ';
+        if (user.akses_gender === 'L' && user.akses_jurusan === 'KITAB') return 'L-KITAB';
+        return null;
+    }, [user, isScopeFree, isDewan]);
+
     const jurisdictionFilters = useMemo((): CrudFilter[] => {
-        if (!user) return [];
-        // Eksekutif (Bypass)
-        if (["super_admin", "rois", "dewan"].includes(user.role)) return [];
+        if (!user || isScopeFree || isDewan) return [];
 
         const filters: CrudFilter[] = [];
-        // Aturan Putri Global
         if (user.akses_gender === 'P') {
             filters.push({ field: "scope_gender", operator: "eq", value: "P" });
-        } 
-        // Aturan Putra Scoped
-        else if (user.akses_gender === 'L') {
+        } else if (user.akses_gender === 'L') {
             filters.push({ field: "scope_gender", operator: "eq", value: "L" });
             if (user.akses_jurusan !== 'ALL') {
                 filters.push({ field: "scope_jurusan", operator: "eq", value: user.akses_jurusan });
             }
         }
         return filters;
-    }, [user]);
+    }, [user, isScopeFree, isDewan]);
 
     // ── Stat Card Component (Premium Style) ──────────────────
     const PremiumStatCard = ({ title, arabic, value, sub, icon, accent, delay = 0 }: any) => (
@@ -123,6 +141,7 @@ export const PengeluaranList = () => {
     // ── States ────────────────────────────────────────────────
     const [filterMonth,    setFilterMonth]    = useState<dayjs.Dayjs>(dayjs());
     const [filterKategori, setFilterKategori] = useState<string | null>(null);
+    const [filterScope,    setFilterScope]    = useState<string>(() => autoScope || "ALL");
     const [isModalOpen,    setIsModalOpen]    = useState(false);
     const [modalMode,      setModalMode]      = useState<"CREATE" | "EDIT">("CREATE");
     const [editingItem,    setEditingItem]    = useState<IPengeluaran | any>(null);
@@ -130,6 +149,15 @@ export const PengeluaranList = () => {
     const [uploading,      setUploading]      = useState(false);
     const [buktiUrl,       setBuktiUrl]       = useState<string | null>(null);
     const [deleteConfirm,  setDeleteConfirm]  = useState<number | null>(null);
+
+    // Auto-lock scope filter for restricted admins
+    const prevAutoScope = useRef(autoScope);
+    useEffect(() => {
+        if (autoScope && autoScope !== prevAutoScope.current) {
+            setFilterScope(autoScope);
+        }
+        prevAutoScope.current = autoScope;
+    }, [autoScope]);
 
     // ── Table Data ────────────────────────────────────────────
     const { tableProps, tableQueryResult } = useTable<IPengeluaran>({
@@ -146,8 +174,16 @@ export const PengeluaranList = () => {
         sorters: { initial: [{ field: "tanggal_pengeluaran", order: "desc" }] }
     });
 
+    const scopeMatch = (item: IPengeluaran): boolean => {
+        if (filterScope === "ALL") return true;
+        if (filterScope === "P-ALL") return item.scope_gender === 'P';
+        if (filterScope === "L-TAHFIDZ") return item.scope_gender === 'L' && item.scope_jurusan === 'TAHFIDZ';
+        if (filterScope === "L-KITAB") return item.scope_gender === 'L' && item.scope_jurusan === 'KITAB';
+        return true;
+    };
+
     const filteredData = (tableQueryResult?.data?.data ?? []).filter(item =>
-        !filterKategori || item.kategori === filterKategori
+        (!filterKategori || item.kategori === filterKategori) && scopeMatch(item)
     );
 
     // ── Statistik Scoped ─────────────────────────────────────
@@ -181,13 +217,14 @@ export const PengeluaranList = () => {
     const handleOpenCreate = () => {
         setModalMode("CREATE"); setEditingItem(null); setBuktiUrl(null);
         form.resetFields();
+        const gender = isScopeFree ? undefined : (user?.akses_gender === 'ALL' ? 'ALL' : user?.akses_gender);
+        const jurusan = isScopeFree ? undefined : (user?.akses_gender === 'P' ? 'ALL' : (user?.akses_jurusan === 'ALL' ? 'ALL' : user?.akses_jurusan));
         form.setFieldsValue({ 
             tanggal_pengeluaran: dayjs(), 
             kategori: "OPERASIONAL", 
             dicatat_oleh_nama: user?.full_name || user?.email,
-            // Pre-fill scope jika admin memiliki batasan
-            scope_gender: user?.akses_gender === 'ALL' ? 'ALL' : user?.akses_gender,
-            scope_jurusan: user?.akses_jurusan === 'ALL' ? 'ALL' : user?.akses_jurusan
+            scope_gender: gender,
+            scope_jurusan: jurusan,
         });
         setIsModalOpen(true);
     };
@@ -227,21 +264,6 @@ export const PengeluaranList = () => {
         try {
             if (modalMode === "CREATE") {
                 await createMutate({ resource: "pengeluaran", values: payload });
-                
-                // Sinkronisasi ke Jurnal Umum (Akan ditangani Trigger DB di masa depan, saat ini manual aman)
-                await createMutate({
-                    resource: "transaksi_keuangan",
-                    values: {
-                        jumlah: payload.nominal,
-                        tanggal_transaksi: payload.tanggal_pengeluaran + "T12:00:00Z",
-                        status_transaksi: "settlement",
-                        metode_pembayaran: "cash",
-                        jenis_transaksi: "keluar",
-                        admin_pencatat_id: user?.id,
-                        kategori: payload.kategori,
-                        keterangan: `[${payload.scope_gender}-${payload.scope_jurusan}] ${payload.judul}: ${payload.keterangan || ""}`
-                    }
-                });
 
                 logActivity({ user, action: "CREATE", resource: "pengeluaran", record_id: "-", details: { judul: String(payload.judul), nominal: Number(payload.nominal), scope: `${payload.scope_gender}/${payload.scope_jurusan}` } });
                 message.success("Pengeluaran berhasil dicatat");
@@ -303,12 +325,12 @@ export const PengeluaranList = () => {
         },
         {
             title: "Aksi", valueType: "option", width: 90, align: "center",
-            render: (_, record) => (
+            render: (_, record) => !isDewan ? (
                 <Space>
                     <Button size="small" type="text" icon={<EditOutlined />} onClick={() => handleOpenEdit(record)} />
                     <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => setDeleteConfirm(record.id as number)} />
                 </Space>
-            )
+            ) : null
         }
     ];
 
@@ -319,19 +341,28 @@ export const PengeluaranList = () => {
                 <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                     <div style={{ width: 50, height: 50, borderRadius: 13, background: "linear-gradient(135deg,#B45309 0%,#F59E0B 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, color: "#fff" }}><WalletOutlined /></div>
                     <div>
-                        <div style={{ fontSize: 20, fontWeight: 900, color: token.colorText }}>Kas Keluar ({user?.akses_jurusan || "Unit"})</div>
+                        <div style={{ fontSize: 20, fontWeight: 900, color: token.colorText, display: "flex", alignItems: "center", gap: 10 }}>
+                            Kas Keluar
+                            {!isDewan && (
+                                <Tag color="default" style={{ fontSize: 10, fontWeight: 700, borderRadius: 99, margin: 0 }}>
+                                    {USER_SCOPE_LABEL(user)}
+                                </Tag>
+                            )}
+                        </div>
                         <div style={{ fontSize: 11, color: token.colorTextSecondary }}>Monitoring Pengeluaran Unit Terfilter</div>
                     </div>
                 </div>
                 <Space>
                     <Button icon={<FilePdfOutlined />} onClick={() => message.info("Feature coming soon")}>PDF</Button>
-                    <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenCreate} style={{ background: "linear-gradient(135deg,#B45309 0%,#F59E0B 100%)", border: "none", fontWeight: 700 }}>Catat Pengeluaran</Button>
+                    {!isDewan && (
+                        <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenCreate} style={{ background: "linear-gradient(135deg,#B45309 0%,#F59E0B 100%)", border: "none", fontWeight: 700 }}>Catat Pengeluaran</Button>
+                    )}
                 </Space>
             </div>
 
             {/* STATS */}
             <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
-                <Col xs={24} sm={12} xl={6}><PremiumStatCard title="Total Keluar" value={IDR(totalBulanIni)} sub={filterMonth.format("MMMM YYYY")} icon={<WalletOutlined />} accent="#E8685A" /></Col>
+                <Col xs={24} sm={12} xl={6}><PremiumStatCard title="Total Keluar" value={IDR(totalBulanIni)} sub={SCOPE_LABEL[filterScope]?.label || filterMonth.format("MMMM YYYY")} icon={<WalletOutlined />} accent="#E8685A" /></Col>
                 <Col xs={24} sm={12} xl={6}><PremiumStatCard title="Keluar Hari Ini" value={IDR(totalHariIni)} sub={dayjs().format("DD MMM")} icon={<ClockCircleOutlined />} accent="#F09840" /></Col>
                 <Col xs={24} sm={12} xl={6}><PremiumStatCard title="Transaksi" value={`${jumlahTransaksi} Trx`} sub="Volume Bulan Ini" icon={<BarChartOutlined />} accent="#4EA8F8" /></Col>
                 <Col xs={24} sm={12} xl={6}><PremiumStatCard title="Terbesar" value={IDR(transaksiTerbesar)} sub="Rekor Nominal" icon={<FireOutlined />} accent="#B07CF0" /></Col>
@@ -340,7 +371,7 @@ export const PengeluaranList = () => {
             {/* CHARTS */}
             <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
                 <Col xs={24} xl={16}>
-                    <Card title="Tren Pengeluaran Unit" bordered={false} style={{ borderRadius: 16 }}>
+                    <Card title={`Tren Pengeluaran ${filterScope !== "ALL" ? `• ${SCOPE_LABEL[filterScope]?.label || ""}` : "Unit"}`} bordered={false} style={{ borderRadius: 16 }}>
                         <div style={{ height: 260 }}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={dailyChartData}>
@@ -355,7 +386,7 @@ export const PengeluaranList = () => {
                     </Card>
                 </Col>
                 <Col xs={24} xl={8}>
-                    <Card title="Distribusi Kategori" bordered={false} style={{ borderRadius: 16, height: "100%" }}>
+                    <Card title={`Distribusi ${filterScope !== "ALL" ? `• ${SCOPE_LABEL[filterScope]?.label || ""}` : "Kategori"}`} bordered={false} style={{ borderRadius: 16, height: "100%" }}>
                         <div style={{ height: 260 }}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
@@ -374,14 +405,25 @@ export const PengeluaranList = () => {
             {/* FILTER & TABLE */}
             <Card style={{ marginBottom: 16, borderRadius: 16 }}>
                 <Row gutter={16} align="bottom">
-                    <Col span={6}>
+                    <Col xs={24} sm={8} lg={6}>
                         <Text type="secondary" strong style={{ fontSize: 10 }}>PERIODE BULAN</Text>
                         <DatePicker.MonthPicker value={filterMonth} onChange={val => setFilterMonth(val || dayjs())} style={{ width: "100%", marginTop: 4 }} allowClear={false} />
                     </Col>
-                    <Col span={6}>
+                    <Col xs={24} sm={8} lg={6}>
                         <Text type="secondary" strong style={{ fontSize: 10 }}>KATEGORI</Text>
                         <Select placeholder="Semua" options={KATEGORI_LIST.map(k => ({ label: k, value: k }))} onChange={setFilterKategori} style={{ width: "100%", marginTop: 4 }} allowClear />
                     </Col>
+                    {isScopeFree && (
+                        <Col xs={24} sm={8} lg={6}>
+                            <Text type="secondary" strong style={{ fontSize: 10 }}>SCOPE UNIT</Text>
+                            <Select value={filterScope} onChange={setFilterScope} style={{ width: "100%", marginTop: 4 }}>
+                                <Select.Option value="ALL">Semua Unit</Select.Option>
+                                <Select.Option value="L-TAHFIDZ">Putra Tahfidz</Select.Option>
+                                <Select.Option value="L-KITAB">Putra Kitab</Select.Option>
+                                <Select.Option value="P-ALL">Putri</Select.Option>
+                            </Select>
+                        </Col>
+                    )}
                 </Row>
             </Card>
 
@@ -393,7 +435,7 @@ export const PengeluaranList = () => {
                     rowKey="id"
                     search={false}
                     pagination={{ pageSize: 10 }}
-                    headerTitle="Rincian Pengeluaran Unit"
+                    headerTitle={`Rincian Pengeluaran ${filterScope !== "ALL" ? `• ${SCOPE_LABEL[filterScope]?.label || ""}` : "Unit"}`}
                 />
             </div>
 
@@ -409,12 +451,12 @@ export const PengeluaranList = () => {
                     <Row gutter={16}>
                         <Col span={12}>
                             <Form.Item label="Target Gender" name="scope_gender" rules={[{ required: true }]}>
-                                <Select disabled={user?.akses_gender !== 'ALL'} options={[{ label: 'PUTRA', value: 'L' }, { label: 'PUTRI', value: 'P' }, { label: 'GLOBAL', value: 'ALL' }]} />
+                                <Select disabled={!isScopeFree && user?.akses_gender !== 'ALL'} options={[{ label: 'PUTRA', value: 'L' }, { label: 'PUTRI', value: 'P' }, { label: 'GLOBAL', value: 'ALL' }]} />
                             </Form.Item>
                         </Col>
                         <Col span={12}>
-                            <Form.Item label="Target Jurusan" name="scope_jurusan" rules={[{ required: true }]}>
-                                <Select disabled={user?.akses_jurusan !== 'ALL'} options={[{ label: 'KITAB', value: 'KITAB' }, { label: 'TAHFIDZ', value: 'TAHFIDZ' }, { label: 'GLOBAL', value: 'ALL' }]} />
+                            <Form.Item label="Target Takhasus" name="scope_jurusan" rules={[{ required: true }]}>
+                                <Select disabled={!isScopeFree && (user?.akses_gender === 'P' || user?.akses_jurusan !== 'ALL')} options={[{ label: 'KITAB', value: 'KITAB' }, { label: 'TAHFIDZ', value: 'TAHFIDZ' }, { label: 'GLOBAL', value: 'ALL' }]} />
                             </Form.Item>
                         </Col>
                     </Row>

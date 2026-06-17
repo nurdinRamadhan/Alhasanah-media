@@ -68,7 +68,7 @@ export const REPORT_DEFINITIONS: ReportDefinition[] = [
     label: "Database Santri",
     category: "Kesantrian",
     table: "santri",
-    description: "Data induk santri aktif/nonaktif berdasarkan kelas, jurusan, gender, dan status.",
+    description: "Data induk santri aktif/nonaktif berdasarkan kelas, takhasus, gender, dan status.",
     dateField: "created_at",
     statusField: "status_santri",
     formats: ["excel", "pdf"],

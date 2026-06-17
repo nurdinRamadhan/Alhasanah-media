@@ -138,7 +138,7 @@ export const HafalanKitabShow = () => {
                         <Col span={12}>
                             <table className="w-full">
                                 <tr><td>Kelas</td><td>:</td><td>{santri?.kelas}</td></tr>
-                                <tr><td>Jurusan</td><td>:</td><td>{santri?.jurusan}</td></tr>
+                                <tr><td>Takhasus</td><td>:</td><td>{santri?.jurusan}</td></tr>
                             </table>
                         </Col>
                     </Row>

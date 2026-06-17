@@ -778,7 +778,7 @@ export const MurojaahList: React.FC = () => {
                         icon={<TeamOutlined />}
                         value={totalSantri}
                         label="Total santri aktif"
-                        sub="Jurusan tahfidz"
+                        sub="Takhasus Tahfidz"
                         loading={summaryLoading}
                         isDark={isDark}
                     />

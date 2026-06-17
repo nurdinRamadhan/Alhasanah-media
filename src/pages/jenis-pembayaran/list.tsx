@@ -834,7 +834,7 @@ export const JenisPembayaranList: React.FC = () => {
                                     <div style={{ fontWeight: 700 }}>{record.santri?.nama || record.santri_nis}</div>
                                   </div>
                                   <div>
-                                    <Text type="secondary" style={{ fontSize: 12 }}>Kelas / Jurusan</Text>
+                                    <Text type="secondary" style={{ fontSize: 12 }}>Kelas / Takhasus</Text>
                                     <div style={{ fontWeight: 700 }}>
                                       Kelas {record.santri?.kelas || "-"} / {record.santri?.jurusan || "-"}
                                     </div>

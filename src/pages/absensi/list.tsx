@@ -505,7 +505,7 @@ export const AttendanceList: React.FC = () => {
             <SyncOutlined spin style={{ fontSize: 28, color: GOLD }} />
           </div>
         ) : typesData?.total === 0 ? (
-          <Empty description="Tidak ada tipe kegiatan tersedia untuk jurusan Anda" />
+          <Empty description="Tidak ada tipe kegiatan tersedia untuk takhasus Anda" />
         ) : (
           <Row gutter={[12, 12]}>
             {typesData?.data.map((type: any) => {

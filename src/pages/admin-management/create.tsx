@@ -123,7 +123,7 @@ export const CreateAdminPage = () => {
                                 </div>
                                 <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10">
                                     <Text strong className="text-white block mb-1 text-xs uppercase tracking-wider">Staff Operasional</Text>
-                                    <Text className="text-indigo-100 text-xs">Akses terbatas berdasarkan gender (Putra/Putri) dan jurusan.</Text>
+                                    <Text className="text-indigo-100 text-xs">Akses terbatas berdasarkan gender (Putra/Putri) dan takhasus.</Text>
                                 </div>
                             </div>
                         </div>

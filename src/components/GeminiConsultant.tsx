@@ -178,7 +178,7 @@ const ROLE_SCOPE_COPY: Record<string, { title: string; allowed: string[]; denied
   },
   dewan: {
     title: "Scope dewan baca saja",
-    allowed: ["Query dan analisis data lintas modul sesuai scope gender/jurusan", "Tidak menjalankan action yang mengubah database"],
+    allowed: ["Query dan analisis data lintas modul sesuai scope gender/takhasus", "Tidak menjalankan action yang mengubah database"],
     denied: "Semua action eksekusi akan ditolak otomatis karena role ini read-only.",
   },
   alumni: {
@@ -1798,7 +1798,7 @@ ${instr}
                                   {String(callerProfile?.role || "-")}
                                 </Tag>
                                 <Tag style={{ margin: 0 }}>Gender: {callerProfile?.akses_gender || "ALL"}</Tag>
-                                <Tag style={{ margin: 0 }}>Jurusan: {callerProfile?.akses_jurusan || "ALL"}</Tag>
+                                <Tag style={{ margin: 0 }}>Takhasus: {callerProfile?.akses_jurusan || "ALL"}</Tag>
                               </div>
                               <div style={{ color: T.textSub, fontSize: 11, lineHeight: 1.55 }}>
                                 {roleScopeInfo.allowed.slice(0, 2).map(item => <div key={item}>• {item}</div>)}

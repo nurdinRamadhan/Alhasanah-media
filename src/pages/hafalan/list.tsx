@@ -123,7 +123,7 @@ const KPISummaryBar: React.FC<{
             value: loading ? "…" : total,
             icon: <TeamOutlined />,
             accent: "#2563EB",
-            sub: "jurusan Tahfidz",
+            sub: "Takhasus Tahfidz",
         },
         {
             label: "Rata-rata Hafalan",

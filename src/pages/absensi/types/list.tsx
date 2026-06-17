@@ -97,10 +97,10 @@ const AttendanceTypeFormFields: React.FC = () => {
         </Col>
       </Row>
 
-      <Form.Item label="Target Jurusan (Scope)" name="target_jurusan">
+      <Form.Item label="Target Takhasus (Scope)" name="target_jurusan">
         <Select
           allowClear
-          placeholder="Kosongkan jika untuk semua jurusan"
+          placeholder="Kosongkan jika untuk semua takhasus"
           style={{ borderRadius: 8 }}
           options={[
             { label: "Tahfidz", value: "TAHFIDZ" },
@@ -231,7 +231,7 @@ export const AttendanceTypesList: React.FC = () => {
       },
     },
     {
-      title: "Target Jurusan",
+      title: "Target Takhasus",
       dataIndex: "target_jurusan",
       key: "target_jurusan",
       width: 150,
