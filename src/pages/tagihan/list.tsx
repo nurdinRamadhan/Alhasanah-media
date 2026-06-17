@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { useTable, useSelect } from "@refinedev/antd";
 import { ProTable, ProColumns } from "@ant-design/pro-components";
 import {
@@ -14,8 +14,8 @@ import {
     ThunderboltOutlined, DeleteOutlined, BarChartOutlined,
     ClockCircleOutlined, ExclamationCircleOutlined,
 } from "@ant-design/icons";
-import { IRefJenisPembayaran, ITagihanSantri, ISantri, IPembayaranTagihan, StatusTagihan } from "../../types";
-import { useNavigation, useDelete } from "@refinedev/core";
+import { IRefJenisPembayaran, ITagihanSantri, ISantri, IPembayaranTagihan, StatusTagihan, IUserIdentity } from "../../types";
+import { useNavigation, useDelete, useGetIdentity } from "@refinedev/core";
 import { formatHijri, formatMasehi } from "../../utility/dateHelper";
 import { santriAlias } from "../../utility/privacy";
 import { buildSpecialRateMap, loadSpecialRates, resolveNominalWithSpecialRate } from "../../utility/paymentRates";
@@ -90,6 +90,29 @@ export const TagihanList = () => {
     const [filterKelas, setFilterKelas] = useState<string | null>(null);
     const [filterJurusan, setFilterJurusan] = useState<string | null>(null);
     const [filterStatus, setFilterStatus] = useState<StatusTagihan | null>(null);
+    const [filterGender, setFilterGender] = useState<string | null>(null);
+
+    // ── RBAC Scoping ──────────────────────────
+    const { data: user } = useGetIdentity<IUserIdentity>();
+
+    const scope = useMemo(() => {
+        if (!user) return { restricted: false, lockedGender: null as string | null, lockedJurusan: null as string | null };
+        if (["super_admin", "rois", "dewan"].includes(user.role)) return { restricted: false, lockedGender: null, lockedJurusan: null };
+        if (user.scopeGender === 'P') return { restricted: true, lockedGender: 'P', lockedJurusan: 'ALL' };
+        if (user.scopeGender === 'L') return { restricted: true, lockedGender: 'L', lockedJurusan: user.scopeJurusan };
+        return { restricted: false, lockedGender: null, lockedJurusan: null };
+    }, [user]);
+
+    useEffect(() => {
+        if (scope.restricted) {
+            if (scope.lockedGender) setFilterGender(scope.lockedGender);
+            if (scope.lockedJurusan && scope.lockedJurusan !== 'ALL') {
+                setFilterJurusan(scope.lockedJurusan);
+            } else {
+                setFilterJurusan(null);
+            }
+        }
+    }, [scope]);
 
     // ── Table Config ─────────────────────────
     const { tableProps, tableQueryResult } = useTable<ITagihanSantri>({
@@ -110,7 +133,7 @@ export const TagihanList = () => {
                 },
             ],
         },
-        meta: { select: "*, santri!inner(nama, nis, kelas, jurusan, wali_id)" },
+        meta: { select: "*, santri!inner(nama, nis, kelas, jurusan, wali_id, jenis_kelamin)" },
         sorters: { initial: [{ field: "created_at", order: "desc" }] },
         pagination: { mode: "client", pageSize: 50 },
     });
@@ -122,6 +145,7 @@ export const TagihanList = () => {
             if (filterKelas && item.santri?.kelas !== filterKelas) pass = false;
             if (filterJurusan && item.santri?.jurusan !== filterJurusan) pass = false;
             if (filterStatus && item.status !== filterStatus) pass = false;
+            if (filterGender && item.santri?.jenis_kelamin !== filterGender) pass = false;
             return pass;
         }) || [];
 
@@ -1726,11 +1750,32 @@ export const TagihanList = () => {
                             <Select
                                 allowClear placeholder="Semua Takhasus"
                                 style={{ width: "100%" }}
+                                value={filterJurusan}
+                                disabled={scope.restricted}
                                 options={[
                                     { label: "Tahfidz", value: "TAHFIDZ" },
                                     { label: "Kitab", value: "KITAB" },
                                 ]}
-                                onChange={setFilterJurusan}
+                                onChange={(val) => setFilterJurusan(val as string | null)}
+                            />
+                        </div>
+                        <div style={{ minWidth: 155 }}>
+                            <div style={{
+                                fontSize: 9, fontWeight: 800, letterSpacing: "1px",
+                                textTransform: "uppercase", color: token.colorTextTertiary, marginBottom: 5,
+                            }}>
+                                Gender
+                            </div>
+                            <Select
+                                allowClear placeholder="Semua Gender"
+                                style={{ width: "100%" }}
+                                value={filterGender}
+                                disabled={scope.restricted}
+                                options={[
+                                    { label: "Laki-laki", value: "L" },
+                                    { label: "Perempuan", value: "P" },
+                                ]}
+                                onChange={(val) => setFilterGender(val as string | null)}
                             />
                         </div>
                         <div style={{ minWidth: 155 }}>
@@ -1744,6 +1789,7 @@ export const TagihanList = () => {
                                 allowClear
                                 placeholder="Semua Status"
                                 style={{ width: "100%" }}
+                                value={filterStatus}
                                 options={[
                                     { label: "Belum", value: "BELUM" },
                                     { label: "Cicilan", value: "CICILAN" },

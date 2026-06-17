@@ -68,8 +68,12 @@ export const accessControlProvider: AccessControlProvider = {
             if (targetResource === "rag_knowledge" && ["list", "show"].includes(action || "")) {
                 return { can: true };
             }
+            // Dewan diizinkan CRUD untuk modul absensi
+            if (["attendance_sessions", "attendance_types"].includes(targetResource)) {
+                return { can: true };
+            }
             if (["create", "edit", "delete"].includes(action || "")) {
-                return { can: false, reason: "Dewan hanya memiliki akses pemantauan (Read-Only)." };
+                return { can: false, reason: "Dewan hanya memiliki akses pemantauan (Read-Only) pada modul lain." };
             }
         }
         return { can: true };
@@ -83,10 +87,15 @@ export const accessControlProvider: AccessControlProvider = {
             "prestasi_santri", "akademik_menu", "tahfidz_menu", "hafalan_tahfidz", "murojaah_tahfidz", "hafalan_kitab",
             "ulangan_menu", "weekly_tests", "ulangan_arsip",
             "santri", "diklat", "berita", "komunikasi_menu", "alumni_menu", "alumni_data", "forum_reports", "chat_monitoring",
-            "forum_threads", "forum_comments", "forum_moderation_actions"
+            "forum_threads", "forum_comments", "forum_moderation_actions",
+            "attendance_sessions" // Izin untuk fitur absensi
         ];
         
         if (allowedKesantrian.includes(targetResource)) {
+            // Kesantrian tidak diizinkan akses attendance_types
+            if (targetResource === "attendance_types") {
+                return { can: false, reason: "Akses ditolak. Pengaturan tipe absensi khusus Dewan/Rois/Admin." };
+            }
             return { can: true };
         }
         return { can: false, reason: "Akses ditolak. Khusus Kesantrian." };

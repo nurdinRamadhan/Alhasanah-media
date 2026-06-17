@@ -417,6 +417,8 @@ export interface IPengeluaran {
     bukti_url: string;
     dicatat_oleh_id: string;
     dicatat_oleh_nama: string;
+    scope_gender: TGenderScope;
+    scope_jurusan: TJurusanScope;
 }
 
 export interface IAuditLog {

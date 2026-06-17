@@ -78,7 +78,9 @@ import {
   DashboardPage, InstansiPage, SantriList, SantriCreate, SantriEdit, SantriShow, 
   PersebaranSantriPage, PelanggaranList, PelanggaranCreate, PelanggaranEdit, 
   PerizinanList, PerizinanCreate, PerizinanEdit, KesehatanList, KesehatanCreate, 
-  KesehatanEdit, PrestasiList, HafalanList, HafalanCreate, HafalanEdit, HafalanShow,
+  KesehatanEdit, PrestasiList, 
+  AttendanceList, AttendanceShow, AttendanceTypesList,
+  HafalanList, HafalanCreate, HafalanEdit, HafalanShow,
   BeritaList, BeritaCreate, BeritaEdit, InventarisList, InventarisCreate, 
   InventarisShow, TagihanList, TagihanCreate, TagihanEdit, TransaksiList, 
   JenisPembayaranList, TransaksiCreate, DompetSantriList, DompetOperasionalList, DompetSecurityAuditList, KantinManagementList,
@@ -1189,6 +1191,12 @@ const InnerApp: React.FC = () => {
                   <Route path="edit/:id" element={<KesehatanEdit />}  />
                 </Route>
                 <Route path="/prestasi" element={<PrestasiList />} />
+
+                <Route path="/absensi">
+                  <Route index          element={<AttendanceList />}   />
+                  <Route path="show/:id" element={<AttendanceShow />}  />
+                  <Route path="types"   element={<AttendanceTypesList />} />
+                </Route>
 
                 <Route path="/hafalan">
                   <Route index          element={<HafalanList />}   />

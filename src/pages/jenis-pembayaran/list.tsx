@@ -953,7 +953,7 @@ export const JenisPembayaranList: React.FC = () => {
         onOk={handleSubmit}
         okText="Simpan"
         confirmLoading={saving}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" preserve={false}>
           <Form.Item

@@ -85,6 +85,15 @@ export const formatDualDate = (date?: string | Date | dayjs.Dayjs): string => {
 };
 
 /**
+ * Format date to full Indonesian format with day name
+ * Example: Senin, 19 April 2026
+ */
+export const formatFullDate = (date?: string | Date | dayjs.Dayjs): string => {
+    if (!date) return "-";
+    return dayjs(date).tz().format("dddd, DD MMMM YYYY");
+};
+
+/**
  * Export dayjs instance for custom usage
  */
 export { dayjs };

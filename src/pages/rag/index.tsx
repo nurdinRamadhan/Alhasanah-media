@@ -998,7 +998,7 @@ export const RagKnowledgePage: React.FC = () => {
         okText="Proses Embedding"
         confirmLoading={ingesting}
         width={760}
-        destroyOnClose
+        destroyOnHidden
         footer={[
           <Button key="cancel" onClick={() => setModalOpen(false)}>
             Batal

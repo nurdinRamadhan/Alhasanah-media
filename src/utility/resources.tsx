@@ -47,6 +47,10 @@ export const resources: ResourceProps[] = [
     meta:{ label:"Master Data Diklat", parent:"diklat", icon:<SettingOutlined /> } },
 
   { name:"kesantrian_menu", meta:{ label:"Kesantrian", icon:<TeamOutlined /> } },
+  { name:"attendance_sessions", list:"/absensi", show:"/absensi/show/:id",
+    meta:{ label:"Absensi Santri", parent:"kesantrian_menu", icon:<ProjectOutlined /> } },
+  { name:"attendance_types", list:"/absensi/types",
+    meta:{ label:"Tipe Kegiatan", parent:"kesantrian_menu", icon:<SettingOutlined /> } },
   { name:"pelanggaran_santri", list:"/pelanggaran", create:"/pelanggaran/create", edit:"/pelanggaran/edit/:id",
     meta:{ label:"Pelanggaran", parent:"kesantrian_menu", icon:<WarningOutlined /> } },
   { name:"perizinan_santri", list:"/perizinan", create:"/perizinan/create", edit:"/perizinan/edit/:id",

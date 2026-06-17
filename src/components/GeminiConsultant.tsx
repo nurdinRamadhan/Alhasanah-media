@@ -1394,7 +1394,7 @@ ${instr}
         footer={null}
         width={1220}
         centered
-        destroyOnClose={false}
+        destroyOnHidden={false}
         styles={{
           body:    { height: "740px", padding: 0, overflow: "hidden" },
           mask:    { backdropFilter: "blur(12px)", background: "rgba(0,0,0,0.7)" },

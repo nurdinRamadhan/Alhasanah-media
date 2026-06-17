@@ -7,7 +7,7 @@ import { ProTable, ProColumns } from "@ant-design/pro-components";
 import {
     ArrowLeftOutlined, UserOutlined, FireOutlined,
     BookOutlined, TrophyOutlined, BarChartOutlined,
-    RiseOutlined, CalendarOutlined,
+    CalendarOutlined, RiseOutlined,
 } from "@ant-design/icons";
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
@@ -76,6 +76,9 @@ const hexLum = (hex: string): number => {
     const b = parseInt(c.slice(4, 6), 16);
     return 0.299 * r + 0.587 * g + 0.114 * b;
 };
+
+const toYMD = (d: Date): string =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 /** Build all analytics from raw aggregate rows */
 function buildAggregates(rows: { tanggal: string | null; jenis_murojaah: string | null; juz: number | null; predikat: string | null }[]): AggregateData {
@@ -169,6 +172,103 @@ function buildAggregates(rows: { tanggal: string | null; jenis_murojaah: string 
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
+/** GitHub-style contribution heatmap */
+const ConsistencyHeatmap: React.FC<{ activeDates: Set<string>; allDates: Map<string, number> }> = ({ allDates }) => {
+    const now = new Date();
+    const startDate = new Date(now);
+    startDate.setFullYear(startDate.getFullYear() - 1);
+    // Align to Sunday
+    startDate.setDate(startDate.getDate() - startDate.getDay());
+
+    const weeks: { date: string; count: number }[][] = [];
+    let current = new Date(startDate);
+    while (current <= now) {
+        const week: { date: string; count: number }[] = [];
+        for (let d = 0; d < 7; d++) {
+            const ymd = toYMD(current);
+            week.push({ date: ymd, count: allDates.get(ymd) ?? 0 });
+            current.setDate(current.getDate() + 1);
+        }
+        weeks.push(week);
+    }
+
+    const getColor = (count: number): string => {
+        if (count === 0) return "var(--hm-0)";
+        if (count === 1) return "var(--hm-1)";
+        if (count <= 3) return "var(--hm-2)";
+        return "var(--hm-3)";
+    };
+
+    // Month labels
+    const monthLabels: { label: string; weekIndex: number }[] = [];
+    weeks.forEach((week, wi) => {
+        const firstDay = new Date(week[0].date);
+        if (firstDay.getDate() <= 7) {
+            monthLabels.push({ label: MONTH_ID[firstDay.getMonth()], weekIndex: wi });
+        }
+    });
+
+    return (
+        <div style={{ overflowX: "auto" }}>
+            <style>{`
+                :root {
+                    --hm-0: color-mix(in srgb, currentColor 8%, transparent);
+                    --hm-1: #c4b5fd;
+                    --hm-2: #a78bfa;
+                    --hm-3: #7c3aed;
+                }
+                @media (prefers-color-scheme: dark) {
+                    :root {
+                        --hm-0: color-mix(in srgb, currentColor 12%, transparent);
+                        --hm-1: #3b0764;
+                        --hm-2: #6d28d9;
+                        --hm-3: #a78bfa;
+                    }
+                }
+            `}</style>
+            {/* Month labels */}
+            <div style={{ display: "flex", marginBottom: 4, paddingLeft: 0 }}>
+                {weeks.map((_, wi) => {
+                    const lbl = monthLabels.find((m) => m.weekIndex === wi);
+                    return (
+                        <div key={wi} style={{ width: 12, flexShrink: 0, fontSize: 9, color: "var(--ant-color-text-secondary)", whiteSpace: "nowrap" }}>
+                            {lbl ? lbl.label : ""}
+                        </div>
+                    );
+                })}
+            </div>
+            {/* Grid */}
+            <div style={{ display: "flex", gap: 2 }}>
+                {weeks.map((week, wi) => (
+                    <div key={wi} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                        {week.map((cell) => (
+                            <Tooltip key={cell.date} title={`${cell.date}: ${cell.count} sesi`} placement="top">
+                                <div
+                                    style={{
+                                        width: 10,
+                                        height: 10,
+                                        borderRadius: 2,
+                                        backgroundColor: getColor(cell.count),
+                                        cursor: cell.count > 0 ? "pointer" : "default",
+                                    }}
+                                />
+                            </Tooltip>
+                        ))}
+                    </div>
+                ))}
+            </div>
+            {/* Legend */}
+            <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 8, fontSize: 10, color: "var(--ant-color-text-tertiary)" }}>
+                <span>Kurang</span>
+                {[0, 1, 2, 3].map((lvl) => (
+                    <div key={lvl} style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: getColor(lvl === 0 ? 0 : lvl) }} />
+                ))}
+                <span>Intensif</span>
+            </div>
+        </div>
+    );
+};
+
 /** Juz coverage map 1–30 */
 const JuzMap: React.FC<{ juzFreq: Record<number, number> }> = ({ juzFreq }) => {
     const max = Math.max(...Object.values(juzFreq), 1);
@@ -182,18 +282,18 @@ const JuzMap: React.FC<{ juzFreq: Record<number, number> }> = ({ juzFreq }) => {
     };
 
     return (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: 2 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: 4 }}>
             {Array.from({ length: 30 }, (_, i) => i + 1).map((juz) => (
                 <Tooltip key={juz} title={`Juz ${juz}: ${juzFreq[juz] ?? 0}× murojaah`} placement="top">
                     <div
                         style={{
-                            height: 24,
-                            borderRadius: 3,
+                            aspectRatio: "1",
+                            borderRadius: 4,
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            fontSize: 8,
-                            fontWeight: 600,
+                            fontSize: 9,
+                            fontWeight: 500,
                             cursor: "pointer",
                             transition: "transform 0.12s",
                             ...getJuzStyle(juz),
@@ -571,35 +671,25 @@ export const MurojaahShow: React.FC = () => {
                         />
                     </div>
 
-                    {/* Sebaran juz */}
-                    <div style={{ ...card, padding: "12px 16px" }}>
-                        <SectionLabel icon={<BookOutlined style={{ fontSize: 12 }} />} label="Sebaran juz yang dimurojaahkan" />
-                        {aggLoading ? <Spin /> : agg ? (
-                            <>
-                                <JuzMap juzFreq={agg.juzFreq} />
-                                <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 8, fontSize: 10, color: "var(--ant-color-text-tertiary)" }}>
-                                    <span>Belum</span>
-                                    {[
-                                        "var(--ant-color-fill-quaternary)",
-                                        "#ede9fe", "#c4b5fd", "#7c3aed",
-                                    ].map((bg, i) => (
-                                        <div key={i} style={{ width: 8, height: 8, borderRadius: 2, background: bg }} />
-                                    ))}
-                                    <span>Sering</span>
-                                </div>
-                            </>
-                        ) : null}
+                    {/* Heatmap */}
+                    <div style={card}>
+                        <SectionLabel icon={<CalendarOutlined style={{ fontSize: 13 }} />} label="Heatmap konsistensi — 12 bulan terakhir" />
+                        {aggLoading ? (
+                            <div style={{ display: "flex", justifyContent: "center", padding: 24 }}><Spin /></div>
+                        ) : agg ? (
+                            <ConsistencyHeatmap activeDates={agg.heatmapDates} allDates={dateCountMap} />
+                        ) : (
+                            <Text type="secondary" style={{ fontSize: 12 }}>Tidak ada data.</Text>
+                        )}
                     </div>
                 </div>
             </div>
 
             {/* ── Analytics row ── */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 24 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 24 }}>
 
-                {/* Row 1: Predikat + Jenis | Tren aktivitas */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-
-                    {/* Left: Predikat + Jenis */}
+                {/* Left: Predikat + Jenis */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                     <div style={card}>
                         <SectionLabel icon={<TrophyOutlined style={{ fontSize: 13 }} />} label="Distribusi predikat" />
                         {aggLoading ? <Spin /> : agg ? (
@@ -631,12 +721,37 @@ export const MurojaahShow: React.FC = () => {
                         )}
                     </div>
 
-                    {/* Right: Tren aktivitas */}
+                    <div style={card}>
+                        <SectionLabel icon={<BookOutlined style={{ fontSize: 13 }} />} label="Sebaran juz yang dimurojaahkan" />
+                        <Text type="secondary" style={{ fontSize: 11, display: "block", marginBottom: 8 }}>
+                            Juz 1–30 · warna = frekuensi murojaah
+                        </Text>
+                        {aggLoading ? <Spin /> : agg ? (
+                            <>
+                                <JuzMap juzFreq={agg.juzFreq} />
+                                <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 10, fontSize: 10, color: "var(--ant-color-text-tertiary)" }}>
+                                    <span>Belum</span>
+                                    {[
+                                        "var(--ant-color-fill-quaternary)",
+                                        "#ede9fe", "#c4b5fd", "#7c3aed",
+                                    ].map((bg, i) => (
+                                        <div key={i} style={{ width: 10, height: 10, borderRadius: 2, background: bg }} />
+                                    ))}
+                                    <span>Sering</span>
+                                </div>
+                            </>
+                        ) : null}
+                    </div>
+                </div>
+
+                {/* Right: Monthly trend chart + Log */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                     <div style={card}>
                         <SectionLabel icon={<RiseOutlined style={{ fontSize: 13 }} />} label="Tren aktivitas — 6 bulan terakhir" />
                         {aggLoading ? <Spin /> : agg && agg.monthlyTrend.length > 0 ? (
                             <>
-                                <div style={{ display: "flex", gap: 16, marginBottom: 10, fontSize: 11, color: token.colorTextSecondary }}>
+                                {/* Custom legend */}
+                                <div style={{ display: "flex", gap: 16, marginBottom: 10, fontSize: 11, color: "var(--ant-color-text-secondary)" }}>
                                     {[{ color: "#3b82f6", label: "Sabaq" }, { color: "#a78bfa", label: "Manzil" }].map(({ color, label }) => (
                                         <span key={label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
                                             <span style={{ width: 10, height: 10, borderRadius: 2, background: color, display: "inline-block" }} />
@@ -662,42 +777,42 @@ export const MurojaahShow: React.FC = () => {
                             <Text type="secondary" style={{ fontSize: 12 }}>Belum ada data tren.</Text>
                         )}
                     </div>
-                </div>
 
-                {/* Row 2: Full width — Log table */}
-                <div style={{ ...card, padding: 0, overflow: "hidden", flex: 1 }}>
-                    <ProTable<MurojaahRow>
-                        columns={columns}
-                        rowKey="id"
-                        search={false}
-                        options={{ density: true, reload: true }}
-                        headerTitle={
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 600, color: token.colorTextSecondary, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                                <BookOutlined style={{ fontSize: 13 }} />
-                                <span>Log Murojaah</span>
-                            </div>
-                        }
-                        request={async (params) => {
-                            const current = params.current || 1;
-                            const pageSize = params.pageSize || 15;
-                            const from = (current - 1) * pageSize;
-                            const to = from + pageSize - 1;
+                    {/* Log table */}
+                    <div style={{ ...card, padding: 0, overflow: "hidden", flex: 1 }}>
+                        <ProTable<MurojaahRow>
+                            columns={columns}
+                            rowKey="id"
+                            search={false}
+                            options={{ density: true, reload: true }}
+                            headerTitle={
+                                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 600, color: token.colorTextSecondary, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                    <BookOutlined style={{ fontSize: 13 }} />
+                                    <span>Log Murojaah</span>
+                                </div>
+                            }
+                            request={async (params) => {
+                                const current = params.current || 1;
+                                const pageSize = params.pageSize || 15;
+                                const from = (current - 1) * pageSize;
+                                const to = from + pageSize - 1;
 
-                            const { data, error, count } = await supabaseClient
-                                .from("murojaah_tahfidz")
-                                .select("id,tanggal,jenis_murojaah,juz,surat,ayat_awal,ayat_akhir,halaman_awal,halaman_akhir,predikat,catatan", { count: "exact" })
-                                .eq("santri_nis", id)
-                                .order("tanggal", { ascending: false })
-                                .order("id", { ascending: false })
-                                .range(from, to);
+                                const { data, error, count } = await supabaseClient
+                                    .from("murojaah_tahfidz")
+                                    .select("id,tanggal,jenis_murojaah,juz,surat,ayat_awal,ayat_akhir,halaman_awal,halaman_akhir,predikat,catatan", { count: "exact" })
+                                    .eq("santri_nis", id)
+                                    .order("tanggal", { ascending: false })
+                                    .order("id", { ascending: false })
+                                    .range(from, to);
 
-                            if (error) return { data: [], success: false, total: 0 };
-                            return { data: (data || []) as MurojaahRow[], success: true, total: count || 0 };
-                        }}
-                        pagination={{ defaultPageSize: 15, showSizeChanger: true, size: "small" }}
-                        size="small"
-                        style={{ borderRadius: 0 }}
-                    />
+                                if (error) return { data: [], success: false, total: 0 };
+                                return { data: (data || []) as MurojaahRow[], success: true, total: count || 0 };
+                            }}
+                            pagination={{ defaultPageSize: 15, showSizeChanger: true, size: "small" }}
+                            size="small"
+                            style={{ borderRadius: 0 }}
+                        />
+                    </div>
                 </div>
             </div>
         </div>

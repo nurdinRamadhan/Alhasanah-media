@@ -1087,7 +1087,7 @@ const PrivateAuditContent = () => {
         onOk={submitFormAction}
         okText="Lanjutkan"
         cancelText="Batal"
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={actionModal.form} layout="vertical">
           {actionModal.action === "assign" ? (

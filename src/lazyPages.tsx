@@ -20,6 +20,11 @@ export const PerizinanEdit      = React.lazy(() => import("./pages/perizinan/edi
 export const KesehatanList      = React.lazy(() => import("./pages/kesehatan/list").then(m => ({ default: m.KesehatanList })));
 export const KesehatanCreate    = React.lazy(() => import("./pages/kesehatan/create").then(m => ({ default: m.KesehatanCreate })));
 export const KesehatanEdit      = React.lazy(() => import("./pages/kesehatan/edit").then(m => ({ default: m.KesehatanEdit })));
+
+// ── Absensi ──
+export const AttendanceList      = React.lazy(() => import("./pages/absensi/list").then(m => ({ default: m.AttendanceList })));
+export const AttendanceShow      = React.lazy(() => import("./pages/absensi/show").then(m => ({ default: m.AttendanceShow })));
+export const AttendanceTypesList = React.lazy(() => import("./pages/absensi/types/list").then(m => ({ default: m.AttendanceTypesList })));
 export const PrestasiList       = React.lazy(() => import("./pages/prestasi/list").then(m => ({ default: m.PrestasiList })));
 export const HafalanList        = React.lazy(() => import("./pages/hafalan/list").then(m => ({ default: m.HafalanList })));
 export const HafalanCreate      = React.lazy(() => import("./pages/hafalan/create").then(m => ({ default: m.HafalanCreate })));
