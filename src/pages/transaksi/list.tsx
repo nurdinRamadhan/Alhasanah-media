@@ -1,21 +1,23 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useTable } from "@refinedev/antd";
 import { ProTable } from "@ant-design/pro-components";
 import type { ProColumns } from "@ant-design/pro-components";
 import {
-    Typography, Button, Tag, Space, Card, Row, Col, Statistic,
+    Typography, Button, Tag, Space, Card, Row, Col,
     Select, DatePicker, Tooltip, Avatar, Divider, Progress,
-    theme, message, Segmented, Badge, Modal, Empty,
+    theme, message, Badge, Empty, Skeleton,
 } from "antd";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, Variants } from "framer-motion";
 import {
     RiseOutlined, FallOutlined, SwapOutlined, DollarOutlined,
-    FilterOutlined, DownloadOutlined, PlusOutlined, HeartOutlined,
+    FilterOutlined, DownloadOutlined, HeartOutlined,
     CheckCircleOutlined, ClockCircleOutlined, CloseCircleOutlined,
     BankOutlined, WalletOutlined, CreditCardOutlined, UserOutlined,
     AuditOutlined, SafetyCertificateOutlined, ThunderboltOutlined,
-    BarChartOutlined, CalendarOutlined, InfoCircleOutlined,
-    ClearOutlined, LockOutlined, GlobalOutlined, TeamOutlined,
+    BarChartOutlined, CalendarOutlined, LockOutlined,
+    GlobalOutlined, TeamOutlined, ClearOutlined, LineChartOutlined,
+    PieChartOutlined, ArrowUpOutlined, ArrowDownOutlined,
+    FundOutlined, RocketOutlined,
 } from "@ant-design/icons";
 import { useNavigation } from "@refinedev/core";
 import { ITransaksiKeuangan } from "../../types";
@@ -26,6 +28,12 @@ import { saveAs } from "file-saver";
 import { formatHijri, formatMasehi } from "../../utility/dateHelper";
 import { santriAlias } from "../../utility/privacy";
 import { supabaseClient } from "../../utility/supabaseClient";
+import {
+    ComposedChart, Bar, Line, Area, AreaChart,
+    XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip,
+    ResponsiveContainer, PieChart, Pie, Cell, Legend,
+    BarChart,
+} from "recharts";
 
 dayjs.locale("id");
 
@@ -33,1264 +41,1308 @@ const { Text, Title } = Typography;
 const { RangePicker } = DatePicker;
 const { useToken } = theme;
 
-// ═══════════════════════════════════════════════════════════════════
-// 🎨  DESIGN TOKENS — BRAND IDENTITY AL-HASANAH
-//     Semua warna didefinisikan sekali di sini.
-//     isDark menentukan varian yang dipakai, bukan hardcode per-komponen.
-// ═══════════════════════════════════════════════════════════════════
-const GOLD        = "#D4A017";
-const GOLD_LIGHT  = "#F0C040";
+// ─── Design Tokens ────────────────────────────────────────────────────────────
+const GOLD        = "#C9A84C";
+const GOLD_BRIGHT = "#FFB700";
 const GOLD_DARK   = "#9A7A00";
-const G           = (o: number) => `rgba(212,160,23,${o})`;   // gold alpha helper
+const G           = (o: number) => `rgba(201,168,76,${o})`;
 
-// Warna semantik — satu definisi, pakai di semua komponen
-const COLOR = {
-    success : { base: "#22C55E", light: "#F0FDF4", dark: "rgba(34,197,94,0.12)",  border: "rgba(34,197,94,0.25)",  glow: "rgba(34,197,94,0.3)"  },
-    danger  : { base: "#EF4444", light: "#FFF1F2", dark: "rgba(239,68,68,0.12)",   border: "rgba(239,68,68,0.25)",  glow: "rgba(239,68,68,0.3)"  },
-    warning : { base: "#F59E0B", light: "#FFFBEB", dark: "rgba(245,158,11,0.12)",  border: "rgba(245,158,11,0.25)", glow: "rgba(245,158,11,0.3)" },
-    info    : { base: "#3B82F6", light: "#EFF6FF", dark: "rgba(59,130,246,0.12)",  border: "rgba(59,130,246,0.25)", glow: "rgba(59,130,246,0.3)" },
-    purple  : { base: "#8B5CF6", light: "#F5F3FF", dark: "rgba(139,92,246,0.12)",  border: "rgba(139,92,246,0.25)", glow: "rgba(139,92,246,0.3)" },
-    teal    : { base: "#14B8A6", light: "#F0FDFA", dark: "rgba(20,184,166,0.12)",  border: "rgba(20,184,166,0.25)", glow: "rgba(20,184,166,0.3)" },
-} as const;
+const SUCCESS = "#059669";
+const DANGER  = "#DC2626";
+const WARNING = "#D97706";
+const INFO    = "#2563EB";
+const PURPLE  = "#7C3AED";
+const TEAL    = "#0D9488";
 
-// ═══════════════════════════════════════════════════════════════════
-// 🎨  GLOBAL CSS INJECTION
-// ═══════════════════════════════════════════════════════════════════
+const STATUS_COLOR = {
+    success: { base: SUCCESS, bg: "rgba(5,150,105,0.12)",  border: "rgba(5,150,105,0.28)"  },
+    warning: { base: WARNING, bg: "rgba(217,119,6,0.12)",  border: "rgba(217,119,6,0.28)"  },
+    danger:  { base: DANGER,  bg: "rgba(220,38,38,0.12)",  border: "rgba(220,38,38,0.28)"  },
+    info:    { base: INFO,    bg: "rgba(37,99,235,0.12)",   border: "rgba(37,99,235,0.28)"  },
+    purple:  { base: PURPLE,  bg: "rgba(124,58,237,0.12)", border: "rgba(124,58,237,0.28)" },
+    teal:    { base: TEAL,    bg: "rgba(13,148,136,0.12)", border: "rgba(13,148,136,0.28)" },
+};
+
+const METODE_COLORS: Record<string, string> = {
+    cash: GOLD_BRIGHT, qris: TEAL, bank_transfer: INFO, transfer: INFO,
+    midtrans: PURPLE, gopay: SUCCESS,
+};
+
+const PIE_PALETTE = [GOLD_BRIGHT, INFO, TEAL, SUCCESS, PURPLE, DANGER];
+
+// ─── CSS Injection ────────────────────────────────────────────────────────────
 const LEDGER_CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Outfit:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-
-  .gl-root { font-family:'Outfit','PingFang SC',system-ui,sans-serif; }
-
-  @keyframes gl-shimmer {
-    0%   { background-position:-200% center; }
-    100% { background-position: 200% center; }
-  }
-  @keyframes gl-pulse-in {
-    0%,100% { opacity:.6; transform:scale(1); }
-    50%     { opacity:1;  transform:scale(1.06); }
-  }
-  @keyframes gl-enter {
-    from { opacity:0; transform:translateY(10px); }
-    to   { opacity:1; transform:translateY(0); }
-  }
-  @keyframes gl-float {
-    0%,100% { transform:translateY(0); }
-    50%     { transform:translateY(-4px); }
-  }
-
-  .gl-shimmer-text {
-    background:linear-gradient(120deg,#9A7A00 0%,#D4A017 28%,#F5D060 50%,#D4A017 72%,#9A7A00 100%);
-    background-size:200% auto;
-    -webkit-background-clip:text;
-    -webkit-text-fill-color:transparent;
-    background-clip:text;
-    animation:gl-shimmer 5s linear infinite;
-  }
-  .gl-float { animation:gl-float 3.8s ease-in-out infinite; }
-  .gl-kpi-card {
-    transition:transform .28s cubic-bezier(.4,0,.2,1),
-               box-shadow .28s cubic-bezier(.4,0,.2,1);
-  }
-  .gl-kpi-card:hover { transform:translateY(-5px); }
-
-  /* ── ProTable gold header ── */
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Mono:wght@400;500;700&display=swap');
+  .gl-root { font-family:'Inter','PingFang SC',system-ui,sans-serif; }
+  .gl-mono { font-family:'DM Mono','Courier New',monospace !important; }
   .gl-table .ant-table-thead > tr > th,
   .gl-table .ant-table-thead > tr > td {
-    background:linear-gradient(135deg,#9A7A00 0%,#C8970E 40%,#D4A017 70%,#B89010 100%) !important;
-    color:#fff !important;
-    font-family:'Outfit',sans-serif !important;
-    font-weight:700 !important;
-    font-size:10.5px !important;
-    letter-spacing:.09em !important;
-    text-transform:uppercase !important;
-    border-bottom:none !important;
-    padding-top:13px !important;
-    padding-bottom:13px !important;
+    background: linear-gradient(135deg,#9A7A00 0%,#C8970E 40%,${GOLD} 70%,#B89010 100%) !important;
+    color:#fff !important; font-weight:700 !important; font-size:10.5px !important;
+    letter-spacing:.09em !important; text-transform:uppercase !important;
+    border-bottom:none !important; padding-top:13px !important; padding-bottom:13px !important;
   }
   .gl-table .ant-table-thead > tr > th::before { display:none !important; }
   .gl-table .ant-table-tbody > tr > td {
-    padding:13px 16px !important;
-    border-bottom:1px solid rgba(212,160,23,.08) !important;
-    vertical-align:middle !important;
-    transition:background .14s ease;
+    padding:13px 16px !important; vertical-align:middle !important; transition:background .14s ease;
+    border-bottom:1px solid rgba(201,168,76,.08) !important;
   }
-  .gl-table .ant-table-tbody > tr:hover > td {
-    background:rgba(212,160,23,.05) !important;
-  }
-  /* Summary row */
+  .gl-table .ant-table-tbody > tr:hover > td { background:rgba(201,168,76,.05) !important; }
   .gl-table .ant-table-summary > tr > td {
-    padding:14px 16px !important;
-    border-top:2px solid rgba(212,160,23,.3) !important;
+    padding:14px 16px !important; border-top:2px solid rgba(201,168,76,.3) !important;
   }
   .gl-table .ant-table-container { border-radius:0 0 14px 14px !important; overflow:hidden !important; }
-  .gl-table .ant-pro-table-list-toolbar { padding:14px 20px !important; }
-
-  /* ── Audit locked row ── */
-  .gl-row-locked .ant-table-cell { opacity:.72 !important; }
-
-  /* ── Filter panel ── */
-  .gl-filter-label {
-    font-size:10px; font-weight:700;
-    text-transform:uppercase; letter-spacing:.08em;
-    margin-bottom:5px; display:block;
-  }
-
-  /* ── Mono utility ── */
-  .gl-mono { font-family:'DM Mono','Courier New',monospace !important; }
-
-  /* ── Custom scrollbar ── */
   ::-webkit-scrollbar { width:5px; height:5px; }
   ::-webkit-scrollbar-track  { background:transparent; }
-  ::-webkit-scrollbar-thumb  { background:rgba(212,160,23,.3); border-radius:3px; }
-  ::-webkit-scrollbar-thumb:hover { background:rgba(212,160,23,.6); }
-
+  ::-webkit-scrollbar-thumb  { background:${G(.3)}; border-radius:3px; }
+  ::-webkit-scrollbar-thumb:hover { background:${G(.6)}; }
   @media print {
     body { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
     .gl-no-print { display:none !important; }
   }
 `;
 
-// ═══════════════════════════════════════════════════════════════════
-// 🔧  UTILITY FUNCTIONS
-// ═══════════════════════════════════════════════════════════════════
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 const fCurrency = (n: number) =>
-    new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(n);
-
+    new Intl.NumberFormat("id-ID", { style:"currency", currency:"IDR", minimumFractionDigits:0 }).format(n);
 const fCompact = (n: number) => {
     if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)} M`;
     if (n >= 1_000_000)     return `${(n / 1_000_000).toFixed(1)} Jt`;
     if (n >= 1_000)         return `${(n / 1_000).toFixed(0)} Rb`;
     return String(n);
 };
-
 const isSuccess = (s: string) => s === "settlement" || s === "success";
 const isPending = (s: string) => s === "pending";
 const isFailed  = (s: string) => ["expire","failure","cancel","failed"].includes(s);
 
 const statusMeta = (s: string) => {
-    if (isSuccess(s)) return { label: "SUKSES",   color: COLOR.success, icon: <CheckCircleOutlined /> };
-    if (isPending(s)) return { label: "MENUNGGU", color: COLOR.warning, icon: <ClockCircleOutlined /> };
-    if (isFailed(s))  return { label: "GAGAL",    color: COLOR.danger,  icon: <CloseCircleOutlined /> };
-    return               { label: "DIPROSES", color: COLOR.info,    icon: <ClockCircleOutlined /> };
+    if (isSuccess(s)) return { label:"SUKSES",   c: STATUS_COLOR.success, icon: <CheckCircleOutlined /> };
+    if (isPending(s)) return { label:"MENUNGGU", c: STATUS_COLOR.warning, icon: <ClockCircleOutlined /> };
+    if (isFailed(s))  return { label:"GAGAL",    c: STATUS_COLOR.danger,  icon: <CloseCircleOutlined /> };
+    return               { label:"DIPROSES", c: STATUS_COLOR.info,    icon: <ClockCircleOutlined /> };
 };
-
 const metodeMeta = (m: string) => {
     const map: Record<string, { icon: React.ReactNode; label: string }> = {
-        cash        : { icon: <WalletOutlined />,      label: "CASH"      },
-        qris        : { icon: <CreditCardOutlined />,  label: "QRIS"      },
-        transfer    : { icon: <BankOutlined />,        label: "TRANSFER"  },
-        midtrans    : { icon: <GlobalOutlined />,      label: "MIDTRANS"  },
-        gopay       : { icon: <CreditCardOutlined />,  label: "GOPAY"     },
-        bank_transfer: { icon: <BankOutlined />,       label: "TRANSFER"  },
+        cash       : { icon:<WalletOutlined />,     label:"CASH"      },
+        qris       : { icon:<CreditCardOutlined />, label:"QRIS"      },
+        transfer   : { icon:<BankOutlined />,       label:"TRANSFER"  },
+        midtrans   : { icon:<GlobalOutlined />,     label:"MIDTRANS"  },
+        gopay      : { icon:<CreditCardOutlined />, label:"GOPAY"     },
+        bank_transfer: { icon:<BankOutlined />,     label:"TRANSFER"  },
     };
-    return map[m?.toLowerCase()] ?? { icon: <WalletOutlined />, label: (m || "CASH").toUpperCase() };
+    return map[m?.toLowerCase()] ?? { icon:<WalletOutlined />, label:(m||"CASH").toUpperCase() };
+};
+const metodeKey = (m: string | null | undefined): string => {
+    const v = (m ?? "").toLowerCase();
+    if (["tunai","cash"].includes(v)) return "cash";
+    if (v === "qris") return "qris";
+    if (["transfer","bank_transfer"].includes(v)) return "bank_transfer";
+    if (v === "midtrans") return "midtrans";
+    if (v === "gopay") return "gopay";
+    return v || "cash";
 };
 
-// ═══════════════════════════════════════════════════════════════════
-// 🚀  MAIN COMPONENT
-// ═══════════════════════════════════════════════════════════════════
+// ─── Motion ───────────────────────────────────────────────────────────────────
+const fadeUp: Variants = {
+    hidden:  { opacity:0, y:22 },
+    visible: (i=0) => ({
+        opacity:1, y:0,
+        transition:{ duration:.52, ease:[0.22,1,0.36,1], delay: i * .07 },
+    }),
+};
+const stagger = { visible:{ transition:{ staggerChildren:.07 } } };
+
+// ─── Animated Counter ─────────────────────────────────────────────────────────
+const AnimatedValue: React.FC<{ value:number; formatter?:(v:number)=>string }> = ({ value, formatter }) => {
+    const [d, setD] = useState(0);
+    const prev = useRef(0);
+    useEffect(() => {
+        const start = prev.current; const t0 = performance.now();
+        const tick = (now: number) => {
+            const p = Math.min((now-t0)/850, 1);
+            const e = 1 - Math.pow(1-p, 3);
+            setD(Math.round(start + (value-start)*e));
+            if (p < 1) requestAnimationFrame(tick); else prev.current = value;
+        };
+        requestAnimationFrame(tick);
+    }, [value]);
+    return <>{formatter ? formatter(d) : d.toLocaleString("id-ID")}</>;
+};
+
+// ─── Premium Tooltip ──────────────────────────────────────────────────────────
+const PremiumTooltip = ({ active, payload, label, token:tk }: any) => {
+    if (!active || !payload?.length) return null;
+    return (
+        <div style={{
+            background:tk.colorBgElevated, border:`1px solid ${tk.colorBorderSecondary}`,
+            borderRadius:14, padding:"12px 16px", minWidth:200,
+            boxShadow:"0 24px 60px rgba(0,0,0,0.35)", backdropFilter:"blur(20px)",
+        }}>
+            <p style={{ margin:"0 0 10px", fontWeight:700, fontSize:11,
+                letterSpacing:"0.1em", textTransform:"uppercase", color:GOLD_BRIGHT }}>
+                {label}
+            </p>
+            {payload.map((e:any, i:number) => (
+                <div key={i} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:5 }}>
+                    <span style={{ width:8, height:8, borderRadius:2, background:e.color, flexShrink:0 }} />
+                    <span style={{ fontSize:12, color:tk.colorTextSecondary, flex:1 }}>{e.name}</span>
+                    <span style={{ fontWeight:700, fontSize:12, fontFamily:"'DM Mono',monospace", color:tk.colorText }}>
+                        {typeof e.value === "number" && e.value > 1000 ? fCurrency(e.value) : e.value?.toLocaleString("id-ID")}
+                    </span>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+// ─── KPI Card (Dashboard-matched) ────────────────────────────────────────────
+const KpiCard: React.FC<{
+    label:string; value:number; icon:React.ReactNode; color:string;
+    subtext?:string; formatter?:(v:number)=>string;
+    isDark:boolean; token:any; delay?:number;
+}> = ({ label, value, icon, color, subtext, formatter, isDark, token:tk, delay=0 }) => (
+    <motion.div variants={fadeUp} custom={delay} whileHover={{ y:-5, transition:{ duration:.18 } }}
+        style={{ height:"100%", cursor:"default" }}>
+        <div style={{
+            borderRadius:20, padding:"22px 20px 18px", height:"100%",
+            background:tk.colorBgContainer,
+            border:`1px solid ${isDark ? color+"22" : color+"28"}`,
+            position:"relative", overflow:"hidden",
+            boxShadow: isDark
+                ? `0 4px 28px rgba(0,0,0,0.45), inset 0 1px 0 ${color}12`
+                : `0 2px 16px rgba(0,0,0,0.06), inset 0 1px 0 ${color}18`,
+        }}>
+            <div style={{ position:"absolute", bottom:-40, right:-40, width:130, height:130,
+                borderRadius:"50%", pointerEvents:"none",
+                background:`radial-gradient(circle, ${color}18 0%, transparent 65%)` }} />
+            <div style={{ position:"absolute", top:0, left:"15%", right:"15%", height:2,
+                background:`linear-gradient(90deg, transparent, ${color}70, transparent)` }} />
+            <div style={{ width:46, height:46, borderRadius:14, marginBottom:18,
+                background:`linear-gradient(135deg, ${color}20 0%, ${color}38 100%)`,
+                border:`1px solid ${color}30`,
+                display:"flex", alignItems:"center", justifyContent:"center",
+                color, fontSize:20, boxShadow:`0 4px 14px ${color}22` }}>
+                {icon}
+            </div>
+            <div style={{ fontSize:10, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase",
+                color:isDark?"rgba(255,255,255,0.38)":"rgba(0,0,0,0.38)", marginBottom:6 }}>
+                {label}
+            </div>
+            <div style={{ fontFamily:"'DM Mono',monospace", fontWeight:800,
+                fontSize: formatter ? 19 : 28,
+                letterSpacing:"-0.04em", lineHeight:1.1, color:tk.colorText }}>
+                {formatter && <span style={{ fontSize:12, fontWeight:600,
+                    color:isDark?"rgba(255,255,255,0.4)":"rgba(0,0,0,0.4)", marginRight:3 }}>Rp</span>}
+                <AnimatedValue value={value} formatter={formatter ? fCompact : undefined} />
+            </div>
+            {subtext && (
+                <div style={{ fontSize:11, marginTop:8,
+                    color:isDark?"rgba(255,255,255,0.38)":"rgba(0,0,0,0.38)" }}>
+                    {subtext}
+                </div>
+            )}
+        </div>
+    </motion.div>
+);
+
+// ─── Section Header ───────────────────────────────────────────────────────────
+const SectionHeader = ({ icon, title, subtitle, action }: {
+    icon:React.ReactNode; title:string; subtitle?:string; action?:React.ReactNode;
+}) => (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20, gap:12 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:12, flex:1, minWidth:0 }}>
+            <div style={{
+                width:40, height:40, borderRadius:12, flexShrink:0,
+                background:`linear-gradient(135deg, ${GOLD}20 0%, ${GOLD_BRIGHT}15 100%)`,
+                border:`1px solid ${GOLD}28`,
+                display:"flex", alignItems:"center", justifyContent:"center",
+                color:GOLD_BRIGHT, fontSize:17,
+            }}>{icon}</div>
+            <div>
+                <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:16, letterSpacing:"-0.03em" }}>
+                    {title}
+                </div>
+                {subtitle && <div style={{ fontSize:12, color:"rgba(128,128,128,0.75)", marginTop:2 }}>{subtitle}</div>}
+            </div>
+            <div style={{ flex:1, height:1, marginLeft:10,
+                background:`linear-gradient(90deg, ${GOLD}28 0%, transparent 80%)` }} />
+        </div>
+        {action && <div style={{ flexShrink:0 }}>{action}</div>}
+    </div>
+);
+
+// ─── Pie label ────────────────────────────────────────────────────────────────
+const renderPieLabel = ({ cx,cy,midAngle,innerRadius,outerRadius,percent }: any) => {
+    if (percent < 0.07) return null;
+    const R = Math.PI/180;
+    const r = innerRadius + (outerRadius-innerRadius)*0.52;
+    return (
+        <text x={cx+r*Math.cos(-midAngle*R)} y={cy+r*Math.sin(-midAngle*R)}
+            fill="#fff" textAnchor="middle" dominantBaseline="central"
+            style={{ fontSize:10, fontWeight:700, fontFamily:"'DM Mono',monospace" }}>
+            {`${(percent*100).toFixed(0)}%`}
+        </text>
+    );
+};
+
+// ─── Audit Insight Badge ──────────────────────────────────────────────────────
+const InsightBadge: React.FC<{ icon:React.ReactNode; label:string; value:string; color:string; isDark:boolean }> = ({
+    icon, label, value, color, isDark,
+}) => (
+    <div style={{
+        display:"flex", alignItems:"center", gap:10, padding:"12px 16px",
+        borderRadius:14, flex:1, minWidth:160,
+        background: isDark ? `${color}0e` : `${color}08`,
+        border:`1px solid ${color}25`,
+    }}>
+        <div style={{
+            width:32, height:32, borderRadius:9, flexShrink:0,
+            background:`${color}20`, border:`1px solid ${color}28`,
+            display:"flex", alignItems:"center", justifyContent:"center",
+            color, fontSize:14,
+        }}>{icon}</div>
+        <div>
+            <div style={{ fontSize:9, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color, marginBottom:2 }}>
+                {label}
+            </div>
+            <div style={{ fontFamily:"'DM Mono',monospace", fontWeight:800, fontSize:13, color }}>
+                {value}
+            </div>
+        </div>
+    </div>
+);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAIN PAGE
+// ═══════════════════════════════════════════════════════════════════════════════
 export const TransaksiList: React.FC = () => {
     const { token } = useToken();
     const { create } = useNavigation();
 
-    // Dark mode detection
     const hexLum = (hex: string) => {
         const c = hex.replace("#","");
         if (c.length < 6) return 200;
         return .299*parseInt(c.slice(0,2),16) + .587*parseInt(c.slice(2,4),16) + .114*parseInt(c.slice(4,6),16);
     };
     const isDark = hexLum(token.colorBgContainer) < 128;
+    const TICK = { fontSize:10, fill:token.colorTextTertiary as string };
 
-    // ── Filter State ──────────────────────────────────────
-    const [dateRange,   setDateRange]   = useState<[dayjs.Dayjs, dayjs.Dayjs]>([
-        dayjs().startOf("month"), dayjs().endOf("month")
-    ]);
-    const [jenisFilter, setJenisFilter] = useState<string>("all");
-    const [statusFilter,setStatusFilter]= useState<string>("all");
-    const [metodeFilter,setMetodeFilter]= useState<string>("all");
+    // ── Filter State ──────────────────────────────────────────────────────────
+    const [dateRange,      setDateRange]      = useState<[dayjs.Dayjs, dayjs.Dayjs]>([dayjs().startOf("month"), dayjs().endOf("month")]);
+    const [jenisFilter,    setJenisFilter]    = useState<string>("all");
+    const [statusFilter,   setStatusFilter]   = useState<string>("all");
+    const [metodeFilter,   setMetodeFilter]   = useState<string>("all");
     const [kategoriFilter, setKategoriFilter] = useState<string>("all");
-    const [genderFilter, setGenderFilter] = useState<string>("all");
-    const [jurusanFilter, setJurusanFilter] = useState<string>("all");
-    const [isExporting, setIsExporting] = useState(false);
+    const [genderFilter,   setGenderFilter]   = useState<string>("all");
+    const [jurusanFilter,  setJurusanFilter]  = useState<string>("all");
+    const [chartMode,      setChartMode]      = useState<"area"|"bar"|"combo">("combo");
+    const [isExporting,    setIsExporting]    = useState(false);
 
-    // ── Table Data ────────────────────────────────────────
+    // ── Table ─────────────────────────────────────────────────────────────────
     const { tableProps, tableQueryResult } = useTable<ITransaksiKeuangan>({
         resource: "transaksi_keuangan",
         syncWithLocation: false,
-        meta: {
-            select: "*, wali:wali_id(full_name, no_hp), admin:admin_pencatat_id(full_name), santri:santri_nis(nama, nis, kelas, jurusan)"
-        },
-        filters: {
-            permanent: [
-                { field: "tanggal_transaksi", operator: "gte", value: dateRange[0].startOf("day").toISOString() },
-                { field: "tanggal_transaksi", operator: "lte", value: dateRange[1].endOf("day").toISOString()   },
-            ]
-        },
-        sorters: { initial: [{ field: "tanggal_transaksi", order: "desc" }] },
+        meta: { select:"*, wali:wali_id(full_name, no_hp), admin:admin_pencatat_id(full_name), santri:santri_nis(nama, nis, kelas, jurusan)" },
+        filters: { permanent: [
+            { field:"tanggal_transaksi", operator:"gte", value:dateRange[0].startOf("day").toISOString() },
+            { field:"tanggal_transaksi", operator:"lte", value:dateRange[1].endOf("day").toISOString()   },
+        ]},
+        sorters: { initial:[{ field:"tanggal_transaksi", order:"desc" }] },
     });
 
     const rawData = tableQueryResult?.data?.data ?? [];
+    const isLoading = tableQueryResult?.isLoading || tableQueryResult?.isFetching;
 
-    // Normalize metode_pembayaran to canonical filter key
-    const metodeKey = (m: string | null | undefined): string => {
-        const v = (m ?? "").toLowerCase();
-        if (["tunai", "cash"].includes(v)) return "cash";
-        if (v === "qris") return "qris";
-        if (["transfer", "bank_transfer"].includes(v)) return "bank_transfer";
-        if (v === "midtrans") return "midtrans";
-        if (v === "gopay") return "gopay";
-        return v || "cash";
-    };
+    const filteredData = useMemo(() => rawData.filter(r => {
+        if (jenisFilter !== "all" && r.jenis_transaksi !== jenisFilter) return false;
+        if (statusFilter !== "all") {
+            if (statusFilter === "sukses"  && !isSuccess(r.status_transaksi)) return false;
+            if (statusFilter === "pending" && !isPending(r.status_transaksi)) return false;
+            if (statusFilter === "gagal"   && !isFailed(r.status_transaksi))  return false;
+        }
+        if (metodeFilter  !== "all" && metodeKey(r.metode_pembayaran) !== metodeFilter) return false;
+        if (kategoriFilter !== "all" && (r.kategori ?? "") !== kategoriFilter) return false;
+        if (genderFilter  !== "all" && (r.scope_gender  ?? "") !== genderFilter  && (r.scope_gender  ?? "") !== "ALL") return false;
+        if (jurusanFilter !== "all" && (r.scope_jurusan ?? "") !== jurusanFilter && (r.scope_jurusan ?? "") !== "ALL") return false;
+        return true;
+    }), [rawData, jenisFilter, statusFilter, metodeFilter, kategoriFilter, genderFilter, jurusanFilter]);
 
-    // ── Client-side multi-filter ──────────────────────────
-    const filteredData = useMemo(() => {
-        return rawData.filter(r => {
-            if (jenisFilter  !== "all" && r.jenis_transaksi       !== jenisFilter)   return false;
-            if (statusFilter !== "all") {
-                if (statusFilter === "sukses"  && !isSuccess(r.status_transaksi)) return false;
-                if (statusFilter === "pending" && !isPending(r.status_transaksi)) return false;
-                if (statusFilter === "gagal"   && !isFailed(r.status_transaksi))  return false;
-            }
-            if (metodeFilter !== "all" && metodeKey(r.metode_pembayaran) !== metodeFilter) return false;
-            if (kategoriFilter !== "all" && (r.kategori ?? "") !== kategoriFilter) return false;
-            if (genderFilter !== "all" && (r.scope_gender ?? "") !== genderFilter) return false;
-            if (jurusanFilter !== "all" && (r.scope_jurusan ?? "") !== jurusanFilter) return false;
-            return true;
-        });
-    }, [rawData, jenisFilter, statusFilter, metodeFilter, kategoriFilter, genderFilter, jurusanFilter]);
-
-    // ── KPI Calculations ─────────────────────────────────
+    // ── KPI Calculations ──────────────────────────────────────────────────────
     const kpi = useMemo(() => {
         const sukses   = filteredData.filter(r => isSuccess(r.status_transaksi));
         const pending  = filteredData.filter(r => isPending(r.status_transaksi));
         const gagal    = filteredData.filter(r => isFailed(r.status_transaksi));
-
         const totalMasuk  = sukses.filter(r => r.jenis_transaksi === "masuk").reduce((s,r) => s+Number(r.jumlah), 0);
         const totalKeluar = sukses.filter(r => r.jenis_transaksi === "keluar").reduce((s,r) => s+Number(r.jumlah), 0);
         const netSaldo    = totalMasuk - totalKeluar;
-
-        const infaqTotal  = sukses
-            .filter(r => r.jenis_transaksi === "masuk" && r.kategori === "donasi")
-            .reduce((s,r) => s+Number(r.jumlah), 0);
-
+        const infaqTotal  = sukses.filter(r => r.jenis_transaksi==="masuk" && r.kategori==="donasi").reduce((s,r) => s+Number(r.jumlah), 0);
         const tagihanTotal = totalMasuk - infaqTotal;
-        const rataRata     = sukses.length > 0 ? Math.round(totalMasuk / sukses.length) : 0;
-
-        const digitalTotal = sukses
-            .filter(r => r.metode_pembayaran !== "cash")
-            .reduce((s,r) => s+Number(r.jumlah), 0);
-        const cashTotal = sukses
-            .filter(r => r.metode_pembayaran === "cash")
-            .reduce((s,r) => s+Number(r.jumlah), 0);
-
-        const digitalPct = totalMasuk > 0 ? Math.round((digitalTotal/totalMasuk)*100) : 0;
-        const successRate = filteredData.length > 0 ? Math.round((sukses.length/filteredData.length)*100) : 0;
-
+        const rataRata    = sukses.length > 0 ? Math.round(totalMasuk / sukses.length) : 0;
+        const digitalTotal = sukses.filter(r => metodeKey(r.metode_pembayaran) !== "cash").reduce((s,r) => s+Number(r.jumlah), 0);
+        const cashTotal    = sukses.filter(r => metodeKey(r.metode_pembayaran) === "cash").reduce((s,r) => s+Number(r.jumlah), 0);
+        const digitalPct   = totalMasuk > 0 ? Math.round((digitalTotal/totalMasuk)*100) : 0;
+        const successRate  = filteredData.length > 0 ? Math.round((sukses.length/filteredData.length)*100) : 0;
+        const pendingValue = pending.reduce((s,r) => s+Number(r.jumlah), 0);
+        const gagalValue   = gagal.reduce((s,r) => s+Number(r.jumlah), 0);
         return {
-            totalMasuk, totalKeluar, netSaldo,
-            infaqTotal, tagihanTotal, rataRata,
+            totalMasuk, totalKeluar, netSaldo, infaqTotal, tagihanTotal, rataRata,
             digitalTotal, cashTotal, digitalPct, successRate,
-            sukses: sukses.length, pending: pending.length, gagal: gagal.length,
-            total: filteredData.length,
-            pendingValue: pending.reduce((s,r)=>s+Number(r.jumlah),0),
+            pendingValue, gagalValue,
+            sukses:sukses.length, pending:pending.length, gagal:gagal.length, total:filteredData.length,
         };
     }, [filteredData]);
 
-    // Active filter count
-    const activeFilters = [jenisFilter, statusFilter, metodeFilter, kategoriFilter, genderFilter, jurusanFilter].filter(f => f !== "all").length;
-
+    const activeFilters = [jenisFilter,statusFilter,metodeFilter,kategoriFilter,genderFilter,jurusanFilter].filter(f=>f!=="all").length;
     const resetFilters = () => {
-        setJenisFilter("all");
-        setStatusFilter("all");
-        setMetodeFilter("all");
-        setKategoriFilter("all");
-        setGenderFilter("all");
-        setJurusanFilter("all");
+        setJenisFilter("all"); setStatusFilter("all"); setMetodeFilter("all");
+        setKategoriFilter("all"); setGenderFilter("all"); setJurusanFilter("all");
     };
 
-    // ═══════════════════════════════════════════════════════
-    // EXPORT EXCEL — PREMIUM MULTI-SHEET
-    // ═══════════════════════════════════════════════════════
+    // ── Chart Data ────────────────────────────────────────────────────────────
+    // 1. Daily cashflow with running balance
+    const dailyData = useMemo(() => {
+        const map: Record<string, { masuk:number; keluar:number; date:string; sort:number }> = {};
+        filteredData.filter(r => isSuccess(r.status_transaksi)).forEach(r => {
+            const d = dayjs(r.tanggal_transaksi);
+            const key = d.format("DD/MM");
+            if (!map[key]) map[key] = { masuk:0, keluar:0, date:key, sort:d.valueOf() };
+            if (r.jenis_transaksi==="masuk")  map[key].masuk  += Number(r.jumlah);
+            else                              map[key].keluar += Number(r.jumlah);
+        });
+        let running = 0;
+        return Object.values(map)
+            .sort((a,b) => a.sort-b.sort)
+            .map(d => { running += d.masuk - d.keluar; return { ...d, balance:running }; });
+    }, [filteredData]);
+
+    // 2. Payment method distribution
+    const methodData = useMemo(() => {
+        const map: Record<string, number> = {};
+        filteredData.filter(r => isSuccess(r.status_transaksi) && r.jenis_transaksi==="masuk").forEach(r => {
+            const k = metodeKey(r.metode_pembayaran);
+            map[k] = (map[k]||0) + Number(r.jumlah);
+        });
+        return Object.entries(map).map(([name, value]) => ({
+            name: name.toUpperCase(), value,
+            color: METODE_COLORS[name] || GOLD_BRIGHT,
+        }));
+    }, [filteredData]);
+
+    // 3. Status pipeline (count)
+    const statusPipeData = [
+        { name:"Sukses",   value:kpi.sukses,  color:SUCCESS, amount:kpi.totalMasuk },
+        { name:"Pending",  value:kpi.pending, color:WARNING, amount:kpi.pendingValue },
+        { name:"Gagal",    value:kpi.gagal,   color:DANGER,  amount:kpi.gagalValue  },
+    ];
+
+    // 4. Infaq vs Tagihan
+    const infaqPieData = [
+        { name:"Tagihan", value:kpi.tagihanTotal },
+        { name:"Infaq/Wakaf", value:kpi.infaqTotal },
+    ];
+    const infaqPieColors = [GOLD_BRIGHT, PURPLE];
+
+    // 5. Daily masuk-only trend for infaq context
+    const categoryTrend = useMemo(() => {
+        const map: Record<string, { tagihan:number; donasi:number; sort:number }> = {};
+        filteredData.filter(r => isSuccess(r.status_transaksi) && r.jenis_transaksi==="masuk").forEach(r => {
+            const d = dayjs(r.tanggal_transaksi);
+            const key = d.format("DD/MM");
+            if (!map[key]) map[key] = { tagihan:0, donasi:0, sort:d.valueOf() };
+            if (r.kategori==="donasi") map[key].donasi += Number(r.jumlah);
+            else                       map[key].tagihan += Number(r.jumlah);
+        });
+        return Object.entries(map).sort((a,b) => a[1].sort-b[1].sort).map(([date,v]) => ({ date, ...v }));
+    }, [filteredData]);
+
+    // Table summary
+    const pageSuccessMasuk  = filteredData.filter(r=>isSuccess(r.status_transaksi)&&r.jenis_transaksi==="masuk").reduce((s,r)=>s+Number(r.jumlah),0);
+    const pageSuccessKeluar = filteredData.filter(r=>isSuccess(r.status_transaksi)&&r.jenis_transaksi==="keluar").reduce((s,r)=>s+Number(r.jumlah),0);
+
+    // ── Export Excel ──────────────────────────────────────────────────────────
     const handleExportExcel = useCallback(async () => {
         setIsExporting(true);
         const key = "gl_export";
-        message.loading({ content: "Menyiapkan Laporan Keuangan...", key, duration: 0 });
-
+        message.loading({ content:"Menyiapkan Laporan Keuangan...", key, duration:0 });
         try {
-            // Fetch full period data (tidak hanya page aktif)
-            const { data: fullData, error } = await supabaseClient
-                .from("transaksi_keuangan")
-                .select("*, wali:wali_id(full_name), admin:admin_pencatat_id(full_name), santri:santri_nis(nama, nis, kelas)")
-                .gte("tanggal_transaksi", dateRange[0].startOf("day").toISOString())
-                .lte("tanggal_transaksi", dateRange[1].endOf("day").toISOString())
-                .order("tanggal_transaksi", { ascending: false });
+            const wb  = new ExcelJS.Workbook();
+            wb.creator = "Sistem Al-Hasanah";
+            wb.created = new Date();
+            const rows = rawData;
+            const C = { gold:"FFBE9A3A", goldDark:"FF9A7A00", goldBg:"FFFFF8E6",
+                        green:"FF16A34A", red:"FFDC2626", white:"FFFFFFFF" };
 
-            if (error) throw error;
-            const rows = fullData ?? [];
+            const headerFill = (argb: string): ExcelJS.Fill =>
+                ({ type:"pattern", pattern:"solid", fgColor:{ argb } } as ExcelJS.Fill);
 
-            const wb = new ExcelJS.Workbook();
-            wb.creator  = "Sistem Informasi Al-Hasanah";
-            wb.created  = new Date();
-
-            // ── WARNA CONST (argb hex) ──
-            const C = {
-                gold    : "FFD4A017",
-                goldDark: "FF9A7A00",
-                goldBg  : "FFFDF6DC",
-                white   : "FFFFFFFF",
-                gray50  : "FFF9FAFB",
-                gray100 : "FFF3F4F6",
-                gray700 : "FF374151",
-                green   : "FF22C55E",
-                red     : "FFEF4444",
-                orange  : "FFF59E0B",
-                blue    : "FF3B82F6",
-                black   : "FF111111",
-                stripe  : "FFFFFBF0",
+            const allBordersMed: Partial<ExcelJS.Borders> = {
+                top:{ style:"medium",color:{argb:C.goldDark} }, bottom:{ style:"medium",color:{argb:C.goldDark} },
+                left:{ style:"medium",color:{argb:C.goldDark} }, right:{ style:"medium",color:{argb:C.goldDark} },
             };
 
-            const borderThin   = { style: "thin"   as const, color: { argb: "FFE5E7EB" } };
-            const borderMedium = { style: "medium"  as const, color: { argb: C.gold     } };
-            const allBordersThin = { top:borderThin, left:borderThin, bottom:borderThin, right:borderThin };
-            const allBordersMed  = { top:borderMedium, left:borderMedium, bottom:borderMedium, right:borderMedium };
-
-            const headerFill = (bg: string): ExcelJS.FillPattern => ({
-                type: "pattern", pattern: "solid", fgColor: { argb: bg }
-            });
-
-            const setHeaderRow = (ws: ExcelJS.Worksheet, cols: string[], rowNum: number) => {
-                const row = ws.getRow(rowNum);
-                cols.forEach((label, i) => {
-                    const cell = row.getCell(i+1);
-                    cell.value     = label;
-                    cell.font      = { name:"Arial", size:10, bold:true, color:{argb:C.white} };
-                    cell.fill      = headerFill(C.gold);
-                    cell.alignment = { vertical:"middle", horizontal:"center", wrapText:false };
-                    cell.border    = allBordersMed;
+            const addKop = (ws: ExcelJS.Worksheet, cols: number, title: string, sub: string) => {
+                ws.mergeCells(1,1,1,cols); const r1 = ws.getRow(1);
+                r1.getCell(1).value = "PESANTREN AL-HASANAH";
+                r1.getCell(1).font  = { name:"Arial",size:14,bold:true,color:{argb:C.goldDark} };
+                r1.getCell(1).alignment = { horizontal:"center" };
+                ws.mergeCells(2,1,2,cols); const r2 = ws.getRow(2);
+                r2.getCell(1).value = title;
+                r2.getCell(1).font  = { name:"Arial",size:11,bold:true,color:{argb:C.gold} };
+                r2.getCell(1).alignment = { horizontal:"center" };
+                ws.mergeCells(3,1,3,cols); const r3 = ws.getRow(3);
+                r3.getCell(1).value = sub;
+                r3.getCell(1).font  = { name:"Arial",size:9,italic:true,color:{argb:C.goldDark} };
+                r3.getCell(1).alignment = { horizontal:"center" };
+                [1,2,3].forEach(i => { ws.getRow(i).height=18; ws.getRow(i).getCell(1).fill=headerFill(C.goldBg); });
+                ws.addRow([]);
+            };
+            const setHeaderRow = (ws: ExcelJS.Worksheet, headers: string[], rowNum: number) => {
+                ws.getRow(rowNum).values = headers;
+                ws.getRow(rowNum).height = 20;
+                ws.getRow(rowNum).eachCell(c => {
+                    c.font = { name:"Arial",size:10,bold:true,color:{argb:C.white} };
+                    c.fill = headerFill(C.goldDark);
+                    c.alignment = { horizontal:"center",vertical:"middle" };
+                    c.border = allBordersMed;
                 });
-                row.height = 28;
-                return row;
+            };
+            const setCellStyle = (c: ExcelJS.Cell, alt: boolean) => {
+                c.fill = headerFill(alt ? C.goldBg : C.white);
+                c.border = { bottom:{ style:"thin",color:{argb:"FFE8D5A0"} } };
             };
 
-            const setCellStyle = (cell: ExcelJS.Cell, isEven: boolean, extra?: Partial<ExcelJS.Style>) => {
-                cell.font      = { name:"Arial", size:9.5, color:{argb:C.black}, ...(extra?.font as any) };
-                cell.fill      = headerFill(isEven ? C.white : C.stripe);
-                cell.alignment = { vertical:"middle", horizontal:"left", wrapText:false, ...(extra?.alignment as any) };
-                cell.border    = allBordersThin;
-            };
-
-            const addKop = (ws: ExcelJS.Worksheet, totalCols: number, title: string, sub: string) => {
-                // Gold sidebar strip + kop
-                ws.mergeCells(1,1,1,totalCols);
-                const t = ws.getCell("A1");
-                t.value     = "PONDOK PESANTREN AL-HASANAH";
-                t.font      = { name:"Arial", size:16, bold:true, color:{argb:C.goldDark} };
-                t.alignment = { horizontal:"center", vertical:"middle" };
-                t.fill      = headerFill(C.goldBg);
-                ws.getRow(1).height = 32;
-
-                ws.mergeCells(2,1,2,totalCols);
-                ws.getCell("A2").value     = "Jl. Raya Cibeuti No.13, Cibeuti, Kec. Kawalu, Tasikmalaya, Jawa Barat 46182";
-                ws.getCell("A2").font      = { name:"Arial", size:9, italic:true, color:{argb:C.gray700} };
-                ws.getCell("A2").alignment = { horizontal:"center" };
-
-                ws.mergeCells(3,1,3,totalCols);
-                ws.getCell("A3").fill = headerFill(C.gold);
-                ws.getRow(3).height   = 4;
-
-                ws.addRow([]);
-
-                ws.mergeCells(5,1,5,totalCols);
-                ws.getCell("A5").value     = title;
-                ws.getCell("A5").font      = { name:"Arial", size:13, bold:true, color:{argb:C.black} };
-                ws.getCell("A5").alignment = { horizontal:"center" };
-
-                ws.mergeCells(6,1,6,totalCols);
-                ws.getCell("A6").value     = sub;
-                ws.getCell("A6").font      = { name:"Arial", size:9, color:{argb:C.gray700} };
-                ws.getCell("A6").alignment = { horizontal:"center" };
-
-                ws.addRow([]);
-            };
-
-            // ╔══════════════════════════════════╗
-            // ║  SHEET 1 — RINGKASAN EKSEKUTIF   ║
-            // ╚══════════════════════════════════╝
-            const ws1 = wb.addWorksheet("📊 Ringkasan Eksekutif", {
-                properties: { tabColor: { argb: C.gold } }
-            });
-            ws1.views = [{ showGridLines: false }];
-
-            const totalSukses  = rows.filter(r=>isSuccess(r.status_transaksi));
-            const totalMasukEx = totalSukses.filter(r=>r.jenis_transaksi==="masuk").reduce((s,r)=>s+Number(r.jumlah),0);
-            const totalKeluarEx= totalSukses.filter(r=>r.jenis_transaksi==="keluar").reduce((s,r)=>s+Number(r.jumlah),0);
-            const netEx        = totalMasukEx - totalKeluarEx;
-
-            const kpiRows = [
-                ["💰 Total Kas Masuk (Sukses)",   totalMasukEx, C.green],
-                ["💸 Total Kas Keluar (Sukses)",  totalKeluarEx, C.red],
-                ["📊 Net Saldo",                  netEx, netEx >= 0 ? C.green : C.red],
-                ["🔢 Total Transaksi",             rows.length, C.blue],
-                ["✅ Transaksi Sukses",             totalSukses.length, C.green],
-                ["⏳ Transaksi Pending",            rows.filter(r=>isPending(r.status_transaksi)).length, C.orange],
-                ["❌ Transaksi Gagal",              rows.filter(r=>isFailed(r.status_transaksi)).length, C.red],
-                ["📈 Rata-rata per Transaksi",     totalSukses.length > 0 ? Math.round(totalMasukEx/totalSukses.length) : 0, C.blue],
-                ["🏦 Digital Payments",             totalSukses.filter(r=>r.metode_pembayaran!=="cash").reduce((s,r)=>s+Number(r.jumlah),0), C.blue],
-                ["💵 Cash Payments",               totalSukses.filter(r=>r.metode_pembayaran==="cash").reduce((s,r)=>s+Number(r.jumlah),0), C.gray700],
+            // Sheet 1 — Summary
+            const ws1 = wb.addWorksheet("📊 Ringkasan", { properties:{ tabColor:{ argb:"FF"+GOLD_DARK.replace("#","") } } });
+            ws1.views = [{ showGridLines:false }];
+            addKop(ws1, 4, "RINGKASAN BUKU BESAR KEUANGAN", `${dateRange[0].format("DD MMM YYYY")} s.d. ${dateRange[1].format("DD MMM YYYY")}`);
+            setHeaderRow(ws1, ["METRIK","NILAI","METRIK","NILAI"], 5);
+            const summaryPairs = [
+                ["Kas Masuk (Sukses)", kpi.totalMasuk, "Kas Keluar", kpi.totalKeluar],
+                ["Net Saldo", kpi.netSaldo, "Total Transaksi", kpi.total],
+                ["Tagihan", kpi.tagihanTotal, "Infaq/Wakaf", kpi.infaqTotal],
+                ["Digital", kpi.digitalTotal, "Cash", kpi.cashTotal],
+                ["Sukses", kpi.sukses, "Pending", kpi.pending],
+                ["Rate Sukses", `${kpi.successRate}%`, "Digital%", `${kpi.digitalPct}%`],
             ];
-
-            addKop(ws1, 3, "RINGKASAN EKSEKUTIF KEUANGAN",
-                `Periode: ${dateRange[0].format("DD MMMM YYYY")} s/d ${dateRange[1].format("DD MMMM YYYY")} | Dicetak: ${dayjs().format("DD MMM YYYY HH:mm")}`);
-
-            setHeaderRow(ws1, ["INDIKATOR KINERJA KEUANGAN", "NILAI", ""], 8);
-            kpiRows.forEach(([label, val, color], i) => {
-                const row = ws1.addRow([label, val, ""]);
-                row.height = 22;
-                const c1 = row.getCell(1);
-                const c2 = row.getCell(2);
-                c1.font      = { name:"Arial", size:10, bold:true };
-                c1.fill      = headerFill(i%2===0 ? C.white : C.stripe);
-                c1.border    = allBordersThin;
-                c1.alignment = { vertical:"middle" };
-                c2.font      = { name:"Arial", size:11, bold:true, color:{argb:color as string} };
-                c2.fill      = headerFill(i%2===0 ? C.white : C.stripe);
-                c2.border    = allBordersThin;
-                c2.alignment = { vertical:"middle", horizontal:"right" };
-                if (typeof val === "number" && val > 999)
-                    c2.numFmt = '"Rp "#,##0';
-                ws1.getCell(`C${row.number}`).fill = headerFill(i%2===0 ? C.white : C.stripe);
+            summaryPairs.forEach((p, i) => {
+                const row = ws1.addRow(p); row.height = 20;
+                row.eachCell(c => { setCellStyle(c, i%2===0); c.alignment = { vertical:"middle" }; });
+                [2,4].forEach(ci => {
+                    if (typeof row.getCell(ci).value === "number") {
+                        row.getCell(ci).numFmt = "#,##0";
+                        row.getCell(ci).font = { name:"Courier New",size:10,bold:true,
+                            color:{ argb: (row.getCell(ci).value as number) < 0 ? C.red : C.green } };
+                    }
+                });
             });
+            [28,20,28,20].forEach((w,i) => { ws1.getColumn(i+1).width = w; });
 
-            ws1.getColumn(1).width = 42;
-            ws1.getColumn(2).width = 28;
-            ws1.getColumn(3).width = 10;
-
-            // ╔══════════════════════════════════╗
-            // ║  SHEET 2 — BUKU BESAR DETAIL     ║
-            // ╚══════════════════════════════════╝
-            const ws2 = wb.addWorksheet("📒 Buku Besar Detail", {
-                properties: { tabColor: { argb: "FF3B82F6" } }
-            });
-            ws2.views = [{ state:"frozen", ySplit:9, showGridLines:false }];
-
-            const cols2 = ["NO","TANGGAL MASEHI","TANGGAL HIJRIAH","JENIS","SUBJEK (SANTRI)","KELAS","WALI/PEMBAYAR","PENCATAT/SISTEM","URAIAN / KETERANGAN","METODE","NOMINAL","STATUS","ORDER ID MIDTRANS"];
-            addKop(ws2, cols2.length, "BUKU BESAR TRANSAKSI KEUANGAN — LAPORAN DETAIL",
-                `Periode: ${dateRange[0].format("DD MMMM YYYY")} s/d ${dateRange[1].format("DD MMMM YYYY")} | Total ${rows.length} Transaksi`);
-
-            setHeaderRow(ws2, cols2, 8);
-
-            let runningMasuk  = 0;
-            let runningKeluar = 0;
-
+            // Sheet 2 — Jurnal Lengkap
+            const ws2 = wb.addWorksheet("📋 Jurnal Lengkap", { properties:{ tabColor:{ argb:"FF"+INFO.replace("#","") } } });
+            ws2.views = [{ showGridLines:false }];
+            addKop(ws2, 10, "JURNAL TRANSAKSI KEUANGAN", `${dateRange[0].format("DD MMMM YYYY")} s.d. ${dateRange[1].format("DD MMMM YYYY")}`);
+            setHeaderRow(ws2, ["NO","TANGGAL","WAKTU","JENIS","SUBJEK / SANTRI","WALI","URAIAN","KATEGORI","METODE","NOMINAL","STATUS"], 8);
             rows.forEach((r, i) => {
-                const ok = isSuccess(r.status_transaksi);
-                if (ok && r.jenis_transaksi === "masuk")  runningMasuk  += Number(r.jumlah);
-                if (ok && r.jenis_transaksi === "keluar") runningKeluar += Number(r.jumlah);
-
                 const row = ws2.addRow([
                     i+1,
-                    dayjs(r.tanggal_transaksi).format("DD/MM/YYYY HH:mm"),
-                    formatHijri(r.tanggal_transaksi),
-                    r.jenis_transaksi === "masuk" ? "MASUK" : "KELUAR",
-                    (r.santri?.nama || santriAlias(r.santri?.nis))?.toUpperCase() || "UMUM / MASYARAKAT",
-                    r.santri?.kelas ? `Kelas ${r.santri.kelas}` : "-",
-                    r.wali?.full_name || r.keterangan || "-",
-                    r.admin?.full_name || "SISTEM (DIGITAL)",
+                    dayjs(r.tanggal_transaksi).format("DD/MM/YYYY"),
+                    dayjs(r.tanggal_transaksi).format("HH:mm"),
+                    r.jenis_transaksi?.toUpperCase(),
+                    r.santri?.nama || "Umum/Masyarakat",
+                    r.wali?.full_name || "-",
                     r.keterangan || "-",
+                    r.kategori || "-",
                     (r.metode_pembayaran || "CASH").toUpperCase(),
                     Number(r.jumlah),
-                    isSuccess(r.status_transaksi) ? "SUKSES" :
-                    isPending(r.status_transaksi) ? "PENDING" :
-                    isFailed(r.status_transaksi)  ? "GAGAL"  : "DIPROSES",
-                    r.midtrans_order_id || "-",
+                    isSuccess(r.status_transaksi) ? "SUKSES" : isPending(r.status_transaksi) ? "PENDING" : "GAGAL",
                 ]);
-                row.height = 20;
-
-                row.eachCell((cell, ci) => {
-                    setCellStyle(cell, i%2===0, {
-                        alignment: { horizontal: [1,4,6,10,11,12].includes(ci) ? "center" : "left", vertical:"middle" } as any
-                    });
-                });
-
-                // Tipe column color
-                const typeCell = row.getCell(4);
-                typeCell.font = { name:"Arial", size:9.5, bold:true,
-                    color: { argb: r.jenis_transaksi==="masuk" ? C.green : C.red }
-                };
-
-                // Nominal column
-                const nomCell = row.getCell(11);
-                nomCell.numFmt = "#,##0";
-                nomCell.font   = { name:"Courier New", size:10, bold:true,
-                    color: { argb: r.jenis_transaksi==="masuk" ? C.green : C.red }
-                };
-
-                // Status column color
-                const stCell = row.getCell(12);
-                stCell.font = { name:"Arial", size:9.5, bold:true,
-                    color: { argb: isSuccess(r.status_transaksi) ? C.green :
-                                   isPending(r.status_transaksi) ? C.orange : C.red }
-                };
+                row.height = 22;
+                row.eachCell(c => setCellStyle(c, i%2===0));
+                row.getCell(10).numFmt = "#,##0";
+                const isMasuk = r.jenis_transaksi === "masuk";
+                row.getCell(10).font = { name:"Courier New",size:10,bold:true,
+                    color:{ argb: isSuccess(r.status_transaksi) ? (isMasuk?C.green:C.red) : "FF999999" } };
             });
-
-            // Footer summary row
-            const footerRow = ws2.addRow([
-                "", "", "", "", "", "", "", "", "",
-                "TOTAL KAS MASUK (SUKSES) →",
-                runningMasuk, "", ""
-            ]);
-            footerRow.height = 26;
-            footerRow.getCell(10).font      = { name:"Arial", size:10, bold:true, color:{argb:C.goldDark} };
-            footerRow.getCell(10).alignment = { horizontal:"right" };
-            footerRow.getCell(11).font      = { name:"Courier New", size:11, bold:true, color:{argb:C.green} };
-            footerRow.getCell(11).numFmt    = "#,##0";
-            footerRow.getCell(11).fill      = headerFill(C.goldBg);
-
-            const footerRow2 = ws2.addRow(["","","","","","","","","","TOTAL KAS KELUAR (SUKSES) →",runningKeluar,"",""]);
-            footerRow2.height = 22;
-            footerRow2.getCell(10).font      = { name:"Arial", size:10, bold:true, color:{argb:C.goldDark} };
-            footerRow2.getCell(10).alignment = { horizontal:"right" };
-            footerRow2.getCell(11).font      = { name:"Courier New", size:11, bold:true, color:{argb:C.red} };
-            footerRow2.getCell(11).numFmt    = "#,##0";
-            footerRow2.getCell(11).fill      = headerFill(C.goldBg);
-
-            const netRow = ws2.addRow(["","","","","","","","","","NET SALDO →",runningMasuk-runningKeluar,"",""]);
-            netRow.height = 26;
-            netRow.getCell(10).font      = { name:"Arial", size:11, bold:true, color:{argb:C.goldDark} };
-            netRow.getCell(10).alignment = { horizontal:"right" };
-            const netColor = (runningMasuk-runningKeluar) >= 0 ? C.green : C.red;
-            netRow.getCell(11).font      = { name:"Courier New", size:12, bold:true, color:{argb:netColor} };
-            netRow.getCell(11).numFmt    = "#,##0";
-            netRow.getCell(11).fill      = headerFill(C.goldBg);
-            netRow.getCell(11).border    = allBordersMed;
-
-            ws2.autoFilter = `A8:M8`;
-            [5,22,22,10,32,10,28,22,38,14,18,12,28].forEach((w,i) => { ws2.getColumn(i+1).width = w; });
-
-            // ╔══════════════════════════════════╗
-            // ║  SHEET 3 — INFAQ & WAKAF         ║
-            // ╚══════════════════════════════════╝
-            const infaqRows = rows.filter(r =>
-                r.jenis_transaksi==="masuk" &&
-                isSuccess(r.status_transaksi) && (
-                r.keterangan?.toLowerCase().includes("infaq") ||
-                r.keterangan?.toLowerCase().includes("wakaf") ||
-                r.keterangan?.toLowerCase().includes("shadaqah") ||
-                r.keterangan?.toLowerCase().includes("sedekah"))
-            );
-
-            if (infaqRows.length > 0) {
-                const ws3 = wb.addWorksheet("❤️ Infaq & Wakaf", {
-                    properties: { tabColor: { argb:"FF8B5CF6" } }
+            const footMasuk  = rows.filter(r=>isSuccess(r.status_transaksi)&&r.jenis_transaksi==="masuk").reduce((s,r)=>s+Number(r.jumlah),0);
+            const footKeluar = rows.filter(r=>isSuccess(r.status_transaksi)&&r.jenis_transaksi==="keluar").reduce((s,r)=>s+Number(r.jumlah),0);
+            [["TOTAL KAS MASUK",footMasuk,C.green],["TOTAL KAS KELUAR",footKeluar,C.red],["NET SALDO",footMasuk-footKeluar,(footMasuk-footKeluar)>=0?C.green:C.red]]
+                .forEach(([label,val,color]) => {
+                    const fr = ws2.addRow(["","","","","","","","","",val as number,String(label)]);
+                    fr.height = 24;
+                    fr.getCell(11).font = { name:"Arial",size:10,bold:true,color:{argb:C.goldDark} };
+                    fr.getCell(10).numFmt = "#,##0";
+                    fr.getCell(10).font = { name:"Courier New",size:11,bold:true,color:{argb:color as string} };
+                    fr.getCell(10).fill = headerFill(C.goldBg);
+                    fr.getCell(10).border = allBordersMed;
                 });
-                ws3.views = [{ showGridLines:false }];
-                addKop(ws3, 6, "LAPORAN INFAQ, WAKAF & SHADAQAH",
-                    `Periode: ${dateRange[0].format("DD MMMM YYYY")} s/d ${dateRange[1].format("DD MMMM YYYY")}`);
+            [5,14,8,10,30,24,34,14,12,18,12].forEach((w,i) => { ws2.getColumn(i+1).width=w; });
+            ws2.autoFilter = "A8:K8";
 
-                setHeaderRow(ws3, ["NO","TANGGAL","PEMBERI / WALI","URAIAN / JENIS INFAQ","METODE","NOMINAL"], 8);
+            // Sheet 3 — Infaq
+            const infaqRows = rows.filter(r => r.jenis_transaksi==="masuk" && isSuccess(r.status_transaksi) && r.kategori==="donasi");
+            if (infaqRows.length > 0) {
+                const ws3 = wb.addWorksheet("❤️ Infaq & Wakaf", { properties:{ tabColor:{ argb:"FF7C3AED" } } });
+                ws3.views = [{ showGridLines:false }];
+                addKop(ws3, 6, "LAPORAN INFAQ, WAKAF & SHADAQAH", `${dateRange[0].format("DD MMM YYYY")} s/d ${dateRange[1].format("DD MMM YYYY")}`);
+                setHeaderRow(ws3, ["NO","TANGGAL","PEMBERI / WALI","URAIAN","METODE","NOMINAL"], 8);
                 let totalInfaq = 0;
                 infaqRows.forEach((r,i) => {
                     totalInfaq += Number(r.jumlah);
-                    const row = ws3.addRow([
-                        i+1,
-                        dayjs(r.tanggal_transaksi).format("DD MMM YYYY HH:mm"),
-                        r.wali?.full_name || r.santri?.nama || santriAlias(r.santri?.nis) || "Donatur Umum",
-                        r.keterangan || "-",
-                        (r.metode_pembayaran || "CASH").toUpperCase(),
-                        Number(r.jumlah),
-                    ]);
-                    row.height = 22;
-                    row.eachCell(cell => setCellStyle(cell, i%2===0));
-                    row.getCell(6).numFmt = "#,##0";
-                    row.getCell(6).font   = { name:"Courier New", size:10, bold:true, color:{argb:C.green} };
+                    const row = ws3.addRow([i+1, dayjs(r.tanggal_transaksi).format("DD MMM YYYY HH:mm"),
+                        r.wali?.full_name || r.santri?.nama || "Donatur Umum",
+                        r.keterangan || "-", (r.metode_pembayaran||"CASH").toUpperCase(), Number(r.jumlah)]);
+                    row.height=22; row.eachCell(c => setCellStyle(c, i%2===0));
+                    row.getCell(6).numFmt="#,##0";
+                    row.getCell(6).font={ name:"Courier New",size:10,bold:true,color:{argb:C.green} };
                 });
-                const footInfaq = ws3.addRow(["","","","","TOTAL INFAQ / WAKAF",totalInfaq]);
-                footInfaq.height = 26;
-                footInfaq.getCell(5).font      = { name:"Arial",size:11,bold:true,color:{argb:C.goldDark} };
-                footInfaq.getCell(5).alignment = { horizontal:"right" };
-                footInfaq.getCell(6).numFmt    = "#,##0";
-                footInfaq.getCell(6).font      = { name:"Courier New",size:12,bold:true,color:{argb:C.green} };
-                footInfaq.getCell(6).fill      = headerFill(C.goldBg);
-                footInfaq.getCell(6).border    = allBordersMed;
-                [5,24,32,40,14,20].forEach((w,i) => { ws3.getColumn(i+1).width = w; });
+                const ft = ws3.addRow(["","","","","TOTAL INFAQ/WAKAF",totalInfaq]);
+                ft.height=26; ft.getCell(5).font={ name:"Arial",size:11,bold:true,color:{argb:C.goldDark} };
+                ft.getCell(5).alignment={ horizontal:"right" };
+                ft.getCell(6).numFmt="#,##0"; ft.getCell(6).font={ name:"Courier New",size:12,bold:true,color:{argb:C.green} };
+                ft.getCell(6).fill=headerFill(C.goldBg); ft.getCell(6).border=allBordersMed;
+                [5,24,32,40,14,20].forEach((w,i) => { ws3.getColumn(i+1).width=w; });
             }
 
-            // ── SAVE ──
-            const buf      = await wb.xlsx.writeBuffer();
-            const dateStr  = `${dateRange[0].format("DDMMYY")}-${dateRange[1].format("DDMMYY")}`;
-            saveAs(new Blob([buf]), `BukuBesar_AlHasanah_${dateStr}.xlsx`);
+            const buf = await wb.xlsx.writeBuffer();
+            saveAs(new Blob([buf]), `BukuBesar_AlHasanah_${dateRange[0].format("DDMMYY")}-${dateRange[1].format("DDMMYY")}.xlsx`);
             message.success({ content:"Laporan Keuangan berhasil diunduh!", key, duration:3 });
         } catch (err: any) {
             message.error({ content:`Gagal export: ${err.message}`, key });
-        } finally {
-            setIsExporting(false);
-        }
-    }, [dateRange]);
+        } finally { setIsExporting(false); }
+    }, [rawData, dateRange]);
 
-    // ═══════════════════════════════════════════════════════
-    // TABLE COLUMNS
-    // ═══════════════════════════════════════════════════════
+    // ── Columns ───────────────────────────────────────────────────────────────
     const columns: ProColumns<ITransaksiKeuangan>[] = [
         {
-            title: "Waktu & Pencatat",
-            dataIndex: "tanggal_transaksi",
-            width: 170,
-            fixed: "left",
-            render: (_, r) => {
-                const isAdmin = !!r.admin?.full_name;
-                return (
-                    <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
-                        <Text style={{ fontWeight:700, fontSize:13, color:token.colorText, display:"block", lineHeight:"1.2" }}>
-                            {dayjs(r.tanggal_transaksi).format("DD MMM YYYY")}
-                        </Text>
-                        <Text className="gl-mono" style={{ fontSize:11, color:token.colorTextSecondary, display:"block" }}>
-                            {dayjs(r.tanggal_transaksi).format("HH:mm")} WIB
-                        </Text>
-                        <div style={{ marginTop:3 }}>
-                            {isAdmin ? (
-                                <Tag
-                                    icon={<UserOutlined />}
-                                    style={{
-                                        background: isDark ? COLOR.info.dark : COLOR.info.light,
-                                        color:COLOR.info.base, border:`1px solid ${COLOR.info.border}`,
-                                        borderRadius:6, fontSize:9.5, fontWeight:700, padding:"0 6px", margin:0
-                                    }}
-                                >
-                                    {r.admin!.full_name}
-                                </Tag>
-                            ) : (
-                                <Tag
-                                    icon={<ThunderboltOutlined />}
-                                    style={{
-                                        background: isDark ? COLOR.teal.dark : COLOR.teal.light,
-                                        color:COLOR.teal.base, border:`1px solid ${COLOR.teal.border}`,
-                                        borderRadius:6, fontSize:9.5, fontWeight:700, padding:"0 6px", margin:0
-                                    }}
-                                >
-                                    SISTEM AUTO
-                                </Tag>
-                            )}
-                        </div>
+            title:"Waktu & Pencatat", dataIndex:"tanggal_transaksi", width:170, fixed:"left",
+            render: (_,r) => (
+                <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
+                    <Text style={{ fontWeight:700, fontSize:13, color:token.colorText, lineHeight:"1.2" }}>
+                        {dayjs(r.tanggal_transaksi).format("DD MMM YYYY")}
+                    </Text>
+                    <Text className="gl-mono" style={{ fontSize:11, color:token.colorTextSecondary }}>
+                        {dayjs(r.tanggal_transaksi).format("HH:mm")} WIB
+                    </Text>
+                    <div style={{ marginTop:3 }}>
+                        {r.admin?.full_name ? (
+                            <Tag icon={<UserOutlined />} style={{
+                                background: isDark ? STATUS_COLOR.info.bg : "#EFF6FF",
+                                color:INFO, border:`1px solid ${STATUS_COLOR.info.border}`,
+                                borderRadius:6, fontSize:9.5, fontWeight:700, padding:"0 6px", margin:0
+                            }}>{r.admin.full_name}</Tag>
+                        ) : (
+                            <Tag icon={<ThunderboltOutlined />} style={{
+                                background: isDark ? STATUS_COLOR.teal.bg : "#F0FDFA",
+                                color:TEAL, border:`1px solid ${STATUS_COLOR.teal.border}`,
+                                borderRadius:6, fontSize:9.5, fontWeight:700, padding:"0 6px", margin:0
+                            }}>SISTEM AUTO</Tag>
+                        )}
                     </div>
-                );
-            }
+                </div>
+            ),
         },
         {
-            title: "Jenis",
-            dataIndex: "jenis_transaksi",
-            width: 90,
-            align: "center",
+            title:"Jenis", dataIndex:"jenis_transaksi", width:92, align:"center",
             render: (val) => {
-                const isMasuk = val === "masuk";
+                const im = val === "masuk";
                 return (
-                    <Tag
-                        icon={isMasuk ? <RiseOutlined /> : <FallOutlined />}
-                        style={{
-                            background: isMasuk
-                                ? (isDark ? COLOR.success.dark : COLOR.success.light)
-                                : (isDark ? COLOR.danger.dark : COLOR.danger.light),
-                            color:       isMasuk ? COLOR.success.base : COLOR.danger.base,
-                            border:      `1px solid ${isMasuk ? COLOR.success.border : COLOR.danger.border}`,
-                            borderRadius:20, fontWeight:800, fontSize:10.5,
-                            padding:"3px 10px", display:"inline-flex", alignItems:"center", gap:4,
-                            boxShadow:`0 2px 8px ${isMasuk ? COLOR.success.glow : COLOR.danger.glow}`
-                        }}
-                    >
-                        {isMasuk ? "MASUK" : "KELUAR"}
-                    </Tag>
+                    <Tag icon={im ? <RiseOutlined /> : <FallOutlined />} style={{
+                        background: im ? (isDark?STATUS_COLOR.success.bg:"#F0FDF4") : (isDark?STATUS_COLOR.danger.bg:"#FFF1F2"),
+                        color: im ? SUCCESS : DANGER,
+                        border:`1px solid ${im?STATUS_COLOR.success.border:STATUS_COLOR.danger.border}`,
+                        borderRadius:20, fontWeight:800, fontSize:10.5, padding:"3px 10px",
+                        display:"inline-flex", alignItems:"center", gap:4,
+                    }}>{im?"MASUK":"KELUAR"}</Tag>
                 );
-            }
+            },
         },
         {
-            title: "Subjek Transaksi",
-            key: "subjek",
-            width: 250,
-            render: (_, r) => {
-                const hasSantri = !!r.santri;
-                return (
-                    <Space size={10} align="start">
-                        <Avatar
-                            size={40}
-                            icon={hasSantri ? <TeamOutlined /> : <HeartOutlined />}
-                            style={{
-                                flexShrink:0,
-                                background: hasSantri
-                                    ? (isDark ? G(0.18) : "#FDF6DC")
-                                    : (isDark ? COLOR.purple.dark : COLOR.purple.light),
-                                color: hasSantri
-                                    ? (isDark ? GOLD_LIGHT : GOLD_DARK)
-                                    : COLOR.purple.base,
-                                border: `2px solid ${hasSantri ? G(0.3) : COLOR.purple.border}`,
-                            }}
-                        />
-                        <div style={{ display:"flex", flexDirection:"column", gap:3, minWidth:0 }}>
-                            {hasSantri ? (
-                                <>
-                                    <Text style={{ fontWeight:700, fontSize:13, color:token.colorText, display:"block", lineHeight:"1.2" }}>
-                                        {r.santri!.nama}
-                                    </Text>
-                                    <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
-                                        <Tag style={{
-                                            background:G(isDark?.18:.08), color:isDark?GOLD_LIGHT:GOLD_DARK,
-                                            border:`1px solid ${G(.25)}`, borderRadius:5,
-                                            fontSize:9.5, fontWeight:700, padding:"0 6px", margin:0
-                                        }}>
-                                            Kelas {r.santri!.kelas}
-                                        </Tag>
-                                    </div>
-                                </>
-                            ) : (
-                                <Text style={{ fontSize:12.5, color:token.colorTextSecondary, fontStyle:"italic" }}>
-                                    Umum / Masyarakat
+            title:"Subjek Transaksi", key:"subjek", width:240,
+            render: (_,r) => (
+                <Space size={10} align="start">
+                    <Avatar size={38} icon={r.santri ? <TeamOutlined /> : <HeartOutlined />} style={{
+                        flexShrink:0,
+                        background: r.santri ? (isDark?G(.18):"#FDF6DC") : (isDark?STATUS_COLOR.purple.bg:"#F5F3FF"),
+                        color: r.santri ? (isDark?"#F0C040":GOLD_DARK) : PURPLE,
+                        border:`2px solid ${r.santri?G(.3):STATUS_COLOR.purple.border}`,
+                    }} />
+                    <div style={{ display:"flex", flexDirection:"column", gap:3, minWidth:0 }}>
+                        {r.santri ? (
+                            <>
+                                <Text style={{ fontWeight:700, fontSize:13, color:token.colorText, lineHeight:"1.2" }}>
+                                    {r.santri.nama}
                                 </Text>
-                            )}
-                            {r.wali?.full_name && (
-                                <Text style={{ fontSize:10.5, color:token.colorTextSecondary }}>
-                                    Wali: {r.wali.full_name}
-                                </Text>
-                            )}
-                        </div>
-                    </Space>
-                );
-            }
+                                <Tag style={{
+                                    background:G(isDark?.18:.08), color:isDark?"#F0C040":GOLD_DARK,
+                                    border:`1px solid ${G(.25)}`, borderRadius:5,
+                                    fontSize:9.5, fontWeight:700, padding:"0 6px", margin:0, display:"inline"
+                                }}>Kelas {r.santri.kelas}</Tag>
+                            </>
+                        ) : (
+                            <Text style={{ fontSize:12.5, color:token.colorTextSecondary, fontStyle:"italic" }}>
+                                Umum / Masyarakat
+                            </Text>
+                        )}
+                        {r.wali?.full_name && (
+                            <Text style={{ fontSize:10.5, color:token.colorTextSecondary }}>
+                                Wali: {r.wali.full_name}
+                            </Text>
+                        )}
+                    </div>
+                </Space>
+            ),
         },
         {
-            title: "Uraian & Audit",
-            dataIndex: "keterangan",
-            width: 240,
+            title:"Uraian & Audit", dataIndex:"keterangan", width:230,
             render: (val, r) => (
                 <div>
                     <div style={{ display:"flex", alignItems:"flex-start", gap:8 }}>
-                        <div style={{
-                            width:3, minHeight:30, borderRadius:2, flexShrink:0,
-                            background:`linear-gradient(to bottom, ${GOLD_LIGHT}, ${GOLD_DARK})`
-                        }} />
+                        <div style={{ width:3, minHeight:28, borderRadius:2, flexShrink:0,
+                            background:`linear-gradient(to bottom, ${GOLD_BRIGHT}, ${GOLD_DARK})` }} />
                         <Text style={{ fontSize:12.5, color:token.colorText, lineHeight:1.5 }}>
-                            {val || "—"}
+                            {val||"—"}
                         </Text>
                     </div>
                     {r.midtrans_order_id && (
-                        <div style={{
-                            marginTop:6, padding:"3px 8px",
-                            background: isDark ? "rgba(255,255,255,0.04)" : "#F8FAFC",
+                        <div style={{ marginTop:6, padding:"3px 8px",
+                            background:isDark?"rgba(255,255,255,0.04)":"#F8FAFC",
                             border:`1px solid ${isDark?"rgba(255,255,255,0.08)":"#E2E8F0"}`,
-                            borderRadius:5, display:"flex", alignItems:"center", gap:5
-                        }}>
-                            <LockOutlined style={{ fontSize:9, color:COLOR.teal.base }} />
+                            borderRadius:5, display:"flex", alignItems:"center", gap:5 }}>
+                            <LockOutlined style={{ fontSize:9, color:TEAL }} />
                             <Text className="gl-mono" style={{ fontSize:9.5, color:token.colorTextSecondary }}>
                                 {r.midtrans_order_id}
                             </Text>
                         </div>
                     )}
                 </div>
-            )
+            ),
         },
         {
-            title: "Metode",
-            dataIndex: "metode_pembayaran",
-            width: 120,
-            align: "center",
+            title:"Metode", dataIndex:"metode_pembayaran", width:120, align:"center",
             render: (val) => {
-                const meta = metodeMeta(String(val ?? "cash"));
+                const meta = metodeMeta(String(val??"cash"));
                 return (
-                    <div style={{
-                        display:"inline-flex", alignItems:"center", gap:6,
-                        background: isDark ? "rgba(255,255,255,0.05)" : token.colorBgTextHover,
+                    <div style={{ display:"inline-flex", alignItems:"center", gap:6,
+                        background:isDark?"rgba(255,255,255,0.05)":token.colorBgTextHover,
                         border:`1px solid ${isDark?"rgba(255,255,255,0.1)":token.colorBorderSecondary}`,
-                        borderRadius:8, padding:"4px 10px"
-                    }}>
+                        borderRadius:8, padding:"4px 10px" }}>
                         <span style={{ color:token.colorTextSecondary, fontSize:12 }}>{meta.icon}</span>
                         <Text className="gl-mono" style={{ fontSize:10.5, fontWeight:700, color:token.colorText, letterSpacing:"0.04em" }}>
                             {meta.label}
                         </Text>
                     </div>
                 );
-            }
+            },
         },
         {
-            title: "Nominal",
-            dataIndex: "jumlah",
-            width: 170,
-            align: "right",
+            title:"Nominal", dataIndex:"jumlah", width:175, align:"right",
             render: (val, r) => {
-                const isMasuk = r.jenis_transaksi === "masuk";
-                const isOk    = isSuccess(r.status_transaksi);
+                const im = r.jenis_transaksi === "masuk";
+                const ok = isSuccess(r.status_transaksi);
                 return (
                     <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:3 }}>
-                        <Text
-                            className="gl-mono"
-                            style={{
-                                fontWeight:800, fontSize:14.5,
-                                color: isOk
-                                    ? (isMasuk ? COLOR.success.base : COLOR.danger.base)
-                                    : token.colorTextSecondary,
-                                display:"block"
-                            }}
-                        >
-                            {isMasuk ? "+" : "−"}{fCurrency(Number(val))}
+                        <Text className="gl-mono" style={{ fontWeight:800, fontSize:14.5,
+                            color: ok ? (im?SUCCESS:DANGER) : token.colorTextSecondary }}>
+                            {im?"+":"−"}{fCurrency(Number(val))}
                         </Text>
-                        {!isOk && (
-                            <Text style={{ fontSize:9.5, color:token.colorTextSecondary }}>
-                                (belum terkonfirmasi)
-                            </Text>
-                        )}
+                        {!ok && <Text style={{ fontSize:9.5, color:token.colorTextSecondary }}>(belum terkonfirmasi)</Text>}
                     </div>
                 );
-            }
+            },
         },
         {
-            title: "Status",
-            dataIndex: "status_transaksi",
-            width: 120,
-            align: "center",
-            fixed: "right",
+            title:"Status", dataIndex:"status_transaksi", width:120, align:"center", fixed:"right",
             render: (val) => {
-                const meta = statusMeta(String(val ?? ""));
+                const meta = statusMeta(String(val??""));
                 return (
-                    <Tag
-                        icon={meta.icon}
-                        style={{
-                            background: isDark ? meta.color.dark : meta.color.light,
-                            color:meta.color.base, border:`1px solid ${meta.color.border}`,
-                            borderRadius:20, fontWeight:800, fontSize:10.5,
-                            padding:"3px 12px", display:"inline-flex", alignItems:"center", gap:5,
-                            boxShadow:`0 2px 8px ${meta.color.glow}`
-                        }}
-                    >
-                        {meta.label}
-                    </Tag>
+                    <Tag icon={meta.icon} style={{
+                        background: isDark ? meta.c.bg : meta.c.bg,
+                        color:meta.c.base, border:`1px solid ${meta.c.border}`,
+                        borderRadius:20, fontWeight:800, fontSize:10.5,
+                        padding:"3px 12px", display:"inline-flex", alignItems:"center", gap:5,
+                    }}>{meta.label}</Tag>
                 );
-            }
+            },
         },
     ];
 
-    // ═══════════════════════════════════════════════════════
-    // DESIGN TOKENS
-    // ═══════════════════════════════════════════════════════
     const cardBase: React.CSSProperties = {
-        borderRadius:16,
-        border:`1px solid ${G(isDark?.22:.13)}`,
+        borderRadius:20, border:`1px solid ${G(isDark?.18:.13)}`,
         background:token.colorBgContainer,
+        boxShadow: isDark ? "0 8px 40px rgba(0,0,0,0.3)" : "0 4px 20px rgba(0,0,0,0.05)",
     };
 
-    const kpiDefs = [
-        {
-            key:"masuk", label:"Kas Masuk Sukses",
-            value: fCompact(kpi.totalMasuk),
-            sub: fCurrency(kpi.totalMasuk),
-            icon:<RiseOutlined />, color:COLOR.success,
-            trend:null, trendLabel:"",
-        },
-        {
-            key:"net", label:"Net Saldo",
-            value: fCompact(kpi.netSaldo),
-            sub: fCurrency(kpi.netSaldo),
-            icon:<SwapOutlined />, color: kpi.netSaldo >= 0 ? COLOR.success : COLOR.danger,
-            trend:null, trendLabel:"",
-        },
-        {
-            key:"trx", label:"Total Transaksi",
-            value: kpi.total,
-            sub: `${kpi.sukses} Sukses · ${kpi.pending} Pending`,
-            icon:<BarChartOutlined />, color:COLOR.info,
-            trend:null, trendLabel:"",
-        },
-        {
-            key:"avg", label:"Rata-rata / Transaksi",
-            value: fCompact(kpi.rataRata),
-            sub: fCurrency(kpi.rataRata),
-            icon:<DollarOutlined />, color:{ base:isDark?GOLD_LIGHT:GOLD_DARK, light:"#FDF6DC", dark:G(.12), border:G(.28), glow:G(.3) },
-            trend:null, trendLabel:"",
-        },
-    ];
-
-    // ── Table summary ──
-    const pageSuccessMasuk  = filteredData.filter(r=>isSuccess(r.status_transaksi)&&r.jenis_transaksi==="masuk").reduce((s,r)=>s+Number(r.jumlah),0);
-    const pageSuccessKeluar = filteredData.filter(r=>isSuccess(r.status_transaksi)&&r.jenis_transaksi==="keluar").reduce((s,r)=>s+Number(r.jumlah),0);
-
+    // ═════════════════════════════════════════════════════════════════════
     return (
-        <div className="gl-root" style={{ display:"flex", flexDirection:"column", gap:20, paddingBottom:80 }}>
+        <motion.div
+            className="gl-root"
+            initial="hidden" animate="visible" variants={stagger}
+            style={{ display:"flex", flexDirection:"column", gap:24, paddingBottom:80 }}
+        >
             <style>{LEDGER_CSS}</style>
 
-            {/* ╔══════════════════════════════════════════╗
-                ║          HERO HEADER BANNER              ║
-                ╚══════════════════════════════════════════╝ */}
-            <motion.div
-                initial={{ opacity:0, y:-18 }}
-                animate={{ opacity:1, y:0 }}
-                transition={{ duration:.48, ease:"easeOut" }}
-                style={{
-                    background: isDark
-                        ? `linear-gradient(135deg, ${G(.14)} 0%, ${G(.06)} 50%, transparent 100%)`
-                        : `linear-gradient(135deg, #F8F0D0 0%, #FFF9EE 55%, #FFFFFF 100%)`,
-                    borderRadius:20, padding:"22px 28px",
-                    border:`1px solid ${G(isDark?.3:.22)}`,
-                    position:"relative", overflow:"hidden",
-                }}
-            >
-                <div style={{ position:"absolute", top:-50, right:-50, width:230, height:230, borderRadius:"50%", background:`radial-gradient(circle, ${G(.13)} 0%, transparent 70%)`, pointerEvents:"none" }} />
-                <div style={{ position:"absolute", bottom:-25, left:160, width:150, height:150, borderRadius:"50%", background:`radial-gradient(circle, ${G(.07)} 0%, transparent 70%)`, pointerEvents:"none" }} />
-
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:16, position:"relative" }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:18 }}>
-                        <div className="gl-float" style={{
-                            width:60, height:60, borderRadius:18,
+            {/* ── PAGE HEADER ──────────────────────────────────────────────── */}
+            <motion.div variants={fadeUp} style={{
+                display:"flex", flexWrap:"wrap", justifyContent:"space-between",
+                alignItems:"flex-end", gap:16,
+                paddingBottom:28,
+                borderBottom:`1px solid ${G(isDark?.15:.18)}`,
+            }}>
+                <div>
+                    <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
+                        <div style={{
+                            width:52, height:52, borderRadius:16, flexShrink:0,
                             background:`linear-gradient(135deg, ${GOLD}, ${GOLD_DARK})`,
                             display:"flex", alignItems:"center", justifyContent:"center",
-                            boxShadow:`0 8px 26px ${G(.5)}`, flexShrink:0,
-                        }}>
-                            <AuditOutlined style={{ color:"#fff", fontSize:26 }} />
-                        </div>
+                            boxShadow:`0 8px 26px ${G(.5)}`, fontSize:24, color:"#fff",
+                        }}><AuditOutlined /></div>
                         <div>
-                            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:5 }}>
-                                <h1 className="gl-shimmer-text" style={{
-                                    fontFamily:"'Cinzel','Georgia',serif",
-                                    fontSize:20, fontWeight:700, margin:0, letterSpacing:"0.03em"
-                                }}>
-                                    Buku Besar Keuangan
+                            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:5 }}>
+                                <h1 style={{
+                                    fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800,
+                                    margin:0, letterSpacing:"-0.04em", color:token.colorText, lineHeight:1.1,
+                                }}>Buku Besar{" "}
+                                    <motion.span
+                                        animate={{ backgroundPosition:["0% center","200% center"] }}
+                                        transition={{ duration:4, repeat:Infinity, ease:"linear" }}
+                                        style={{
+                                            background:`linear-gradient(120deg, ${GOLD_DARK}, ${GOLD_BRIGHT}, #FFE680, ${GOLD})`,
+                                            WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
+                                            backgroundSize:"250% auto", display:"inline-block",
+                                        }}>Keuangan</motion.span>
                                 </h1>
-                                <Tag style={{
-                                    background:`linear-gradient(135deg, ${GOLD}, ${GOLD_DARK})`,
-                                    color:"#fff", border:"none", borderRadius:7,
-                                    fontWeight:700, fontSize:9.5, letterSpacing:"0.12em", padding:"1px 9px"
-                                }}>AUDIT LOCKED</Tag>
-                                <Tag style={{
-                                    background: isDark ? COLOR.success.dark : COLOR.success.light,
-                                    color:COLOR.success.base, border:`1px solid ${COLOR.success.border}`,
-                                    borderRadius:7, fontSize:9.5, fontWeight:700, padding:"1px 9px"
-                                }}>
-                                    <SafetyCertificateOutlined style={{ marginRight:3 }} />GENERAL LEDGER
-                                </Tag>
                             </div>
-                            <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+                            <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                                <Tag style={{ background:`linear-gradient(135deg,${GOLD},${GOLD_DARK})`,
+                                    color:"#fff", border:"none", borderRadius:7,
+                                    fontWeight:700, fontSize:9.5, letterSpacing:"0.12em", padding:"2px 10px" }}>
+                                    AUDIT LOCKED
+                                </Tag>
+                                <Tag icon={<CheckCircleOutlined />} style={{
+                                    background: isDark ? STATUS_COLOR.success.bg : "#F0FDF4",
+                                    color:SUCCESS, border:`1px solid ${STATUS_COLOR.success.border}`,
+                                    borderRadius:7, fontSize:9.5, fontWeight:700, padding:"2px 9px"
+                                }}>GENERAL LEDGER</Tag>
                                 <span style={{ fontSize:12, color:token.colorTextSecondary }}>
                                     <CalendarOutlined style={{ marginRight:5, color:GOLD }} />
-                                    {formatHijri(new Date())}
+                                    {formatHijri(new Date())} · {formatMasehi(new Date())}
                                 </span>
-                                <span style={{ color:token.colorBorderSecondary }}>·</span>
                                 <span style={{ fontSize:12, color:token.colorTextSecondary }}>
-                                    {formatMasehi(new Date())}
-                                </span>
-                                <span style={{ color:token.colorBorderSecondary }}>·</span>
-                                <span style={{ fontSize:12, color:token.colorTextSecondary }}>
-                                    <LockOutlined style={{ marginRight:4, color:COLOR.success.base }} />
+                                    <LockOutlined style={{ marginRight:4, color:SUCCESS }} />
                                     Data tidak dapat dimanipulasi
                                 </span>
                             </div>
                         </div>
                     </div>
 
-                    <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
-                        <Button
-                            icon={<HeartOutlined />}
-                            onClick={() => create("transaksi_keuangan")}
-                            style={{
-                                borderColor:`${COLOR.purple.base}55`,
-                                color:COLOR.purple.base,
-                                borderRadius:11, height:40, fontWeight:600, fontSize:13,
-                                background: isDark ? COLOR.purple.dark : COLOR.purple.light
-                            }}
-                        >
-                            Input Infaq / Wakaf
-                        </Button>
-                        <Button
-                            icon={<DownloadOutlined />}
-                            loading={isExporting}
-                            onClick={handleExportExcel}
-                            style={{
-                                borderColor:`${COLOR.success.base}55`,
-                                color:COLOR.success.base,
-                                borderRadius:11, height:40, fontWeight:600, fontSize:13,
-                                background: isDark ? COLOR.success.dark : COLOR.success.light
-                            }}
-                        >
-                            Export Excel
-                        </Button>
+                    <div style={{ fontSize:13, color:token.colorTextSecondary, marginTop:4 }}>
+                        {dateRange[0].format("DD MMM YYYY")} — {dateRange[1].format("DD MMM YYYY")}
+                        <span style={{ margin:"0 8px", color:token.colorBorderSecondary }}>·</span>
+                        <span style={{ color:GOLD_BRIGHT, fontWeight:600 }}>{filteredData.length} transaksi</span>
+                        {activeFilters > 0 && (
+                            <span style={{ marginLeft:10, padding:"2px 8px", borderRadius:6, fontSize:11,
+                                background:G(.12), color:GOLD_BRIGHT, fontWeight:700, border:`1px solid ${G(.3)}` }}>
+                                {activeFilters} filter aktif
+                            </span>
+                        )}
                     </div>
+                </div>
+
+                <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                    <Button icon={<HeartOutlined />} onClick={() => create("transaksi_keuangan")}
+                        style={{
+                            borderColor:`${PURPLE}55`, color:PURPLE, borderRadius:12, height:40,
+                            fontWeight:600, fontSize:13,
+                            background: isDark ? STATUS_COLOR.purple.bg : "#F5F3FF",
+                        }}>
+                        Input Infaq / Wakaf
+                    </Button>
+                    <motion.div whileHover={{ scale:1.03 }} whileTap={{ scale:.97 }}>
+                        <Button icon={<DownloadOutlined />} loading={isExporting} onClick={handleExportExcel}
+                            style={{
+                                background:`linear-gradient(135deg, ${GOLD} 0%, ${GOLD_DARK} 100%)`,
+                                border:"none", borderRadius:12, height:40,
+                                fontWeight:700, fontSize:13, color:"#fff",
+                                boxShadow:`0 6px 20px ${G(.45)}`,
+                            }}>
+                            Export Buku Besar
+                        </Button>
+                    </motion.div>
                 </div>
             </motion.div>
 
-            {/* ╔══════════════════════════════════════════╗
-                ║             KPI CARDS                    ║
-                ╚══════════════════════════════════════════╝ */}
-            <Row gutter={[16,16]}>
-                {kpiDefs.map((kpi, i) => (
-                    <Col xs={24} sm={12} lg={6} key={kpi.key}>
-                        <motion.div
-                            initial={{ opacity:0, y:22 }}
-                            animate={{ opacity:1, y:0 }}
-                            transition={{ duration:.42, delay:i*.09, ease:"easeOut" }}
-                        >
-                            <Card
-                                className="gl-kpi-card"
-                                bordered={false}
-                                bodyStyle={{ padding:"18px 20px" }}
-                                style={{
-                                    background: isDark ? kpi.color.dark : kpi.color.light,
-                                    border:`1px solid ${kpi.color.border}`,
-                                    borderRadius:16,
-                                    boxShadow:`0 4px 20px ${kpi.color.glow}44`
-                                }}
-                            >
-                                <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:8 }}>
-                                    <div style={{ flex:1, minWidth:0 }}>
-                                        <div style={{
-                                            fontSize:10.5, fontWeight:700, letterSpacing:"0.08em",
-                                            color:token.colorTextSecondary, textTransform:"uppercase",
-                                            marginBottom:10,
-                                        }}>
-                                            {kpi.label}
-                                        </div>
-                                        <div className="gl-mono" style={{
-                                            fontSize:26, fontWeight:900, color:kpi.color.base,
-                                            lineHeight:1, marginBottom:5
-                                        }}>
-                                            {kpi.value}
-                                        </div>
-                                        <div style={{ fontSize:11, color:token.colorTextSecondary }}>
-                                            {kpi.sub}
-                                        </div>
-                                    </div>
-                                    <div style={{
-                                        width:46, height:46, borderRadius:13, flexShrink:0,
-                                        background:`${kpi.color.base}22`,
-                                        display:"flex", alignItems:"center", justifyContent:"center",
-                                        fontSize:21, color:kpi.color.base,
-                                    }}>
-                                        {kpi.icon}
-                                    </div>
-                                </div>
-                            </Card>
-                        </motion.div>
-                    </Col>
-                ))}
-            </Row>
-
-            {/* ╔══════════════════════════════════════════╗
-                ║       SMART ANALYTICS MINI STRIP         ║
-                ╚══════════════════════════════════════════╝ */}
-            <motion.div
-                initial={{ opacity:0, y:10 }}
-                animate={{ opacity:1, y:0 }}
-                transition={{ duration:.4, delay:.38 }}
-            >
+            {/* ── KPI STRIP ROW 1 ──────────────────────────────────────────── */}
+            <motion.div variants={stagger}>
                 <Row gutter={[14,14]}>
-                    {/* Success Rate */}
-                    <Col xs={24} sm={12} md={6}>
-                        <Card bordered={false} bodyStyle={{ padding:"14px 18px" }} style={cardBase}>
-                            <Text style={{ fontSize:10, fontWeight:700, color:token.colorTextSecondary, textTransform:"uppercase", letterSpacing:"0.07em", display:"block", marginBottom:8 }}>Tingkat Sukses</Text>
-                            <Progress
-                                percent={kpi.successRate}
-                                strokeColor={{ from:COLOR.success.base, to:"#16A34A" }}
-                                trailColor={isDark?"rgba(255,255,255,0.07)":"#E5E7EB"}
-                                strokeWidth={8}
-                                format={pct => <span className="gl-mono" style={{ fontSize:14, fontWeight:800, color:COLOR.success.base }}>{pct}%</span>}
-                            />
-                            <Text style={{ fontSize:10.5, color:token.colorTextSecondary, marginTop:4, display:"block" }}>
-                                {kpi.sukses} sukses dari {kpi.total} transaksi
-                            </Text>
-                        </Card>
-                    </Col>
-                    {/* Pending Alert */}
-                    <Col xs={24} sm={12} md={6}>
-                        <Card bordered={false} bodyStyle={{ padding:"14px 18px" }}
-                            style={{ ...cardBase, border:`1px solid ${kpi.pending > 0 ? COLOR.warning.border : G(isDark?.22:.13)}` }}>
-                            <Text style={{ fontSize:10, fontWeight:700, color:token.colorTextSecondary, textTransform:"uppercase", letterSpacing:"0.07em", display:"block", marginBottom:6 }}>Menunggu Konfirmasi</Text>
-                            <div style={{ display:"flex", alignItems:"baseline", gap:6 }}>
-                                <span className="gl-mono" style={{ fontSize:24, fontWeight:900, color: kpi.pending>0 ? COLOR.warning.base : token.colorTextSecondary }}>
-                                    {kpi.pending}
-                                </span>
-                                <span style={{ fontSize:11, color:token.colorTextSecondary }}>transaksi</span>
-                            </div>
-                            <Text style={{ fontSize:10.5, color:token.colorTextSecondary }}>
-                                {fCurrency(kpi.pendingValue)} belum terkonfirmasi
-                            </Text>
-                        </Card>
-                    </Col>
-                    {/* Digital vs Cash */}
-                    <Col xs={24} sm={12} md={6}>
-                        <Card bordered={false} bodyStyle={{ padding:"14px 18px" }} style={cardBase}>
-                            <Text style={{ fontSize:10, fontWeight:700, color:token.colorTextSecondary, textTransform:"uppercase", letterSpacing:"0.07em", display:"block", marginBottom:8 }}>Komposisi Metode</Text>
-                            <Progress
-                                percent={kpi.digitalPct}
-                                strokeColor={{ from:COLOR.info.base, to:"#2563EB" }}
-                                trailColor={isDark?"rgba(255,255,255,0.07)":"#E5E7EB"}
-                                strokeWidth={8}
-                                format={pct => <span className="gl-mono" style={{ fontSize:12, fontWeight:800, color:COLOR.info.base }}>{pct}%</span>}
-                            />
-                            <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
-                                <Text style={{ fontSize:10.5, color:COLOR.info.base, fontWeight:600 }}>● Digital {fCompact(kpi.digitalTotal)}</Text>
-                                <Text style={{ fontSize:10.5, color:token.colorTextSecondary, fontWeight:600 }}>● Cash {fCompact(kpi.cashTotal)}</Text>
-                            </div>
-                        </Card>
-                    </Col>
-                    {/* Infaq portion */}
-                    <Col xs={24} sm={12} md={6}>
-                        <Card bordered={false} bodyStyle={{ padding:"14px 18px" }}
-                            style={{ ...cardBase, border:`1px solid ${COLOR.purple.border}` }}>
-                            <Text style={{ fontSize:10, fontWeight:700, color:token.colorTextSecondary, textTransform:"uppercase", letterSpacing:"0.07em", display:"block", marginBottom:6 }}>
-                                <HeartOutlined style={{ marginRight:4, color:COLOR.purple.base }} />Infaq & Wakaf
-                            </Text>
-                            <div className="gl-mono" style={{ fontSize:22, fontWeight:900, color:COLOR.purple.base, lineHeight:1, marginBottom:4 }}>
-                                {fCompact(kpi.infaqTotal)}
-                            </div>
-                            <Text style={{ fontSize:10.5, color:token.colorTextSecondary }}>
-                                Tagihan: {fCompact(kpi.tagihanTotal)}
-                            </Text>
-                        </Card>
-                    </Col>
+                    {[
+                        { label:"Kas Masuk Sukses", value:kpi.totalMasuk, icon:<RiseOutlined />,
+                          color:SUCCESS, formatter:fCompact, subtext:`${kpi.sukses} trx sukses` },
+                        { label:"Kas Keluar Sukses", value:kpi.totalKeluar, icon:<FallOutlined />,
+                          color:DANGER,  formatter:fCompact, subtext:"transaksi keluar" },
+                        { label:"Net Saldo",         value:kpi.netSaldo,   icon:<SwapOutlined />,
+                          color:kpi.netSaldo>=0?SUCCESS:DANGER, formatter:fCompact,
+                          subtext:kpi.netSaldo>=0?"Posisi Surplus":"Posisi Defisit" },
+                        { label:"Total Transaksi",   value:kpi.total,      icon:<BarChartOutlined />,
+                          color:INFO, subtext:`${kpi.sukses} sukses · ${kpi.pending} pending` },
+                        { label:"Rata / Trx",         value:kpi.rataRata,  icon:<DollarOutlined />,
+                          color:GOLD_BRIGHT, formatter:fCompact, subtext:"per transaksi masuk sukses" },
+                        { label:"Tingkat Sukses",     value:kpi.successRate, icon:<SafetyCertificateOutlined />,
+                          color:TEAL,
+                          subtext:`${kpi.gagal} gagal · ${kpi.pending} pending` },
+                        { label:"Infaq & Wakaf",      value:kpi.infaqTotal, icon:<HeartOutlined />,
+                          color:PURPLE, formatter:fCompact, subtext:`Tagihan: ${fCompact(kpi.tagihanTotal)}` },
+                        { label:"Transaksi Digital",  value:kpi.digitalTotal, icon:<CreditCardOutlined />,
+                          color:INFO, formatter:fCompact, subtext:`${kpi.digitalPct}% dari total masuk` },
+                    ].map((k, i) => (
+                        <Col key={k.label} xs={12} sm={8} lg={6}>
+                            <KpiCard {...k} isDark={isDark} token={token} delay={i} />
+                        </Col>
+                    ))}
                 </Row>
             </motion.div>
 
-            {/* ╔══════════════════════════════════════════╗
-                ║           PREMIUM FILTER BAR             ║
-                ╚══════════════════════════════════════════╝ */}
-            <motion.div
-                initial={{ opacity:0, y:10 }}
-                animate={{ opacity:1, y:0 }}
-                transition={{ duration:.4, delay:.46 }}
-            >
-                <Card bordered={false} bodyStyle={{ padding:"16px 20px" }} style={{
-                    ...cardBase,
-                    background: isDark ? G(.04) : "rgba(255,249,232,0.9)",
-                    backdropFilter:"blur(8px)",
-                }}>
-                    <div style={{ display:"flex", alignItems:"center", flexWrap:"wrap", gap:16 }}>
-                        {/* Filter icon */}
-                        <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:80 }}>
+            {/* ── AUDIT INSIGHT STRIP ──────────────────────────────────────── */}
+            <motion.div variants={fadeUp} custom={2}>
+                <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
+                    <InsightBadge icon={<CheckCircleOutlined />} label="Sukses Rate"
+                        value={`${kpi.successRate}%`} color={SUCCESS} isDark={isDark} />
+                    <InsightBadge icon={<ClockCircleOutlined />} label="Nilai Pending"
+                        value={fCompact(kpi.pendingValue)} color={WARNING} isDark={isDark} />
+                    <InsightBadge icon={<CloseCircleOutlined />} label="Nilai Gagal"
+                        value={fCompact(kpi.gagalValue)} color={DANGER} isDark={isDark} />
+                    <InsightBadge icon={<FundOutlined />} label="Running Balance"
+                        value={fCompact(kpi.netSaldo)} color={kpi.netSaldo>=0?TEAL:DANGER} isDark={isDark} />
+                    <InsightBadge icon={<HeartOutlined />} label="Porsi Infaq"
+                        value={kpi.totalMasuk>0 ? `${((kpi.infaqTotal/kpi.totalMasuk)*100).toFixed(1)}%` : "0%"}
+                        color={PURPLE} isDark={isDark} />
+                    <InsightBadge icon={<CreditCardOutlined />} label="Digital %"
+                        value={`${kpi.digitalPct}%`} color={INFO} isDark={isDark} />
+                </div>
+            </motion.div>
+
+            {/* ── ANALYTICS SECTION ────────────────────────────────────────── */}
+            <motion.div variants={fadeUp} custom={3}>
+                <SectionHeader
+                    icon={<BarChartOutlined />}
+                    title="Analitik Audit Keuangan"
+                    subtitle="Visualisasi arus kas harian, distribusi metode, pipeline status & komposisi pendapatan"
+                />
+
+                {/* Row 1: Daily Cashflow + Running Balance (full width) */}
+                <Card bordered={false} style={{ ...cardBase, marginBottom:16 }} bodyStyle={{ padding:"24px 28px 20px" }}>
+                    <div style={{ display:"flex", flexWrap:"wrap", justifyContent:"space-between",
+                        alignItems:"center", gap:14, marginBottom:20 }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
                             <div style={{
-                                width:32, height:32, borderRadius:9,
-                                background:G(isDark?.2:.12),
-                                display:"flex", alignItems:"center", justifyContent:"center"
-                            }}>
-                                <FilterOutlined style={{ color:GOLD, fontSize:14 }} />
-                            </div>
+                                width:42, height:42, borderRadius:13,
+                                background:`linear-gradient(135deg, ${GOLD}20, ${GOLD_BRIGHT}15)`,
+                                border:`1px solid ${GOLD}28`, flexShrink:0,
+                                display:"flex", alignItems:"center", justifyContent:"center",
+                                color:GOLD_BRIGHT, fontSize:18,
+                            }}><LineChartOutlined /></div>
                             <div>
-                                <Text style={{ fontWeight:700, fontSize:13, color:token.colorText, display:"block", lineHeight:"1.2" }}>Filter</Text>
-                                {activeFilters > 0 && (
-                                    <Badge count={activeFilters} style={{ backgroundColor:GOLD, fontSize:9 }} />
-                                )}
+                                <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:16, letterSpacing:"-0.02em" }}>
+                                    Arus Kas Harian + Running Balance
+                                </div>
+                                <div style={{ fontSize:12, color:token.colorTextSecondary }}>
+                                    Masuk (hijau) · Keluar (merah) · Saldo Berjalan (garis kuning) · {filteredData.length} trx
+                                </div>
                             </div>
                         </div>
+                    </div>
+                    <div style={{ width:"100%", height:300 }}>
+                        {isLoading ? <Skeleton active paragraph={{ rows:7 }} /> :
+                        dailyData.length === 0 ? (
+                            <Empty description="Belum ada transaksi sukses" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                        ) : (
+                            <ResponsiveContainer>
+                                <ComposedChart data={dailyData} barGap={2} barCategoryGap="28%">
+                                    <defs>
+                                        <linearGradient id="masukGrad" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%"   stopColor={SUCCESS} stopOpacity={0.85}/>
+                                            <stop offset="100%" stopColor={SUCCESS} stopOpacity={0.35}/>
+                                        </linearGradient>
+                                        <linearGradient id="keluarGrad" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%"   stopColor={DANGER}  stopOpacity={0.85}/>
+                                            <stop offset="100%" stopColor={DANGER}  stopOpacity={0.35}/>
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.07} />
+                                    <XAxis dataKey="date" tick={TICK} axisLine={false} tickLine={false}
+                                        interval={Math.max(0, Math.floor(dailyData.length/8))} />
+                                    <YAxis yAxisId="left" tickFormatter={v=>`${v/1000}k`}
+                                        tick={TICK} axisLine={false} tickLine={false} width={52} />
+                                    <YAxis yAxisId="right" orientation="right"
+                                        tickFormatter={v=>`${v/1000}k`}
+                                        tick={{ fontSize:10, fill:GOLD_BRIGHT }} axisLine={false} tickLine={false} width={52} />
+                                    <ReTooltip content={<PremiumTooltip token={token} />}
+                                        cursor={{ fill:isDark?"rgba(255,255,255,0.025)":"rgba(0,0,0,0.025)" }} />
+                                    <Bar yAxisId="left" dataKey="masuk"   name="Kas Masuk"   fill="url(#masukGrad)"  radius={[4,4,0,0]} maxBarSize={22} />
+                                    <Bar yAxisId="left" dataKey="keluar"  name="Kas Keluar"  fill="url(#keluarGrad)" radius={[4,4,0,0]} maxBarSize={22} />
+                                    <Line yAxisId="right" type="monotone" dataKey="balance" name="Saldo Berjalan"
+                                        stroke={GOLD_BRIGHT} strokeWidth={2.5} dot={false}
+                                        activeDot={{ r:5, fill:GOLD_BRIGHT, stroke:token.colorBgContainer, strokeWidth:2 }} />
+                                    <Legend iconSize={8} formatter={v =>
+                                        <span style={{ fontSize:11, color:token.colorTextSecondary }}>{v}</span>} />
+                                </ComposedChart>
+                            </ResponsiveContainer>
+                        )}
+                    </div>
+                </Card>
 
-                        {/* Period */}
-                        <div style={{ minWidth:240 }}>
-                            <span className="gl-filter-label" style={{ color:isDark?GOLD_LIGHT:GOLD_DARK }}>Periode</span>
+                {/* Row 2: 3 charts side-by-side */}
+                <Row gutter={[16,16]}>
+                    {/* Metode Pembayaran Donut */}
+                    <Col xs={24} md={8}>
+                        <Card bordered={false} style={cardBase} bodyStyle={{ padding:"22px 24px" }}>
+                            <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:14,
+                                letterSpacing:"-0.02em", marginBottom:4 }}>Metode Pembayaran</div>
+                            <div style={{ fontSize:11, color:token.colorTextSecondary, marginBottom:16 }}>
+                                Distribusi nominal kas masuk sukses
+                            </div>
+                            {isLoading ? <Skeleton active paragraph={{ rows:5 }} /> :
+                            methodData.length === 0 ? (
+                                <Empty description="Belum ada data" image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ padding:"20px 0" }} />
+                            ) : (
+                                <>
+                                    <div style={{ width:"100%", height:185 }}>
+                                        <ResponsiveContainer>
+                                            <PieChart>
+                                                <Pie data={methodData} innerRadius={48} outerRadius={72}
+                                                    paddingAngle={3} dataKey="value" label={renderPieLabel}>
+                                                    {methodData.map((d,i) => (
+                                                        <Cell key={i} fill={d.color||PIE_PALETTE[i%PIE_PALETTE.length]} stroke="transparent" />
+                                                    ))}
+                                                </Pie>
+                                                <ReTooltip
+                                                    formatter={(v:any) => [fCurrency(Number(v)), "Nominal"]}
+                                                    contentStyle={{ background:token.colorBgElevated,
+                                                        border:`1px solid ${token.colorBorderSecondary}`, borderRadius:12, fontSize:12 }} />
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                    <div>
+                                        {methodData.map((d, i) => {
+                                            const total = methodData.reduce((a,c) => a+c.value, 0);
+                                            const pct = total > 0 ? ((d.value/total)*100).toFixed(1) : "0";
+                                            return (
+                                                <div key={i} style={{ display:"flex", alignItems:"center",
+                                                    justifyContent:"space-between", padding:"5px 0",
+                                                    borderBottom:`1px solid ${isDark?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.04)"}` }}>
+                                                    <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                                                        <span style={{ width:7, height:7, borderRadius:"50%",
+                                                            background:d.color||PIE_PALETTE[i%PIE_PALETTE.length], flexShrink:0 }} />
+                                                        <span style={{ fontSize:11, fontWeight:600, color:token.colorTextSecondary }}>{d.name}</span>
+                                                    </div>
+                                                    <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                                                        <span style={{ fontSize:10, fontWeight:700, color:d.color||PIE_PALETTE[i%PIE_PALETTE.length] }}>{pct}%</span>
+                                                        <span style={{ fontFamily:"'DM Mono',monospace", fontWeight:700, fontSize:11, color:token.colorText }}>
+                                                            {fCompact(d.value)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </>
+                            )}
+                        </Card>
+                    </Col>
+
+                    {/* Status Pipeline */}
+                    <Col xs={24} md={8}>
+                        <Card bordered={false} style={cardBase} bodyStyle={{ padding:"22px 24px" }}>
+                            <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:14,
+                                letterSpacing:"-0.02em", marginBottom:4 }}>Pipeline Status Transaksi</div>
+                            <div style={{ fontSize:11, color:token.colorTextSecondary, marginBottom:16 }}>
+                                Volume & nilai per status transaksi
+                            </div>
+                            {isLoading ? <Skeleton active paragraph={{ rows:5 }} /> : (
+                                <>
+                                    {statusPipeData.map(s => {
+                                        const pct = kpi.total > 0 ? (s.value/kpi.total)*100 : 0;
+                                        return (
+                                            <div key={s.name} style={{ marginBottom:20 }}>
+                                                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8, alignItems:"center" }}>
+                                                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                                                        <span style={{ width:9, height:9, borderRadius:"50%",
+                                                            background:s.color, flexShrink:0,
+                                                            boxShadow:`0 0 6px ${s.color}` }} />
+                                                        <span style={{ fontWeight:700, fontSize:13, color:s.color }}>
+                                                            {s.name}
+                                                        </span>
+                                                    </div>
+                                                    <div style={{ textAlign:"right" }}>
+                                                        <div style={{ fontFamily:"'DM Mono',monospace", fontWeight:800, fontSize:18,
+                                                            color:s.color, lineHeight:1 }}>
+                                                            {s.value}
+                                                        </div>
+                                                        <div style={{ fontSize:10, color:token.colorTextTertiary }}>
+                                                            {fCompact(s.amount)}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div style={{ height:8, borderRadius:99, background:isDark?"rgba(255,255,255,0.07)":"rgba(0,0,0,0.07)", overflow:"hidden" }}>
+                                                    <motion.div
+                                                        initial={{ width:0 }}
+                                                        animate={{ width:`${pct}%` }}
+                                                        transition={{ duration:1.0, ease:[0.22,1,0.36,1], delay:0.3 }}
+                                                        style={{ height:"100%", borderRadius:99,
+                                                            background:`linear-gradient(90deg, ${s.color}CC, ${s.color})`,
+                                                            boxShadow:`0 0 8px ${s.color}50` }}
+                                                    />
+                                                </div>
+                                                <div style={{ fontSize:10, color:token.colorTextTertiary, marginTop:4 }}>
+                                                    {pct.toFixed(1)}% dari total transaksi
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+
+                                    <Divider style={{ borderColor:G(.15), margin:"8px 0 12px" }} />
+                                    <div style={{ display:"flex", gap:8 }}>
+                                        {[
+                                            { label:"Cash", val:kpi.cashTotal, color:GOLD_BRIGHT },
+                                            { label:"Digital", val:kpi.digitalTotal, color:INFO },
+                                        ].map(m => (
+                                            <div key={m.label} style={{ flex:1, padding:"8px 10px", borderRadius:10,
+                                                background:isDark?`${m.color}0e`:`${m.color}08`,
+                                                border:`1px solid ${m.color}25` }}>
+                                                <div style={{ fontSize:9, fontWeight:700, letterSpacing:"0.1em",
+                                                    textTransform:"uppercase", color:m.color, marginBottom:3 }}>{m.label}</div>
+                                                <div style={{ fontFamily:"'DM Mono',monospace", fontWeight:800,
+                                                    fontSize:13, color:m.color }}>{fCompact(m.val)}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                        </Card>
+                    </Col>
+
+                    {/* Infaq vs Tagihan */}
+                    <Col xs={24} md={8}>
+                        <Card bordered={false} style={cardBase} bodyStyle={{ padding:"22px 24px" }}>
+                            <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:14,
+                                letterSpacing:"-0.02em", marginBottom:4 }}>Komposisi Pemasukan</div>
+                            <div style={{ fontSize:11, color:token.colorTextSecondary, marginBottom:16 }}>
+                                Split Tagihan vs Infaq/Wakaf
+                            </div>
+                            {isLoading ? <Skeleton active paragraph={{ rows:5 }} /> : (
+                                <>
+                                    <div style={{ width:"100%", height:185 }}>
+                                        <ResponsiveContainer>
+                                            <PieChart>
+                                                <Pie data={infaqPieData} innerRadius={48} outerRadius={72}
+                                                    paddingAngle={4} dataKey="value" label={renderPieLabel}>
+                                                    {infaqPieData.map((_,i) => (
+                                                        <Cell key={i} fill={infaqPieColors[i]} stroke="transparent" />
+                                                    ))}
+                                                </Pie>
+                                                <ReTooltip
+                                                    formatter={(v:any) => [fCurrency(Number(v)), "Nominal"]}
+                                                    contentStyle={{ background:token.colorBgElevated,
+                                                        border:`1px solid ${token.colorBorderSecondary}`, borderRadius:12, fontSize:12 }} />
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                    {infaqPieData.map((d,i) => {
+                                        const total = infaqPieData.reduce((a,c) => a+c.value,0);
+                                        const pct = total>0 ? ((d.value/total)*100).toFixed(1):"0";
+                                        const c = infaqPieColors[i];
+                                        return (
+                                            <div key={d.name} style={{ marginBottom:12 }}>
+                                                <div style={{ display:"flex", justifyContent:"space-between",
+                                                    marginBottom:5, alignItems:"center" }}>
+                                                    <span style={{ display:"flex", alignItems:"center", gap:7, fontSize:12, fontWeight:600, color:token.colorTextSecondary }}>
+                                                        <span style={{ width:8, height:8, borderRadius:"50%", background:c, flexShrink:0 }} />
+                                                        {d.name}
+                                                    </span>
+                                                    <div style={{ textAlign:"right" }}>
+                                                        <span style={{ fontSize:10, fontWeight:700, color:c, marginRight:6 }}>{pct}%</span>
+                                                        <span style={{ fontFamily:"'DM Mono',monospace", fontWeight:700, fontSize:12, color:token.colorText }}>
+                                                            {fCompact(d.value)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div style={{ height:6, borderRadius:99, background:isDark?"rgba(255,255,255,0.07)":"rgba(0,0,0,0.07)", overflow:"hidden" }}>
+                                                    <motion.div
+                                                        initial={{ width:0 }}
+                                                        animate={{ width:`${pct}%` }}
+                                                        transition={{ duration:1.0, ease:[0.22,1,0.36,1], delay:0.4+i*0.1 }}
+                                                        style={{ height:"100%", borderRadius:99,
+                                                            background:`linear-gradient(90deg, ${c}CC, ${c})` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+
+                                    <Divider style={{ borderColor:G(.15), margin:"10px 0 14px" }} />
+                                    <div style={{ padding:"10px 14px", borderRadius:12,
+                                        background:isDark?`${GOLD}0e`:`${GOLD}08`,
+                                        border:`1px solid ${GOLD}25` }}>
+                                        <div style={{ fontSize:9, fontWeight:700, letterSpacing:"0.1em",
+                                            textTransform:"uppercase", color:GOLD_BRIGHT, marginBottom:4 }}>
+                                            Total Kas Masuk Sukses
+                                        </div>
+                                        <div style={{ fontFamily:"'DM Mono',monospace", fontWeight:800,
+                                            fontSize:18, color:GOLD_BRIGHT, letterSpacing:"-0.03em" }}>
+                                            {fCurrency(kpi.totalMasuk)}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </Card>
+                    </Col>
+                </Row>
+
+                {/* Row 3: Kategori Trend (full width) */}
+                {categoryTrend.length > 1 && (
+                    <Card bordered={false} style={{ ...cardBase, marginTop:16 }} bodyStyle={{ padding:"22px 28px 20px" }}>
+                        <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:14,
+                            letterSpacing:"-0.02em", marginBottom:4 }}>Tren Tagihan vs Infaq/Wakaf Harian</div>
+                        <div style={{ fontSize:11, color:token.colorTextSecondary, marginBottom:20 }}>
+                            Komposisi pemasukan harian — Tagihan (emas) · Infaq/Wakaf (ungu)
+                        </div>
+                        <div style={{ width:"100%", height:220 }}>
+                            <ResponsiveContainer>
+                                <AreaChart data={categoryTrend}>
+                                    <defs>
+                                        <linearGradient id="tagihanG" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%"   stopColor={GOLD_BRIGHT} stopOpacity={0.45}/>
+                                            <stop offset="100%" stopColor={GOLD_BRIGHT} stopOpacity={0.02}/>
+                                        </linearGradient>
+                                        <linearGradient id="donasiG" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%"   stopColor={PURPLE} stopOpacity={0.38}/>
+                                            <stop offset="100%" stopColor={PURPLE} stopOpacity={0.02}/>
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.07} />
+                                    <XAxis dataKey="date" tick={TICK} axisLine={false} tickLine={false}
+                                        interval={Math.max(0,Math.floor(categoryTrend.length/8))} />
+                                    <YAxis tickFormatter={v=>`${v/1000}k`} tick={TICK} axisLine={false} tickLine={false} width={48} />
+                                    <ReTooltip content={<PremiumTooltip token={token} />} />
+                                    <Area type="monotone" dataKey="tagihan" name="Tagihan"
+                                        stroke={GOLD_BRIGHT} fill="url(#tagihanG)" strokeWidth={2} />
+                                    <Area type="monotone" dataKey="donasi" name="Infaq/Wakaf"
+                                        stroke={PURPLE} fill="url(#donasiG)" strokeWidth={2} />
+                                    <Legend iconSize={8} formatter={v =>
+                                        <span style={{ fontSize:11, color:token.colorTextSecondary }}>{v}</span>} />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </Card>
+                )}
+            </motion.div>
+
+            {/* ── FILTER PANEL ──────────────────────────────────────────────── */}
+            <motion.div variants={fadeUp} custom={4}>
+                <SectionHeader
+                    icon={<FilterOutlined />}
+                    title="Filter & Pencarian"
+                    subtitle="Gunakan filter untuk audit detail transaksi"
+                    action={activeFilters > 0 ? (
+                        <Tooltip title="Reset semua filter">
+                            <Button icon={<ClearOutlined />} onClick={resetFilters} size="small"
+                                style={{ borderRadius:10, borderColor:DANGER+"55",
+                                    color:DANGER, fontSize:12, fontWeight:600,
+                                    background:isDark?STATUS_COLOR.danger.bg:"#FFF1F2" }}>
+                                Reset ({activeFilters})
+                            </Button>
+                        </Tooltip>
+                    ) : undefined}
+                />
+                <Card bordered={false} style={{ ...cardBase, marginBottom:0 }}
+                    bodyStyle={{ padding:"18px 22px" }}>
+                    <Row gutter={[14,14]} align="middle">
+                        <Col xs={24} sm={12} lg={7}>
+                            <div style={{ fontSize:9, fontWeight:700, letterSpacing:"0.12em",
+                                textTransform:"uppercase", color:GOLD, marginBottom:7 }}>PERIODE TRANSAKSI</div>
                             <RangePicker
                                 value={dateRange}
-                                onChange={(d) => d && setDateRange(d as [dayjs.Dayjs, dayjs.Dayjs])}
-                                allowClear={false}
-                                format="DD MMM YYYY"
+                                onChange={d => d && setDateRange(d as [dayjs.Dayjs,dayjs.Dayjs])}
+                                allowClear={false} format="DD MMM YYYY"
                                 style={{ width:"100%", borderRadius:10, borderColor:G(.35) }}
                                 suffixIcon={<CalendarOutlined style={{ color:GOLD }} />}
                                 presets={[
-                                    { label:"Bulan Ini",  value:[dayjs().startOf("month"), dayjs().endOf("month")]  },
+                                    { label:"Bulan Ini",  value:[dayjs().startOf("month"), dayjs().endOf("month")] },
                                     { label:"Bulan Lalu", value:[dayjs().subtract(1,"month").startOf("month"), dayjs().subtract(1,"month").endOf("month")] },
                                     { label:"7 Hari",     value:[dayjs().subtract(6,"day"), dayjs()] },
                                     { label:"30 Hari",    value:[dayjs().subtract(29,"day"), dayjs()] },
                                     { label:"Tahun Ini",  value:[dayjs().startOf("year"), dayjs().endOf("year")] },
                                 ]}
                             />
-                        </div>
-
-                        {/* Filters grid */}
-                        <div style={{ flex:1, display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(135px,1fr))", gap:10 }}>
-                            <div>
-                                <span className="gl-filter-label" style={{ color:isDark?GOLD_LIGHT:GOLD_DARK }}>Jenis</span>
-                                <Select value={jenisFilter} onChange={setJenisFilter} style={{ width:"100%" }}
-                                    options={[
+                        </Col>
+                        <Col xs={24} sm={12} lg={17}>
+                            <div style={{ fontSize:9, fontWeight:700, letterSpacing:"0.12em",
+                                textTransform:"uppercase", color:GOLD, marginBottom:7 }}>FILTER LANJUTAN</div>
+                            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))", gap:10 }}>
+                                {[
+                                    { label:"Jenis", val:jenisFilter, set:setJenisFilter, opts:[
                                         { label:"Semua Jenis",  value:"all"    },
                                         { label:"💹 Kas Masuk",  value:"masuk"  },
                                         { label:"💸 Kas Keluar", value:"keluar" },
-                                    ]}
-                                />
+                                    ]},
+                                    { label:"Status", val:statusFilter, set:setStatusFilter, opts:[
+                                        { label:"Semua Status", value:"all"    },
+                                        { label:"✅ Sukses",     value:"sukses" },
+                                        { label:"⏳ Pending",    value:"pending"},
+                                        { label:"❌ Gagal",      value:"gagal"  },
+                                    ]},
+                                    { label:"Metode", val:metodeFilter, set:setMetodeFilter, opts:[
+                                        { label:"Semua Metode",  value:"all"         },
+                                        { label:"💵 Cash",        value:"cash"        },
+                                        { label:"📱 QRIS",        value:"qris"        },
+                                        { label:"🏦 Transfer",    value:"bank_transfer"},
+                                        { label:"🌐 Midtrans",    value:"midtrans"    },
+                                    ]},
+                                    { label:"Kategori", val:kategoriFilter, set:setKategoriFilter, opts:[
+                                        { label:"Semua Kategori", value:"all"    },
+                                        { label:"📋 Tagihan",     value:"tagihan"},
+                                        { label:"❤️ Donasi",      value:"donasi" },
+                                    ]},
+                                    { label:"Gender", val:genderFilter, set:setGenderFilter, opts:[
+                                        { label:"Semua",     value:"all" },
+                                        { label:"👦 Putra",  value:"L"   },
+                                        { label:"👧 Putri",  value:"P"   },
+                                        { label:"🌐 Global", value:"ALL" },
+                                    ]},
+                                    { label:"Takhasus", val:jurusanFilter, set:setJurusanFilter, opts:[
+                                        { label:"Semua",     value:"all"     },
+                                        { label:"📖 Tahfidz", value:"TAHFIDZ" },
+                                        { label:"📚 Kitab",   value:"KITAB"   },
+                                        { label:"🌐 Global",  value:"ALL"     },
+                                    ]},
+                                ].map(f => (
+                                    <div key={f.label}>
+                                        <div style={{ fontSize:9, fontWeight:700, letterSpacing:"0.08em",
+                                            textTransform:"uppercase", color:isDark?"rgba(255,255,255,0.4)":"rgba(0,0,0,0.4)",
+                                            marginBottom:5 }}>{f.label}</div>
+                                        <Select value={f.val} onChange={f.set} style={{ width:"100%" }}
+                                            options={f.opts}
+                                            styles={{ popup:{ root:{ borderRadius:12 } } }} />
+                                    </div>
+                                ))}
                             </div>
-                            <div>
-                                <span className="gl-filter-label" style={{ color:isDark?GOLD_LIGHT:GOLD_DARK }}>Status</span>
-                                <Select value={statusFilter} onChange={setStatusFilter} style={{ width:"100%" }}
-                                    options={[
-                                        { label:"Semua Status",  value:"all"     },
-                                        { label:"✅ Sukses",      value:"sukses"  },
-                                        { label:"⏳ Pending",     value:"pending" },
-                                        { label:"❌ Gagal",       value:"gagal"   },
-                                    ]}
-                                />
-                            </div>
-                            <div>
-                                <span className="gl-filter-label" style={{ color:isDark?GOLD_LIGHT:GOLD_DARK }}>Metode</span>
-                                <Select value={metodeFilter} onChange={setMetodeFilter} style={{ width:"100%" }}
-                                    options={[
-                                        { label:"Semua Metode",  value:"all"          },
-                                        { label:"💵 Cash",        value:"cash"         },
-                                        { label:"📱 QRIS",        value:"qris"         },
-                                        { label:"🏦 Transfer",    value:"bank_transfer" },
-                                        { label:"🌐 Midtrans",    value:"midtrans"     },
-                                    ]}
-                                />
-                            </div>
-                            <div>
-                                <span className="gl-filter-label" style={{ color:isDark?GOLD_LIGHT:GOLD_DARK }}>Kategori</span>
-                                <Select value={kategoriFilter} onChange={setKategoriFilter} style={{ width:"100%" }}
-                                    options={[
-                                        { label:"Semua Kategori", value:"all"      },
-                                        { label:"📋 Tagihan",     value:"tagihan"  },
-                                        { label:"❤️ Donasi",      value:"donasi"   },
-                                    ]}
-                                />
-                            </div>
-                            <div>
-                                <span className="gl-filter-label" style={{ color:isDark?GOLD_LIGHT:GOLD_DARK }}>Gender</span>
-                                <Select value={genderFilter} onChange={setGenderFilter} style={{ width:"100%" }}
-                                    options={[
-                                        { label:"Semua Gender", value:"all" },
-                                        { label:"👦 Laki-laki",  value:"L"  },
-                                        { label:"👧 Perempuan",  value:"P"  },
-                                        { label:"🌐 Global",     value:"ALL"},
-                                    ]}
-                                />
-                            </div>
-                            <div>
-                                <span className="gl-filter-label" style={{ color:isDark?GOLD_LIGHT:GOLD_DARK }}>Takhasus</span>
-                                <Select value={jurusanFilter} onChange={setJurusanFilter} style={{ width:"100%" }}
-                                    options={[
-                                        { label:"Semua Takhasus", value:"all"     },
-                                        { label:"📖 Tahfidz",     value:"TAHFIDZ" },
-                                        { label:"📚 Kitab",       value:"KITAB"   },
-                                        { label:"🌐 Global",      value:"ALL"    },
-                                    ]}
-                                />
-                            </div>
-                        </div>
-
-                        {activeFilters > 0 && (
-                            <Tooltip title="Reset semua filter">
-                                <Button
-                                    icon={<ClearOutlined />}
-                                    onClick={resetFilters}
-                                    style={{ borderRadius:10, borderColor:COLOR.danger.border, color:COLOR.danger.base, background:isDark?COLOR.danger.dark:COLOR.danger.light }}
-                                >
-                                    Reset
-                                </Button>
-                            </Tooltip>
-                        )}
-                    </div>
+                        </Col>
+                    </Row>
                 </Card>
             </motion.div>
 
-            {/* ╔══════════════════════════════════════════╗
-                ║           PREMIUM DATA TABLE             ║
-                ╚══════════════════════════════════════════╝ */}
-            <motion.div
-                initial={{ opacity:0, y:16 }}
-                animate={{ opacity:1, y:0 }}
-                transition={{ duration:.45, delay:.55 }}
-            >
+            {/* ── TABLE ─────────────────────────────────────────────────────── */}
+            <motion.div variants={fadeUp} custom={5}>
+                <SectionHeader
+                    icon={<AuditOutlined />}
+                    title="Jurnal Transaksi"
+                    subtitle={`${filteredData.length} record · ${dateRange[0].format("DD MMM")} – ${dateRange[1].format("DD MMM YYYY")}`}
+                />
                 <div style={{
                     borderRadius:16, overflow:"hidden",
                     border:`1px solid ${G(isDark?.2:.13)}`,
                     boxShadow: isDark
                         ? `0 10px 40px rgba(0,0,0,0.45), 0 0 0 1px ${G(.1)}`
-                        : `0 8px 32px ${G(.1)}, 0 2px 8px rgba(0,0,0,0.04)`
+                        : `0 8px 32px ${G(.1)}, 0 2px 8px rgba(0,0,0,0.04)`,
                 }}>
                     <ProTable<ITransaksiKeuangan>
                         {...tableProps}
@@ -1301,62 +1353,45 @@ export const TransaksiList: React.FC = () => {
                         className="gl-table"
                         scroll={{ x:1280 }}
                         tableStyle={{ padding:0 }}
-
                         headerTitle={
                             <Space size={12}>
                                 <div style={{
-                                    width:38, height:38, borderRadius:11,
+                                    width:36, height:36, borderRadius:11,
                                     background:`linear-gradient(135deg, ${GOLD}, ${GOLD_DARK})`,
                                     display:"flex", alignItems:"center", justifyContent:"center",
-                                    boxShadow:`0 4px 14px ${G(.42)}`
+                                    boxShadow:`0 4px 14px ${G(.42)}`,
                                 }}>
-                                    <AuditOutlined style={{ color:"#fff", fontSize:17 }} />
+                                    <AuditOutlined style={{ color:"#fff", fontSize:16 }} />
                                 </div>
                                 <div>
-                                    <div style={{ fontSize:15, fontWeight:700, color:token.colorText, fontFamily:"'Outfit',sans-serif" }}>
-                                        Jurnal Transaksi
+                                    <div style={{ fontSize:14, fontWeight:700, color:token.colorText }}>
+                                        Jurnal Lengkap
                                     </div>
-                                    <div style={{ fontSize:10.5, color:GOLD, fontWeight:600, marginTop:1 }}>
+                                    <div style={{ fontSize:10, color:GOLD, fontWeight:600, marginTop:1 }}>
                                         {filteredData.length} record · {dateRange[0].format("DD MMM")} – {dateRange[1].format("DD MMM YYYY")}
                                     </div>
                                 </div>
                             </Space>
                         }
-
                         toolBarRender={() => [
-                            <Button
-                                key="export"
-                                icon={<DownloadOutlined />}
-                                loading={isExporting}
+                            <Button key="export" icon={<DownloadOutlined />} loading={isExporting}
                                 onClick={handleExportExcel}
-                                style={{
-                                    borderColor:`${COLOR.success.base}55`, color:COLOR.success.base,
-                                    borderRadius:10, height:36, fontWeight:600, fontSize:12.5,
-                                    background: isDark ? COLOR.success.dark : COLOR.success.light
-                                }}
-                            >
+                                style={{ borderColor:`${SUCCESS}55`, color:SUCCESS, borderRadius:10,
+                                    height:36, fontWeight:600, fontSize:12.5,
+                                    background:isDark?STATUS_COLOR.success.bg:"#F0FDF4" }}>
                                 Export Excel
                             </Button>,
-                            <Button
-                                key="infaq"
-                                icon={<HeartOutlined />}
-                                onClick={() => create("transaksi_keuangan")}
-                                style={{
-                                    background:`linear-gradient(135deg, ${GOLD}, ${GOLD_DARK})`,
+                            <Button key="infaq" icon={<HeartOutlined />} onClick={() => create("transaksi_keuangan")}
+                                style={{ background:`linear-gradient(135deg,${GOLD},${GOLD_DARK})`,
                                     border:"none", borderRadius:10, height:36,
                                     fontWeight:700, fontSize:12.5, color:"#fff",
-                                    boxShadow:`0 4px 14px ${G(.45)}`
-                                }}
-                            >
+                                    boxShadow:`0 4px 14px ${G(.45)}` }}>
                                 Input Infaq
-                            </Button>
+                            </Button>,
                         ]}
-
                         summary={() => (
                             <ProTable.Summary fixed="bottom">
-                                <ProTable.Summary.Row style={{
-                                    background: isDark ? G(.1) : "#FFFBF0"
-                                }}>
+                                <ProTable.Summary.Row style={{ background:isDark?G(.1):"#FFFBF0" }}>
                                     <ProTable.Summary.Cell index={0} colSpan={5}>
                                         <div style={{ display:"flex", alignItems:"center", gap:10, paddingLeft:8 }}>
                                             <SafetyCertificateOutlined style={{ color:GOLD, fontSize:14 }} />
@@ -1367,43 +1402,40 @@ export const TransaksiList: React.FC = () => {
                                     </ProTable.Summary.Cell>
                                     <ProTable.Summary.Cell index={5}>
                                         <div style={{ textAlign:"right", paddingRight:8 }}>
-                                            <div className="gl-mono" style={{ fontWeight:900, fontSize:14, color:COLOR.success.base }}>
+                                            <div className="gl-mono" style={{ fontWeight:900, fontSize:14, color:SUCCESS }}>
                                                 +{fCurrency(pageSuccessMasuk)}
                                             </div>
                                             {pageSuccessKeluar > 0 && (
-                                                <div className="gl-mono" style={{ fontWeight:700, fontSize:12, color:COLOR.danger.base }}>
+                                                <div className="gl-mono" style={{ fontWeight:700, fontSize:12, color:DANGER }}>
                                                     −{fCurrency(pageSuccessKeluar)}
                                                 </div>
                                             )}
+                                            <div className="gl-mono" style={{ fontWeight:900, fontSize:13,
+                                                color:(pageSuccessMasuk-pageSuccessKeluar)>=0?TEAL:DANGER,
+                                                borderTop:`1px dashed ${G(.3)}`, marginTop:3, paddingTop:3 }}>
+                                                NET: {fCurrency(pageSuccessMasuk-pageSuccessKeluar)}
+                                            </div>
                                         </div>
                                     </ProTable.Summary.Cell>
                                     <ProTable.Summary.Cell index={6} />
                                 </ProTable.Summary.Row>
                             </ProTable.Summary>
                         )}
-
                         pagination={{
-                            defaultPageSize:15,
-                            showSizeChanger:true,
+                            defaultPageSize:15, showSizeChanger:true,
                             showTotal:(total, range) => (
                                 <span style={{ fontSize:12, color:token.colorTextSecondary }}>
                                     Menampilkan{" "}
-                                    <strong style={{ color:isDark?GOLD_LIGHT:GOLD_DARK }}>{range[0]}–{range[1]}</strong>
+                                    <strong style={{ color:isDark?"#F0C040":GOLD_DARK }}>{range[0]}–{range[1]}</strong>
                                     {" "}dari{" "}
                                     <strong style={{ color:token.colorText }}>{total}</strong> transaksi
                                 </span>
                             ),
                         }}
-
-                        options={{
-                            density: true,
-                            fullScreen: true,
-                            setting: true,
-                            reload: true,
-                        }}
+                        options={{ density:true, fullScreen:true, setting:true, reload:true }}
                     />
                 </div>
             </motion.div>
-        </div>
+        </motion.div>
     );
 };

@@ -11,6 +11,7 @@ import {
   ArrowRightOutlined, FileExcelOutlined, FilePdfOutlined,
   DownloadOutlined, ThunderboltOutlined, RiseOutlined,
   SyncOutlined, BellOutlined, HistoryOutlined,
+  CloseCircleOutlined,
 } from "@ant-design/icons";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -61,7 +62,9 @@ export const AttendanceList: React.FC = () => {
   const [isExporting,               setIsExporting]               = useState(false);
   const [isQuickStartModalVisible,  setIsQuickStartModalVisible]  = useState(false);
   const [selectedTypeId,            setSelectedTypeId]            = useState<string | null>(null);
+  const [selectedMode,              setSelectedMode]              = useState<string>("manual");
   const [isStarting,                setIsStarting]                = useState(false);
+  const [closingIds,                setClosingIds]                = useState<Set<string>>(new Set());
 
   const { show } = useNavigation();
 
@@ -145,17 +148,44 @@ export const AttendanceList: React.FC = () => {
     try {
       const { data, error } = await supabaseClient.rpc("quick_start_attendance_session", {
         p_type_id: selectedTypeId,
+        p_mode: selectedMode,
       });
       if (error) throw error;
-      message.success("Sesi otomatis berhasil dimulai!");
-      setIsQuickStartModalVisible(false);
-      setSelectedTypeId(null);
-      tableQueryResult.refetch();
-      if (data?.id) show("attendance_sessions", data.id);
+      if (data?.id) {
+        supabaseClient.rpc("populate_session_records", { p_session_id: data.id })
+          .then(({ error: popErr }) => {
+            if (popErr) console.error("Populate records failed:", popErr);
+          });
+        message.success("Sesi otomatis berhasil dimulai!");
+        setIsQuickStartModalVisible(false);
+        setSelectedTypeId(null);
+        tableQueryResult.refetch();
+        show("attendance_sessions", data.id);
+      }
     } catch (err: any) {
       message.error(err.message || "Gagal memulai sesi otomatis");
     } finally {
       setIsStarting(false);
+    }
+  };
+
+  const handleCloseSession = async (sessionId: string) => {
+    setClosingIds(prev => new Set(prev).add(sessionId));
+    try {
+      const { error } = await supabaseClient.rpc("close_attendance_session", {
+        p_session_id: sessionId,
+      });
+      if (error) throw error;
+      message.success("Sesi ditutup");
+      tableQueryResult.refetch();
+    } catch {
+      message.error("Gagal menutup sesi");
+    } finally {
+      setClosingIds(prev => {
+        const next = new Set(prev);
+        next.delete(sessionId);
+        return next;
+      });
     }
   };
 
@@ -278,22 +308,36 @@ export const AttendanceList: React.FC = () => {
     {
       title: "",
       key: "actions",
-      width: 170,
+      width: 240,
       render: (_: any, record: any) => (
-        <Button
-          type={record.status === "open" ? "primary" : "default"}
-          size="small"
-          icon={<ArrowRightOutlined />}
-          onClick={() => show("attendance_sessions", record.id)}
-          style={{
-            borderRadius: 8,
-            ...(record.status === "open"
-              ? { background: `linear-gradient(135deg, ${GOLD}, ${GOLD_DARK})`, border: "none" }
-              : {}),
-          }}
-        >
-          {record.status === "open" ? "Absen Sekarang" : "Lihat Detail"}
-        </Button>
+        <Space>
+          <Button
+            type={record.status === "open" ? "primary" : "default"}
+            size="small"
+            icon={<ArrowRightOutlined />}
+            onClick={() => show("attendance_sessions", record.id)}
+            style={{
+              borderRadius: 8,
+              ...(record.status === "open"
+                ? { background: `linear-gradient(135deg, ${GOLD}, ${GOLD_DARK})`, border: "none" }
+                : {}),
+            }}
+          >
+            {record.status === "open" ? "Absen Sekarang" : "Lihat Detail"}
+          </Button>
+          {record.status === "open" && (
+            <Button
+              size="small"
+              danger
+              icon={<CloseCircleOutlined />}
+              loading={closingIds.has(record.id)}
+              onClick={() => handleCloseSession(record.id)}
+              style={{ borderRadius: 8 }}
+            >
+              Tutup
+            </Button>
+          )}
+        </Space>
       ),
     },
   ];
@@ -499,6 +543,51 @@ export const AttendanceList: React.FC = () => {
           Sistem akan menggunakan pengaturan waktu default dan mendaftarkan santri secara
           otomatis sesuai master data.
         </Text>
+
+        {/* Mode selection */}
+        <div style={{ marginBottom: 16 }}>
+          <Text strong style={{ display: "block", marginBottom: 8, fontSize: 13 }}>
+            Mode Absensi
+          </Text>
+          <Row gutter={12}>
+            <Col span={12}>
+              <div
+                onClick={() => setSelectedMode("manual")}
+                style={{
+                  padding: "12px 14px", borderRadius: 12, cursor: "pointer",
+                  border: `2px solid ${selectedMode === "manual" ? GOLD : token.colorBorder}`,
+                  background: selectedMode === "manual" ? GOLD_BG : token.colorBgElevated,
+                  transition: "all 0.18s ease",
+                }}
+              >
+                <Text strong style={{ color: selectedMode === "manual" ? GOLD : token.colorText, fontSize: 13 }}>
+                  📝 Manual
+                </Text>
+                <Text type="secondary" style={{ display: "block", fontSize: 11, marginTop: 4 }}>
+                  Catat setelah kegiatan selesai. recorded_at = waktu jadwal.
+                </Text>
+              </div>
+            </Col>
+            <Col span={12}>
+              <div
+                onClick={() => setSelectedMode("live")}
+                style={{
+                  padding: "12px 14px", borderRadius: 12, cursor: "pointer",
+                  border: `2px solid ${selectedMode === "live" ? GOLD : token.colorBorder}`,
+                  background: selectedMode === "live" ? GOLD_BG : token.colorBgElevated,
+                  transition: "all 0.18s ease",
+                }}
+              >
+                <Text strong style={{ color: selectedMode === "live" ? GOLD : token.colorText, fontSize: 13 }}>
+                  🎯 Live
+                </Text>
+                <Text type="secondary" style={{ display: "block", fontSize: 11, marginTop: 4 }}>
+                  Catat real-time saat kegiatan. Support Scan QR.
+                </Text>
+              </div>
+            </Col>
+          </Row>
+        </div>
 
         {isLoadingTypes ? (
           <div style={{ textAlign: "center", padding: "32px 0" }}>

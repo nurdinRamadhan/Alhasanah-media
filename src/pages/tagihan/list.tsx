@@ -252,6 +252,8 @@ export const TagihanList = () => {
         formBulk.setFieldsValue({
             kelas: ["1", "2", "3"],
             payment_ref_ids: monthlyRefs,
+            gender: scope.lockedGender || undefined,
+            jurusan: scope.lockedJurusan === 'ALL' ? 'ALL' : (scope.lockedJurusan || undefined),
             periode: dayjs(),
             jatuh_tempo: dayjs().endOf("month"),
         });
@@ -490,11 +492,21 @@ export const TagihanList = () => {
             }
 
             const targetKelas = Array.isArray(values.kelas) ? values.kelas : [values.kelas].filter(Boolean);
-            const { data: santris, error } = await supabaseClient
+
+            let santriQuery = supabaseClient
                 .from("santri")
                 .select("nis, kelas")
                 .in("kelas", targetKelas)
                 .eq("status_santri", "AKTIF");
+
+            if (values.gender && values.gender !== 'ALL') {
+                santriQuery = santriQuery.eq("jenis_kelamin", values.gender);
+            }
+            if (values.jurusan && values.jurusan !== 'ALL') {
+                santriQuery = santriQuery.eq("jurusan", values.jurusan);
+            }
+
+            const { data: santris, error } = await santriQuery;
 
             if (error || !santris?.length)
                 throw new Error("Tidak ada santri aktif di kelas target.");
@@ -2237,6 +2249,51 @@ export const TagihanList = () => {
                                 options={[1, 2, 3].map((k) => ({ label: `Kelas ${k}`, value: `${k}` }))}
                             />
                         </Form.Item>
+
+                        <Row gutter={12}>
+                            <Col span={12}>
+                                <Form.Item
+                                    name="gender"
+                                    label={
+                                        <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.7px", textTransform: "uppercase", color: token.colorTextSecondary }}>
+                                            Target Gender
+                                        </span>
+                                    }
+                                >
+                                    <Select
+                                        disabled={scope.restricted}
+                                        allowClear
+                                        placeholder="Semua Gender"
+                                        options={[
+                                            { label: "👦 Laki-laki", value: "L" },
+                                            { label: "👧 Perempuan", value: "P" },
+                                            { label: "🌐 Global",    value: "ALL" },
+                                        ]}
+                                    />
+                                </Form.Item>
+                            </Col>
+                            <Col span={12}>
+                                <Form.Item
+                                    name="jurusan"
+                                    label={
+                                        <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.7px", textTransform: "uppercase", color: token.colorTextSecondary }}>
+                                            Target Takhasus
+                                        </span>
+                                    }
+                                >
+                                    <Select
+                                        disabled={scope.restricted && (scope.lockedGender === 'P' || (scope.lockedJurusan !== null && scope.lockedJurusan !== 'ALL'))}
+                                        allowClear
+                                        placeholder="Semua Takhasus"
+                                        options={[
+                                            { label: "📖 Tahfidz",  value: "TAHFIDZ" },
+                                            { label: "📚 Kitab",    value: "KITAB" },
+                                            { label: "🌐 Global",   value: "ALL" },
+                                        ]}
+                                    />
+                                </Form.Item>
+                            </Col>
+                        </Row>
 
                         <Form.Item
                             name="payment_ref_ids"

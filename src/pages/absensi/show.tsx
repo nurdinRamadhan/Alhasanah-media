@@ -1,33 +1,33 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import { useShow } from "@refinedev/core";
 import { List, useTable } from "@refinedev/antd";
 import {
   Table, Space, Typography, Card, Row, Col,
   message, Tag, Button, Progress, Tabs,
-  theme, Popconfirm, Divider,
+  theme, Popconfirm, Modal,
 } from "antd";
 import {
   CheckCircleOutlined, CloseCircleOutlined, ExclamationCircleOutlined,
   MedicineBoxOutlined, TeamOutlined, ClockCircleOutlined,
   ThunderboltOutlined, SyncOutlined, CalendarOutlined,
+  ScanOutlined, CameraOutlined, StopOutlined,
 } from "@ant-design/icons";
 import {
   PieChart, Pie, Cell, ResponsiveContainer,
   Tooltip as RechartsTip,
 } from "recharts";
 import { motion } from "framer-motion";
+import { Scanner } from "@yudiel/react-qr-scanner";
 import { supabaseClient } from "../../utility/supabaseClient";
 
 const { Text, Title } = Typography;
 const { useToken } = theme;
 
-// ─── Brand tokens ─────────────────────────────────────────────────────────────
 const GOLD        = "#C9A84C";
 const GOLD_DARK   = "#8B6E23";
 const GOLD_BG     = "rgba(201,168,76,0.08)";
 const GOLD_BORDER = "rgba(201,168,76,0.2)";
 
-// ─── Status configuration ─────────────────────────────────────────────────────
 const STATUS_CONFIG = {
   HADIR: {
     color: "#16A34A",
@@ -61,11 +61,15 @@ const STATUS_CONFIG = {
 
 type AttendanceStatus = keyof typeof STATUS_CONFIG;
 
-// ─── Component ────────────────────────────────────────────────────────────────
 export const AttendanceShow: React.FC = () => {
   const { token } = useToken();
-  const [activeFilter,   setActiveFilter]   = useState<string>("ALL");
-  const [isBulkMarking,  setIsBulkMarking]  = useState(false);
+  const [activeFilter,    setActiveFilter]   = useState<string>("ALL");
+  const [isBulkMarking,   setIsBulkMarking]  = useState(false);
+  const [isClosing,       setIsClosing]      = useState(false);
+  const [isPopulating,    setIsPopulating]   = useState(false);
+  const [isScanning,      setIsScanning]     = useState(false);
+  const [isFinalizing,    setIsFinalizing]   = useState(false);
+  const [lastClickedTime, setLastClickedTime] = useState<Record<string, number>>({});
 
   const { queryResult } = useShow({ resource: "attendance_sessions" });
   const record = queryResult.data?.data as any;
@@ -74,13 +78,14 @@ export const AttendanceShow: React.FC = () => {
     resource: "attendance_records",
     permanentFilter: [{ field: "session_id", operator: "eq", value: record?.id }],
     pagination: { mode: "off" },
+    meta: { select: "*, santri(nama, nis, kelas, jurusan)" },
   });
 
   const allRecords = (tableQueryResult.data?.data ?? []) as any[];
   const total      = allRecords.length;
   const isOpen     = record?.status === "open";
+  const isLive     = record?.mode === "live";
 
-  // ── Aggregated counts ────────────────────────────────────────────────────────
   const counts = useMemo(() => {
     const base = { HADIR: 0, SAKIT: 0, IZIN: 0, ALFA: 0 };
     allRecords.forEach(r => {
@@ -103,23 +108,26 @@ export const AttendanceShow: React.FC = () => {
   const donutData = donutRaw.filter(d => d.value > 0);
   const donutFallback = [{ name: "Belum", value: 1, color: token.colorBorderSecondary }];
 
-  // ── Filtered table data ───────────────────────────────────────────────────────
   const filteredRecords = useMemo(() => {
     if (activeFilter === "ALL")     return allRecords;
-    if (activeFilter === "PENDING") return allRecords.filter(r => !r.status || r.status === "PENDING");
+    if (activeFilter === "PENDING") return allRecords.filter(r => !r.status || r.status === "PENDING" || r.status === "BELUM_DIABSEN");
     return allRecords.filter(r => r.status === activeFilter);
   }, [allRecords, activeFilter]);
 
-  // ── Handlers ──────────────────────────────────────────────────────────────────
   const handleMarkAttendance = async (santriNis: string, status: string) => {
+    const key = `${santriNis}-${status}`;
+    const now = Date.now();
+    const last = lastClickedTime[key] || 0;
+    if (now - last < 500) return;
+    setLastClickedTime(prev => ({ ...prev, [key]: now }));
     try {
       const { error } = await supabaseClient.rpc("mark_attendance", {
         p_session_id: record?.id,
         p_santri_nis: santriNis,
-        p_status:     status,
+        p_status: status,
+        p_source: isLive ? "manual" : "manual",
       });
       if (error) throw error;
-      message.success(`✓ ${status}`);
       tableQueryResult.refetch();
     } catch {
       message.error("Gagal memperbarui status");
@@ -128,27 +136,109 @@ export const AttendanceShow: React.FC = () => {
 
   const handleMarkAllHadir = async () => {
     setIsBulkMarking(true);
-    const pending = allRecords.filter(r => !r.status || r.status === "PENDING");
+    const pending = allRecords.filter(r => !r.status || r.status === "PENDING" || r.status === "BELUM_DIABSEN");
+    if (pending.length === 0) {
+      message.info("Tidak ada santri yang perlu diabsen");
+      setIsBulkMarking(false);
+      return;
+    }
     try {
-      await Promise.all(
-        pending.map(r =>
-          supabaseClient.rpc("mark_attendance", {
-            p_session_id: record?.id,
-            p_santri_nis: r.santri_nis,
-            p_status:     "HADIR",
-          }),
-        ),
-      );
+      const entries = pending.map(r => ({
+        santri_nis: r.santri_nis,
+        status: "HADIR",
+      }));
+      const { error } = await supabaseClient.rpc("bulk_mark_attendance", {
+        p_session_id: record?.id,
+        p_entries: entries,
+        p_source: "bulk",
+      });
+      if (error) throw error;
       message.success(`${pending.length} santri ditandai HADIR`);
       tableQueryResult.refetch();
     } catch {
-      message.error("Sebagian data gagal diperbarui");
+      message.error("Gagal memperbarui status massal");
     } finally {
       setIsBulkMarking(false);
     }
   };
 
-  // ── Table columns ─────────────────────────────────────────────────────────────
+  const handleCloseSession = async () => {
+    setIsClosing(true);
+    try {
+      const { error } = await supabaseClient.rpc("close_attendance_session", {
+        p_session_id: record?.id,
+      });
+      if (error) throw error;
+      message.success("Sesi absensi ditutup");
+      queryResult.refetch();
+    } catch {
+      message.error("Gagal menutup sesi");
+    } finally {
+      setIsClosing(false);
+    }
+  };
+
+  const handlePopulateRecords = async () => {
+    setIsPopulating(true);
+    try {
+      const { data, error } = await supabaseClient.rpc("populate_session_records", {
+        p_session_id: record?.id,
+      });
+      if (error) throw error;
+      const count = Array.isArray(data) ? data.length : 0;
+      message.success(`${count} santri ditambahkan ke sesi`);
+      tableQueryResult.refetch();
+    } catch {
+      message.error("Gagal memuat data santri");
+    } finally {
+      setIsPopulating(false);
+    }
+  };
+
+  const handleScanResult = useCallback(async (decodedText: string) => {
+    try {
+      const { data: santri, error } = await supabaseClient
+        .from("santri")
+        .select("nis, nama")
+        .eq("qr_code_id", decodedText)
+        .single();
+
+      if (error || !santri) {
+        message.error("QR tidak dikenali");
+        return;
+      }
+
+      const { error: markError } = await supabaseClient.rpc("mark_attendance", {
+        p_session_id: record?.id,
+        p_santri_nis: santri.nis,
+        p_status: "HADIR",
+        p_source: "qr",
+      });
+
+      if (markError) throw markError;
+      message.success(`✓ ${santri.nama} — HADIR`);
+      tableQueryResult.refetch();
+    } catch {
+      message.error("Gagal memproses scan QR");
+    }
+  }, [record?.id, tableQueryResult]);
+
+  const handleFinalizeScan = async () => {
+    setIsFinalizing(true);
+    try {
+      const { error } = await supabaseClient.rpc("finalize_scan", {
+        p_session_id: record?.id,
+      });
+      if (error) throw error;
+      message.success("Scan selesai — santri tersisa otomatis ALFA");
+      tableQueryResult.refetch();
+    } catch {
+      message.error("Gagal finalisasi scan");
+    } finally {
+      setIsFinalizing(false);
+    }
+  };
+
   const columns = [
     {
       title: "No",
@@ -164,7 +254,6 @@ export const AttendanceShow: React.FC = () => {
       key: "santri",
       render: (_: any, rec: any) => (
         <Space>
-          {/* Avatar initial */}
           <div
             style={{
               width: 36, height: 36, borderRadius: 10, flexShrink: 0,
@@ -181,6 +270,24 @@ export const AttendanceShow: React.FC = () => {
             <Text type="secondary" style={{ fontSize: 11 }}>NIS: {rec.santri_nis}</Text>
           </Space>
         </Space>
+      ),
+    },
+    {
+      title: "Kelas",
+      dataIndex: "santri",
+      key: "kelas",
+      width: 80,
+      render: (_: any, rec: any) => (
+        <Text style={{ fontSize: 13 }}>{rec.santri?.kelas || "–"}</Text>
+      ),
+    },
+    {
+      title: "Jurusan",
+      dataIndex: "santri",
+      key: "jurusan",
+      width: 100,
+      render: (_: any, rec: any) => (
+        <Text style={{ fontSize: 13 }}>{rec.santri?.jurusan || "–"}</Text>
       ),
     },
     {
@@ -223,6 +330,20 @@ export const AttendanceShow: React.FC = () => {
       ),
     },
     {
+      title: "Waktu Kejadian",
+      dataIndex: "recorded_at",
+      key: "recorded_at",
+      width: 110,
+      render: (val: string) =>
+        val ? (
+          <Tag icon={<ClockCircleOutlined />} style={{ fontSize: 11, borderRadius: 6 }}>
+            {new Date(val).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
+          </Tag>
+        ) : (
+          <Text type="secondary" style={{ fontSize: 12 }}>–</Text>
+        ),
+    },
+    {
       title: "Dicatat",
       dataIndex: "marked_at",
       key: "marked_at",
@@ -238,7 +359,6 @@ export const AttendanceShow: React.FC = () => {
     },
   ];
 
-  // ── Tab items ─────────────────────────────────────────────────────────────────
   const tabItems = [
     { key: "ALL",     label: `Semua (${total})` },
     { key: "HADIR",   label: <Space size={4}><CheckCircleOutlined style={{ color: "#16A34A" }} />Hadir ({counts.HADIR})</Space> },
@@ -248,7 +368,6 @@ export const AttendanceShow: React.FC = () => {
     { key: "PENDING", label: `Belum Absen (${unmarked})` },
   ];
 
-  // ── Render ────────────────────────────────────────────────────────────────────
   return (
     <div style={{ paddingBottom: 40 }}>
 
@@ -270,7 +389,6 @@ export const AttendanceShow: React.FC = () => {
           }}
           styles={{ body: { padding: "28px 32px" } }}
         >
-          {/* Decorative blobs */}
           <div style={{
             position:"absolute", top:-50, right:-50,
             width:200, height:200,
@@ -286,10 +404,8 @@ export const AttendanceShow: React.FC = () => {
 
           <Row align="middle" gutter={[32, 24]}>
 
-            {/* ── Session meta ───────────────────────────────────────────── */}
             <Col flex="auto">
               <Space direction="vertical" size={6}>
-                {/* Status badges */}
                 <Space>
                   <Tag
                     style={{
@@ -303,6 +419,14 @@ export const AttendanceShow: React.FC = () => {
                       ? <><SyncOutlined spin style={{ marginRight: 4 }} />SESI AKTIF</>
                       : <><CheckCircleOutlined style={{ marginRight: 4 }} />SELESAI</>}
                   </Tag>
+                  {record?.mode && (
+                    <Tag
+                      color={record.mode === "live" ? "blue" : "default"}
+                      style={{ borderRadius: 8, fontWeight: 600 }}
+                    >
+                      {record.mode === "live" ? <><CameraOutlined /> LIVE</> : "MANUAL"}
+                    </Tag>
+                  )}
                   {record?.attendance_types?.category_id && (
                     <Tag color="gold" style={{ borderRadius: 8 }}>
                       {record.attendance_types.category_id}
@@ -310,12 +434,10 @@ export const AttendanceShow: React.FC = () => {
                   )}
                 </Space>
 
-                {/* Title */}
                 <Title level={3} style={{ color: GOLD, margin: 0 }}>
                   {record?.attendance_types?.name} — {record?.title || "Sesi Reguler"}
                 </Title>
 
-                {/* Date / time */}
                 <Space split={<Text type="secondary">·</Text>}>
                   <Space>
                     <CalendarOutlined style={{ color: GOLD }} />
@@ -359,7 +481,6 @@ export const AttendanceShow: React.FC = () => {
                     />
                   </PieChart>
                 </ResponsiveContainer>
-                {/* Centre label */}
                 <div
                   style={{
                     position: "absolute", top: "50%", left: "50%",
@@ -457,33 +578,83 @@ export const AttendanceShow: React.FC = () => {
           }
           headerButtons={
             isOpen ? (
-              <Popconfirm
-                title="Tandai semua yang belum absen sebagai HADIR?"
-                okText="Ya, tandai semua"
-                cancelText="Batal"
-                onConfirm={handleMarkAllHadir}
-                okButtonProps={{
-                  style: {
-                    background: `linear-gradient(135deg, ${GOLD}, ${GOLD_DARK})`,
-                    border: "none",
-                  },
-                }}
-              >
+              <Space>
                 <Button
-                  icon={<ThunderboltOutlined />}
-                  loading={isBulkMarking}
-                  style={{
-                    background: `linear-gradient(135deg, ${GOLD}, ${GOLD_DARK})`,
-                    border: "none", borderRadius: 8, color: "#fff",
+                  icon={<SyncOutlined />}
+                  loading={isPopulating}
+                  onClick={handlePopulateRecords}
+                  style={{ borderRadius: 8 }}
+                >
+                  Muat Santri
+                </Button>
+                {isLive && (
+                  <>
+                    <Button
+                      type="primary"
+                      icon={<ScanOutlined />}
+                      onClick={() => setIsScanning(true)}
+                      style={{ borderRadius: 8 }}
+                    >
+                      Scan QR
+                    </Button>
+                    <Popconfirm
+                      title="Selesaikan scan? Semua santri BELUM_DIABSEN akan otomatis ALFA."
+                      okText="Ya, selesaikan"
+                      cancelText="Batal"
+                      onConfirm={handleFinalizeScan}
+                    >
+                      <Button
+                        icon={<StopOutlined />}
+                        loading={isFinalizing}
+                        style={{ borderRadius: 8 }}
+                      >
+                        Selesai Scan
+                      </Button>
+                    </Popconfirm>
+                  </>
+                )}
+                <Popconfirm
+                  title="Tandai semua yang belum absen sebagai HADIR?"
+                  okText="Ya, tandai semua"
+                  cancelText="Batal"
+                  onConfirm={handleMarkAllHadir}
+                  okButtonProps={{
+                    style: {
+                      background: `linear-gradient(135deg, ${GOLD}, ${GOLD_DARK})`,
+                      border: "none",
+                    },
                   }}
                 >
-                  Tandai Semua Hadir
-                </Button>
-              </Popconfirm>
+                  <Button
+                    icon={<ThunderboltOutlined />}
+                    loading={isBulkMarking}
+                    style={{
+                      background: `linear-gradient(135deg, ${GOLD}, ${GOLD_DARK})`,
+                      border: "none", borderRadius: 8, color: "#fff",
+                    }}
+                  >
+                    Tandai Semua Hadir
+                  </Button>
+                </Popconfirm>
+                <Popconfirm
+                  title="Tutup sesi absensi? Santri yang belum diabsen tidak bisa diubah lagi."
+                  okText="Ya, tutup sesi"
+                  cancelText="Batal"
+                  onConfirm={handleCloseSession}
+                >
+                  <Button
+                    icon={<CloseCircleOutlined />}
+                    loading={isClosing}
+                    style={{ borderRadius: 8 }}
+                    danger
+                  >
+                    Tutup Sesi
+                  </Button>
+                </Popconfirm>
+              </Space>
             ) : null
           }
         >
-          {/* Filter tabs */}
           <Tabs
             activeKey={activeFilter}
             onChange={setActiveFilter}
@@ -507,6 +678,47 @@ export const AttendanceShow: React.FC = () => {
           />
         </List>
       </motion.div>
+
+      {/* ── QR Scanner Modal ─────────────────────────────────────────────── */}
+      <Modal
+        title={
+          <Space>
+            <ScanOutlined style={{ color: GOLD }} />
+            <Text strong>Scan Kartu Santri</Text>
+          </Space>
+        }
+        open={isScanning}
+        onCancel={() => setIsScanning(false)}
+        footer={null}
+        width={480}
+        destroyOnClose
+      >
+        <div style={{ textAlign: "center", padding: "16px 0" }}>
+          <Text type="secondary" style={{ display: "block", marginBottom: 16 }}>
+            Arahkan QR code kartu santri ke kamera
+          </Text>
+          <div style={{
+            maxWidth: 320, margin: "0 auto", borderRadius: 12, overflow: "hidden",
+            border: `2px solid ${GOLD_BORDER}`,
+          }}>
+            <Scanner
+              onScan={(detectedCodes: any[]) => {
+                if (detectedCodes?.[0]?.rawValue) {
+                  handleScanResult(detectedCodes[0].rawValue);
+                }
+              }}
+              constraints={{ facingMode: "environment" }}
+              styles={{ container: { width: "100%" } }}
+            />
+          </div>
+          <Button
+            style={{ marginTop: 16, borderRadius: 8 }}
+            onClick={() => setIsScanning(false)}
+          >
+            Tutup Scanner
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 };
