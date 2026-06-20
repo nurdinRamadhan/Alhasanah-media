@@ -212,16 +212,10 @@ export const AttendanceList: React.FC = () => {
     }
   };
 
-  const exportMenu = (
-    <Menu onClick={({ key }) => handleExport(key as "excel" | "pdf")}>
-      <Menu.Item key="excel" icon={<FileExcelOutlined style={{ color: "#1D6F42" }} />}>
-        Export Excel (.xlsx)
-      </Menu.Item>
-      <Menu.Item key="pdf" icon={<FilePdfOutlined style={{ color: "#E44134" }} />}>
-        Export PDF (.pdf)
-      </Menu.Item>
-    </Menu>
-  );
+  const exportMenu = [
+    { key: 'excel', icon: <FileExcelOutlined style={{ color: "#1D6F42" }} />, label: 'Export Excel (.xlsx)' },
+    { key: 'pdf', icon: <FilePdfOutlined style={{ color: "#E44134" }} />, label: 'Export PDF (.pdf)' },
+  ];
 
   // ── Table columns ────────────────────────────────────────────────────────────
   const columns = [
@@ -486,7 +480,7 @@ export const AttendanceList: React.FC = () => {
           }
           headerButtons={
             <Space>
-              <Dropdown overlay={exportMenu} trigger={["click"]} disabled={isExporting}>
+              <Dropdown menu={{ items: exportMenu, onClick: ({ key }) => handleExport(key as "excel" | "pdf") }} trigger={["click"]} disabled={isExporting}>
                 <Button
                   icon={<DownloadOutlined />}
                   loading={isExporting}

@@ -146,125 +146,6 @@ const fetchAllMurojaahLogs = async (params: {
     return rows;
 };
 
-/**
- * Mengambil data absensi (status kehadiran) per sesi PAGI/SIANG dalam rentang tanggal,
- * lalu digabung dengan detail murojaah (jenis, cakupan/materi) untuk menghasilkan
- * baris pivot: satu baris = satu santri pada satu tanggal, dengan kolom Pagi & Siang.
- *
- * CATATAN ASUMSI SKEMA (mohon sesuaikan jika berbeda dengan database sebenarnya):
- * - Tabel "tahfidz_absensi" punya kolom: santri_nis, status, penyimak_id
- * - Penyimak diasumsikan FK ke tabel "profiles" (kolom "nama")
- * - "murojaah_tahfidz" tidak punya kolom sesi eksplisit — dicocokkan ke sesi
- *   berdasarkan santri_nis + tanggal saja. Jika dalam satu hari ada 2 entry
- *   detail (Pagi & Siang terpisah), hanya entry terakhir yang terbawa di sini.
- *   Jika tabelmu sebenarnya punya kolom pembeda sesi di murojaah_tahfidz,
- *   beri tahu saya nama kolomnya agar query ini diperbaiki.
- */
-const fetchAbsensiPivot = async (params: {
-    startDate: string;
-    endDate: string;
-    santriNis?: string;
-    santriMap?: Map<string, any>;
-}) => {
-    // 1. Ambil semua sesi MUROJAAH dalam rentang + absensi di dalamnya
-    let sesiQuery = supabaseClient
-        .from("tahfidz_sesi")
-        .select(
-            "id, tanggal, sesi, tahfidz_absensi(santri_nis, status, penyimak_id, penyimak:profiles!penyimak_id(full_name))"
-        )
-        .eq("kegiatan_id", "MUROJAAH")
-        .gte("tanggal", params.startDate.slice(0, 10))
-        .lte("tanggal", params.endDate.slice(0, 10))
-        .order("tanggal", { ascending: true });
-    const { data: sesiData, error: sesiError } = await sesiQuery;
-    if (sesiError) throw sesiError;
-
-    // 2. Ambil detail murojaah (jenis SABAQ/MANZIL, cakupan/materi) di rentang sama
-    const detailLogs = await fetchAllMurojaahLogs({
-        startDate: params.startDate,
-        endDate: params.endDate,
-        santriNis: params.santriNis,
-    });
-    const detailMap: Record<string, any> = {};
-    detailLogs.forEach((d: any) => {
-        const key = `${d.santri_nis}_${dayjs(d.tanggal).format("YYYY-MM-DD")}`;
-        detailMap[key] = d;
-    });
-
-    const formatCakupan = (d: any): string => {
-        if (!d) return "-";
-        if (d.surat) {
-            const ayat = d.ayat_awal && d.ayat_akhir ? ` : ${d.ayat_awal}-${d.ayat_akhir}` : "";
-            return `QS. ${d.surat}${ayat}`;
-        }
-        if (d.halaman_awal) {
-            const akhir = d.halaman_akhir ? `-${d.halaman_akhir}` : "";
-            return `Juz ${d.juz ?? "-"} Hal. ${d.halaman_awal}${akhir}`;
-        }
-        if (d.juz) return `Juz ${d.juz}`;
-        return "-";
-    };
-
-    // 3. Susun jadi baris pivot per (santri, tanggal)
-    const rowMap: Record<string, any> = {};
-    const allDates: string[] = [];
-    (sesiData || []).forEach((sesi: any) => {
-        const tgl = dayjs(sesi.tanggal).format("YYYY-MM-DD");
-        if (!allDates.includes(tgl)) allDates.push(tgl);
-        (sesi.tahfidz_absensi || []).forEach((a: any) => {
-            if (params.santriNis && a.santri_nis !== params.santriNis) return;
-            const rowKey = `${a.santri_nis}_${tgl}`;
-            const santriInfo = params.santriMap?.get(a.santri_nis);
-            if (!rowMap[rowKey]) {
-                rowMap[rowKey] = {
-                    santri_nis: a.santri_nis,
-                    nama: santriInfo?.nama || santriAlias(a.santri_nis),
-                    kelas: santriInfo?.kelas ?? "-",
-                    tanggal: tgl,
-                    pagi: null,
-                    siang: null,
-                };
-            }
-            const detail = detailMap[rowKey];
-            const sesiInfo = {
-                status: a.status || "-",
-                jenis: detail?.jenis_murojaah || "-",
-                cakupan: formatCakupan(detail),
-                penyimak: a.penyimak?.full_name || "-",
-            };
-            if (sesi.sesi === "PAGI") rowMap[rowKey].pagi = sesiInfo;
-            if (sesi.sesi === "SIANG") rowMap[rowKey].siang = sesiInfo;
-        });
-    });
-
-    // Isi santri tanpa absensi record di tiap tanggal yang punya sesi
-    allDates.sort();
-    if (params.santriMap) {
-        params.santriMap.forEach((santri: any, nis: string) => {
-            if (params.santriNis && nis !== params.santriNis) return;
-            allDates.forEach(tgl => {
-                const rowKey = `${nis}_${tgl}`;
-                if (!rowMap[rowKey]) {
-                    rowMap[rowKey] = {
-                        santri_nis: nis,
-                        nama: santri.nama || santriAlias(nis),
-                        kelas: santri.kelas ?? "-",
-                        tanggal: tgl,
-                        pagi: null,
-                        siang: null,
-                    };
-                }
-            });
-        });
-    }
-
-    return Object.values(rowMap).sort((a: any, b: any) => {
-        const nameCompare = String(a.nama || "").localeCompare(String(b.nama || ""));
-        if (nameCompare !== 0) return nameCompare;
-        return String(a.tanggal).localeCompare(String(b.tanggal));
-    });
-};
-
 // ─── Activity status helpers ──────────────────────────────────────────────────
 
 type ActivityStatus = "aktif" | "perlu-perhatian" | "tidak-aktif" | "belum";
@@ -474,18 +355,10 @@ export const MurojaahList: React.FC = () => {
     const handleStatusClick = async (nis: string, status: string) => {
         if (savingSesi[nis]) return;
 
-        // Untuk murojaah, HADIR hanya bisa via form Setoran Murojaah Detail
-        if (status === 'HADIR') {
-            setSavingSesi(prev => ({ ...prev, [nis]: false }));
-            message.info("Silakan catat kehadiran & setoran melalui form Setoran Murojaah Detail");
-            push(`/murojaah/create?nis=${nis}`);
-            return;
-        }
-
         setSavingSesi(prev => ({ ...prev, [nis]: true }));
         setSesiRecords(prev => ({
             ...prev,
-            [nis]: { status, setoran: false }
+            [nis]: { status, setoran: status === 'HADIR' ? (prev[nis]?.setoran ?? true) : false }
         }));
         try {
             const dateStr = sesiTanggal.format('YYYY-MM-DD');
@@ -514,24 +387,9 @@ export const MurojaahList: React.FC = () => {
                     sesi_id: sesi!.id,
                     santri_nis: nis,
                     status,
-                    setoran: false,
-                    penyimak_id: null,
+                    setoran: status === 'HADIR',
+                    penyimak_id: status === 'HADIR' ? user?.id : null,
                 }, { onConflict: "sesi_id, santri_nis" });
-
-            // Hapus murojaah orphan saat status diubah ke non-HADIR
-            const { data: abs } = await supabaseClient
-                .from("tahfidz_absensi")
-                .select("id")
-                .eq("sesi_id", sesi!.id)
-                .eq("santri_nis", nis)
-                .maybeSingle();
-            if (abs) {
-                await supabaseClient
-                    .from("murojaah_tahfidz")
-                    .delete()
-                    .eq("absensi_id", abs.id);
-            }
-
             const santri = santriForSesi.find(s => s.nis === nis);
             message.success(`${santri?.nama || nis}: ${STATUS_ABSENSI.find(s => s.key === status)?.label}`);
             setFetchKey(k => k + 1);
@@ -708,199 +566,52 @@ export const MurojaahList: React.FC = () => {
 
     // ── Export logic (preserved from original) ────────────────────────────────
 
-    // Style helper untuk header blok sesi (Pagi/Siang)
-    const applySesiHeaderStyle = (cell: ExcelJS.Cell, fillColor: string) => {
-        cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: fillColor } };
-        cell.alignment = { horizontal: "center", vertical: "middle" };
-    };
-
     const handleExport = async () => {
         if (!dateRange) {
             message.error("Mohon pilih rentang tanggal terlebih dahulu");
             return;
         }
-
-        // ── Warning kalau rentang tanggal lebih dari 1 bulan ──
-        const rentangHari = dateRange[1].diff(dateRange[0], "day") + 1;
-        if (rentangHari > 31) {
-            const lanjut = await new Promise<boolean>((resolve) => {
-                Modal.confirm({
-                    title: "Rentang Tanggal Lebih dari 1 Bulan",
-                    content: `Rentang yang dipilih (${rentangHari} hari) cukup panjang. File hasil export bisa berukuran besar dan berat dibuka. Tetap lanjutkan?`,
-                    okText: "Lanjutkan",
-                    cancelText: "Batal",
-                    onOk: () => resolve(true),
-                    onCancel: () => resolve(false),
-                });
-            });
-            if (!lanjut) return;
-        }
-
         setIsLoadingExport(true);
         try {
             const startDate = dateRange[0].startOf("day").toISOString();
             const endDate = dateRange[1].endOf("day").toISOString();
             const wb = new ExcelJS.Workbook();
 
-            // Fetch santri map for nama/kelas lookup
-            const { data: santriList } = await supabaseClient
-                .from("santri")
-                .select("nis, nama, kelas")
-                .eq("jurusan", "TAHFIDZ")
-                .eq("status_santri", "AKTIF");
-            const santriMap = new Map((santriList || []).map((s: any) => [s.nis, s]));
-
-            // Kolom satu blok sesi (Pagi / Siang): Status, Jenis, Cakupan, Penyimak
-            const sesiColumns = (key: string, width = [11, 11, 26, 16]) => [
-                { key: `${key}_status`, width: width[0] },
-                { key: `${key}_jenis`, width: width[1] },
-                { key: `${key}_cakupan`, width: width[2] },
-                { key: `${key}_penyimak`, width: width[3] },
-            ];
-
-            const STATUS_FILLS: Record<string, string> = {
-                HADIR: 'FFD1FAE5',
-                SAKIT: 'FFFEF3C7',
-                GHAIB: 'FFFEE2E2',
-                SEKOLAH: 'FFDBEAFE',
-                PULANG: 'FFFFEDD5',
-            };
-            const mapStatusKode = (s: string, _jenis: string): string => {
-                if (s === 'HADIR') return 'H';
-                if (s === 'SAKIT') return 'S';
-                if (s === 'GHAIB') return 'GH';
-                if (s === 'SEKOLAH') return 'Sk';
-                if (s === 'PULANG') return 'P';
-                return s;
-            };
-
             if (exportType === "GLOBAL") {
                 const ws = wb.addWorksheet("Rekap Murojaah");
-                const rows = await fetchAbsensiPivot({ startDate, endDate, santriMap });
+                const logs = await fetchAllMurojaahLogs({ startDate, endDate });
 
-                // Judul
-                ws.mergeCells("A1:N1");
-                ws.getCell("A1").value =
-                    `LAPORAN MUROJAAH TAHFIDZ — ${dateRange[0].format("DD MMM")} s/d ${dateRange[1].format("DD MMM YYYY")} M  /  ` +
-                    `${formatHijri(dateRange[0].toDate())} s/d ${formatHijri(dateRange[1].toDate())} H`;
-                ws.getCell("A1").font = { size: 13, bold: true, color: { argb: "FFFFFFFF" } };
+                ws.mergeCells("A1:J1");
+                ws.getCell("A1").value = `LAPORAN MUROJAAH TAHFIDZ (${dateRange[0].format("DD MMM")} - ${dateRange[1].format("DD MMM YYYY")})`;
+                ws.getCell("A1").font = { size: 14, bold: true, color: { argb: "FFFFFFFF" } };
                 ws.getCell("A1").fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF7E22CE" } };
                 ws.getCell("A1").alignment = { horizontal: "center" };
-                ws.getRow(1).height = 22;
 
-                // Header baris 1: kelompok kolom (merge per blok sesi)
-                ws.mergeCells("A3:F3");
-                ws.getCell("A3").value = "DATA SANTRI";
-                applySesiHeaderStyle(ws.getCell("A3"), "FF374151");
-                ws.mergeCells("G3:J3");
-                ws.getCell("G3").value = "SESI PAGI";
-                applySesiHeaderStyle(ws.getCell("G3"), "FFD97706");
-                ws.mergeCells("K3:N3");
-                ws.getCell("K3").value = "SESI SIANG";
-                applySesiHeaderStyle(ws.getCell("K3"), "FF2563EB");
-
-                // Header baris 2: nama kolom detail
-                ws.getRow(4).values = [
-                    "NO", "Tanggal (M)", "Tanggal (H)", "NIS", "Nama Santri", "Kelas",
-                    "Status", "Jenis", "Cakupan", "Penyimak",
-                    "Status", "Jenis", "Cakupan", "Penyimak",
-                ];
-                ws.getRow(4).font = { bold: true };
-                ws.getRow(4).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
-
+                ws.getRow(3).values = ["Tanggal", "NIS", "Nama Santri", "Kelas", "Jenis", "Cakupan (Surat/Hal)", "Predikat", "Status Setoran", "Alasan", "Catatan"];
+                ws.getRow(3).font = { bold: true };
                 ws.columns = [
-                    { key: "no", width: 5 },
-                    { key: "tglM", width: 13 },
-                    { key: "tglH", width: 18 },
-                    { key: "nis", width: 13 },
-                    { key: "nama", width: 24 },
-                    { key: "kelas", width: 8 },
-                    ...sesiColumns("pagi"),
-                    ...sesiColumns("siang"),
+                    { key: "tgl", width: 15 }, { key: "nis", width: 15 }, { key: "nama", width: 25 },
+                    { key: "kelas", width: 10 }, { key: "jenis", width: 10 }, { key: "cakupan", width: 30 },
+                    { key: "predikat", width: 15 }, { key: "status_setoran", width: 14 }, { key: "alasan", width: 20 }, { key: "note", width: 30 },
                 ];
 
-                rows.forEach((r: any, idx: number) => {
+                logs.forEach((item) => {
+                    const cakupan = item.surat
+                        ? `${item.surat} (Ayat ${item.ayat_awal}-${item.ayat_akhir})`
+                        : `Hal. ${item.halaman_awal} - ${item.halaman_akhir} (Juz ${item.juz})`;
                     ws.addRow({
-                        no: idx + 1,
-                        tglM: formatMasehi(r.tanggal),
-                        tglH: formatHijri(r.tanggal),
-                        nis: r.santri_nis,
-                        nama: r.nama,
-                        kelas: r.kelas,
-                        pagi_status: r.pagi?.status || "-",
-                        pagi_jenis: r.pagi?.jenis || "-",
-                        pagi_cakupan: r.pagi?.cakupan || "-",
-                        pagi_penyimak: r.pagi?.penyimak || "-",
-                        siang_status: r.siang?.status || "-",
-                        siang_jenis: r.siang?.jenis || "-",
-                        siang_cakupan: r.siang?.cakupan || "-",
-                        siang_penyimak: r.siang?.penyimak || "-",
-                    });
-                    const row = ws.getRow(ws.rowCount);
-                    const pFill = r.pagi?.status ? STATUS_FILLS[r.pagi.status] : undefined;
-                    if (pFill) row.getCell(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: pFill } };
-                    const sFill = r.siang?.status ? STATUS_FILLS[r.siang.status] : undefined;
-                    if (sFill) row.getCell(11).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: sFill } };
-                });
-
-                // ── Summary block: rekap jumlah per santri ──
-                const B = { bold: true };
-                const C = { horizontal: 'center' as const };
-                const LGF = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFF0FDF4' } };
-                const TB = {
-                    top: { style: 'thin' as const, color: { argb: 'FFD1D5DB' } },
-                    bottom: { style: 'thin' as const, color: { argb: 'FFD1D5DB' } },
-                };
-                const rekapRows: any[] = [];
-                const santriSeen = new Set<string>();
-                rows.forEach((r: any) => {
-                    if (santriSeen.has(r.santri_nis)) return;
-                    santriSeen.add(r.santri_nis);
-                    const h = { nis: r.santri_nis, nama: r.nama, H: 0, S: 0, GH: 0, Sk: 0, P: 0 };
-                    rows.forEach((rr: any) => {
-                        if (rr.santri_nis !== r.santri_nis) return;
-                        [rr.pagi, rr.siang].forEach((sesi: any) => {
-                            if (!sesi || !sesi.status || sesi.status === '-') return;
-                            const kode = mapStatusKode(sesi.status, sesi.jenis);
-                            if (kode in h) (h as any)[kode]++;
-                        });
-                    });
-                    rekapRows.push(h);
-                });
-
-                const rekapStart = ws.rowCount + 2;
-                ws.mergeCells(`A${rekapStart}:N${rekapStart}`);
-                const rekapTitle = ws.getCell(`A${rekapStart}`);
-                rekapTitle.value = '▸ REKAP JUMLAH PER SANTRI';
-                rekapTitle.font = { size: 11, bold: true, color: { argb: 'FF065F46' } };
-
-                const rekapHeaderRow = rekapStart + 1;
-                ws.getRow(rekapHeaderRow).values = ['NIS', 'Nama Santri', 'H', 'S', 'GH', 'Sk', 'P'];
-                ws.getRow(rekapHeaderRow).eachCell((cell: any) => { cell.font = B; cell.alignment = C; });
-                ws.getRow(rekapHeaderRow).fill = LGF;
-                ws.getRow(rekapHeaderRow).outlineLevel = 0;
-                ws.columns.forEach((_: any, i: number) => {
-                    if (i < 7) { const c = ws.getCell(`${String.fromCharCode(65 + i)}${rekapHeaderRow}`); c.border = TB; }
-                });
-
-                rekapRows.forEach((h: any, i: number) => {
-                    const r = rekapStart + 2 + i;
-                    ws.getRow(r).values = [h.nis, h.nama, h.H, h.S, h.GH, h.Sk, h.P];
-                    ws.getRow(r).eachCell((cell: any, colIdx: number) => {
-                        if (colIdx > 2) cell.alignment = C;
-                    });
-                    // Color the count cells
-                    const colorMap: Record<string, string> = { H: 'FFD1FAE5', S: 'FFFEF3C7', GH: 'FFFEE2E2', Sk: 'FFDBEAFE', P: 'FFFFEDD5' };
-                    ['H', 'S', 'GH', 'Sk', 'P'].forEach((k, ci) => {
-                        const cell = ws.getCell(`${String.fromCharCode(67 + ci)}${r}`);
-                        if ((h as any)[k] > 0) { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colorMap[k] } }; }
+                        tgl: formatMasehi(item.tanggal),
+                        nis: item.santri_nis,
+                        nama: item.santri?.nama || santriAlias(item.santri?.nis),
+                        kelas: item.santri?.kelas,
+                        jenis: item.jenis_murojaah,
+                        cakupan,
+                        predikat: item.predikat,
+                        status_setoran: item.status_setoran === 'LANCAR' ? 'Lancar' : item.status_setoran === 'MENGULANG' ? 'Mengulang' : '-',
+                        alasan: item.status_setoran === 'MENGULANG' && item.alasan_tolak ? item.alasan_tolak : '-',
+                        note: item.catatan,
                     });
                 });
-
-                // Filter & freeze pada baris header detail (baris 4)
-                ws.autoFilter = { from: "A4", to: "N4" };
-                ws.views = [{ state: "frozen", ySplit: 4 }];
             } else {
                 if (!selectedSantri) {
                     message.error("Pilih santri terlebih dahulu");
@@ -913,67 +624,38 @@ export const MurojaahList: React.FC = () => {
                     .eq("nis", selectedSantri)
                     .single();
                 if (!santri) throw new Error("Data santri tidak ditemukan.");
-
-                const rows = await fetchAbsensiPivot({ startDate, endDate, santriNis: selectedSantri, santriMap });
+                const logs = await fetchAllMurojaahLogs({ startDate, endDate, santriNis: selectedSantri });
                 const ws = wb.addWorksheet(`Murojaah - ${(santri.nama || santriAlias(santri.nis)).substring(0, 20)}`);
 
                 ws.getCell("A1").value = "LAPORAN PERSONAL MUROJAAH";
                 ws.getCell("A1").font = { size: 16, bold: true, color: { argb: "FF7E22CE" } };
                 ws.getCell("A3").value = "Nama:"; ws.getCell("B3").value = santri.nama || santriAlias(santri.nis);
                 ws.getCell("A4").value = "Kelas:"; ws.getCell("B4").value = santri.kelas;
-                ws.getCell("A5").value = "Periode:";
-                ws.getCell("B5").value =
-                    `${dateRange[0].format("DD MMM")} s/d ${dateRange[1].format("DD MMM YYYY")} M  /  ` +
-                    `${formatHijri(dateRange[0].toDate())} s/d ${formatHijri(dateRange[1].toDate())} H`;
+                ws.getCell("A5").value = "Periode:"; ws.getCell("B5").value = `${dateRange[0].format("DD MMM")} s/d ${dateRange[1].format("DD MMM YYYY")}`;
 
-                // Header baris 1: kelompok kolom
-                ws.mergeCells("A7:B7");
-                ws.getCell("A7").value = "TANGGAL";
-                applySesiHeaderStyle(ws.getCell("A7"), "FF374151");
-                ws.mergeCells("C7:F7");
-                ws.getCell("C7").value = "SESI PAGI";
-                applySesiHeaderStyle(ws.getCell("C7"), "FFD97706");
-                ws.mergeCells("G7:J7");
-                ws.getCell("G7").value = "SESI SIANG";
-                applySesiHeaderStyle(ws.getCell("G7"), "FF2563EB");
-
-                ws.getRow(8).values = [
-                    "Masehi", "Hijriah",
-                    "Status", "Jenis", "Cakupan", "Penyimak",
-                    "Status", "Jenis", "Cakupan", "Penyimak",
-                ];
-                ws.getRow(8).font = { bold: true };
-                ws.getRow(8).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
-
+                ws.getRow(7).values = ["Tanggal (M)", "Tanggal (H)", "Jenis", "Juz", "Cakupan Hafalan", "Predikat", "Status Setoran", "Alasan", "Paraf Musyrif"];
+                ws.getRow(7).font = { bold: true, color: { argb: "FFFFFFFF" } };
+                ws.getRow(7).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF7E22CE" } };
                 ws.columns = [
-                    { key: "tglM", width: 13 },
-                    { key: "tglH", width: 18 },
-                    ...sesiColumns("pagi"),
-                    ...sesiColumns("siang"),
+                    { width: 18 }, { width: 22 }, { width: 12 }, { width: 8 }, { width: 40 }, { width: 15 }, { width: 14 }, { width: 20 }, { width: 15 },
                 ];
 
-                rows.forEach((r: any) => {
-                    ws.addRow({
-                        tglM: formatMasehi(r.tanggal),
-                        tglH: formatHijri(r.tanggal),
-                        pagi_status: r.pagi?.status || "-",
-                        pagi_jenis: r.pagi?.jenis || "-",
-                        pagi_cakupan: r.pagi?.cakupan || "-",
-                        pagi_penyimak: r.pagi?.penyimak || "-",
-                        siang_status: r.siang?.status || "-",
-                        siang_jenis: r.siang?.jenis || "-",
-                        siang_cakupan: r.siang?.cakupan || "-",
-                        siang_penyimak: r.siang?.penyimak || "-",
-                    });
-                    const row = ws.getRow(ws.rowCount);
-                    const pFill = r.pagi?.status ? STATUS_FILLS[r.pagi.status] : undefined;
-                    if (pFill) row.getCell(3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: pFill } };
-                    const sFill = r.siang?.status ? STATUS_FILLS[r.siang.status] : undefined;
-                    if (sFill) row.getCell(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: sFill } };
+                logs.forEach((item) => {
+                    const cakupan = item.surat
+                        ? `QS. ${item.surat} : ${item.ayat_awal}-${item.ayat_akhir}`
+                        : `Halaman ${item.halaman_awal} - ${item.halaman_akhir}`;
+                    ws.addRow([
+                        formatMasehi(item.tanggal),
+                        formatHijri(item.tanggal),
+                        item.jenis_murojaah,
+                        item.juz,
+                        cakupan,
+                        item.predikat,
+                        item.status_setoran === 'LANCAR' ? 'Lancar' : item.status_setoran === 'MENGULANG' ? 'Mengulang' : '-',
+                        item.status_setoran === 'MENGULANG' && item.alasan_tolak ? item.alasan_tolak : '-',
+                        "",
+                    ]);
                 });
-
-                ws.autoFilter = { from: "A8", to: "J8" };
-                ws.views = [{ state: "frozen", ySplit: 8 }];
             }
 
             const buffer = await wb.xlsx.writeBuffer();

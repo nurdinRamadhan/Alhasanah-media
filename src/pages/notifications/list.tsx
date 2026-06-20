@@ -825,7 +825,7 @@ export const NotificationList = () => {
                 footer={null}
                 centered
                 width={520}
-                destroyOnClose
+                destroyOnHidden
                 styles={{
                     content: { borderRadius: 20, padding: 0, overflow: "hidden" },
                     body: { padding: 0 }

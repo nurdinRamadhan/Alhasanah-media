@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { logActivity } from "../../utility/logger";
-import { Create, useForm, useSelect } from "@refinedev/antd";
+import { useSelect } from "@refinedev/antd";
 import {
     Form,
     Input,
@@ -17,9 +17,11 @@ import {
     theme,
     Space,
     Button,
+    message,
+    Segmented,
 } from "antd";
 import dayjs from "dayjs";
-import { ISantri } from "../../types";
+import { ISantri, IProfile } from "../../types";
 import { useGetIdentity, useUpdate } from "@refinedev/core";
 import { DATA_SURAT } from "../../utility/quran-data";
 import { useSearchParams, useNavigate } from "react-router-dom";
@@ -36,10 +38,24 @@ import {
     EditOutlined,
     TrophyOutlined,
     FireOutlined,
+    SafetyCertificateOutlined,
 } from "@ant-design/icons";
 
 const { Text, Title } = Typography;
 const { useToken } = theme;
+
+// ─────────────────── Status Absensi ───────────────────
+const STATUS_ABSENSI = [
+  { key: 'HADIR',   label: 'Hadir',       icon: '✅', color: '#16A34A' },
+  { key: 'SAKIT',   label: 'Sakit',       icon: '🤒', color: '#D97706' },
+  { key: 'GHAIB',   label: 'Ghaib',       icon: '❌', color: '#DC2626' },
+  { key: 'SEKOLAH', label: 'Sekolah',     icon: '🏫', color: '#2563EB' },
+  { key: 'PULANG',  label: 'Pulang',      icon: '🏠', color: '#9333EA' },
+];
+
+const STATUS_LABEL: Record<string, string> = {
+  HADIR: 'Hadir', SAKIT: 'Sakit', GHAIB: 'Ghaib', SEKOLAH: 'Sekolah', PULANG: 'Pulang',
+};
 
 // ─────────────────────────── Helpers ───────────────────────────
 const parseTotalHafalan = (value?: string | number | null) => {
@@ -315,7 +331,7 @@ const SectionHeader: React.FC<{
 
 // ─────────────────────────── Santri Preview Card ───────────────────────────
 const SantriPreview: React.FC<{
-    nis: string;
+    nis: string | undefined;
     isDark: boolean;
 }> = ({ nis, isDark }) => {
     const [info, setInfo] = React.useState<{
@@ -402,7 +418,7 @@ const SantriPreview: React.FC<{
 
 // ─────────────────────────── Main Component ───────────────────────────
 export const HafalanCreate = () => {
-    const { formProps, saveButtonProps, form } = useForm();
+    const [form] = Form.useForm();
     const { data: user } = useGetIdentity<{ id: string }>();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
@@ -417,7 +433,13 @@ export const HafalanCreate = () => {
 
     const [selectedSuratMaxAyat, setSelectedSuratMaxAyat] = useState<number>(286);
     const [currentTotalSource, setCurrentTotalSource] = useState<string | null>(null);
-    const selectedSantriNis = Form.useWatch("santri_nis", form);
+    const [absensiStatus, setAbsensiStatus] = useState<string>('HADIR');
+    const [isSetter, setIsSetter] = useState<boolean>(true);
+    const [submitting, setSubmitting] = useState(false);
+    const [statusSetoran, setStatusSetoran] = useState<string>('LANCAR');
+    const [manualSesiWaktu, setManualSesiWaktu] = useState<'PAGI' | 'SIANG' | null>(null);
+    const [penyimakOptions, setPenyimakOptions] = useState<IProfile[]>([]);
+    const [selectedSantriNis, setSelectedSantriNis] = useState<string | undefined>();
 
     const { mutate: updateSantri } = useUpdate();
 
@@ -437,15 +459,29 @@ export const HafalanCreate = () => {
         const nisFromUrl = searchParams.get("nis");
         if (nisFromUrl && !form.getFieldValue("santri_nis")) {
             form.setFieldValue("santri_nis", nisFromUrl);
+            setSelectedSantriNis(nisFromUrl);
         }
     }, [form, searchParams]);
+
+    // Load daftar penyimak (dewan/kesantrian dengan akses TAHFIDZ)
+    useEffect(() => {
+        supabaseClient
+            .from("profiles")
+            .select("id, full_name")
+            .in("role", ["dewan", "kesantrian"])
+            .or("akses_jurusan.eq.ALL,akses_jurusan.ilike.%TAHFIDZ%")
+            .order("full_name")
+            .then(({ data }) => {
+                if (data) setPenyimakOptions(data as IProfile[]);
+            });
+    }, []);
 
     React.useEffect(() => {
         if (!selectedSantriNis) { setCurrentTotalSource(null); return; }
         let mounted = true;
         supabaseClient
             .from("santri")
-            .select("total_hafalan")
+            .select("total_hafalan, penyimak_mode, pembimbing")
             .eq("nis", selectedSantriNis)
             .maybeSingle()
             .then(({ data }) => {
@@ -453,9 +489,21 @@ export const HafalanCreate = () => {
                 const total = data?.total_hafalan ?? "0";
                 setCurrentTotalSource(String(total));
                 form.setFieldValue("total_hafalan", parseTotalHafalan(total));
+
+                // Auto-fill penyimak based on mode
+                const mode = data?.penyimak_mode || 'admin';
+                if (mode === 'admin' && user?.id) {
+                    form.setFieldValue("penyimak_id", user.id);
+                } else if (mode === 'pembimbing' && data?.pembimbing) {
+                    const match = penyimakOptions.find(p =>
+                        p.full_name?.toLowerCase().includes(data!.pembimbing!.toLowerCase())
+                    );
+                    if (match) form.setFieldValue("penyimak_id", match.id);
+                    else form.setFieldValue("penyimak_id", user?.id || undefined);
+                }
             });
         return () => { mounted = false; };
-    }, [form, selectedSantriNis]);
+    }, [form, selectedSantriNis, user, penyimakOptions]);
 
     const handleSuratChange = (value: string) => {
         const surat = DATA_SURAT.find((s) => s.nama === value);
@@ -466,25 +514,95 @@ export const HafalanCreate = () => {
     };
 
     const onFinishHandler = async (values: any) => {
-        if (formProps.onFinish) {
-            await formProps.onFinish(values);
-            await logActivity({ user, action: "CREATE", resource: "hafalan", details: values });
-        }
-        if (
-            values.santri_nis &&
-            values.total_hafalan !== undefined &&
-            values.total_hafalan !== null
-        ) {
-            updateSantri({
-                resource: "santri",
-                id: values.santri_nis,
-                values: { total_hafalan: values.total_hafalan },
-                successNotification: () => ({
-                    message: "Data Hafalan & Total Juz Santri Berhasil Diupdate",
-                    description: "Sukses",
-                    type: "success",
-                }),
-            });
+        if (submitting) return;
+        setSubmitting(true);
+        try {
+            // 1. Cari atau buat sesi hari ini
+            const today = dayjs(values.tanggal).format("YYYY-MM-DD");
+            const sesiWaktu = manualSesiWaktu || (dayjs(values.tanggal).hour() < 12 ? 'PAGI' : 'SIANG');
+
+            const { data: sesiList } = await supabaseClient
+                .from("tahfidz_sesi")
+                .select("id")
+                .eq("tanggal", today)
+                .eq("kegiatan_id", "ZIYADAH")
+                .eq("sesi", sesiWaktu)
+                .eq("status", "OPEN")
+                .limit(1);
+
+            let sesi = sesiList && sesiList.length > 0 ? sesiList[0] : null;
+            if (!sesi) {
+                const { data: newSesi, error: sesiErr } = await supabaseClient
+                    .from("tahfidz_sesi")
+                    .insert({
+                        kegiatan_id: "ZIYADAH",
+                        tanggal: today,
+                        sesi: sesiWaktu,
+                        created_by: user?.id,
+                    })
+                    .select("id")
+                    .single();
+                if (sesiErr) throw sesiErr;
+                sesi = newSesi;
+            }
+
+            // 2. Buat record absensi
+            const { data: absensi, error: absErr } = await supabaseClient
+                .from("tahfidz_absensi")
+                .upsert({
+                    sesi_id: sesi!.id,
+                    santri_nis: values.santri_nis,
+                    status: absensiStatus,
+                    setoran: absensiStatus === 'HADIR' ? isSetter : false,
+                    keterangan: absensiStatus !== 'HADIR' ? (values.keterangan_absensi || STATUS_LABEL[absensiStatus]) : null,
+                    penyimak_id: absensiStatus === 'HADIR' ? (values.penyimak_id || user?.id) : null,
+                    created_by: user?.id,
+                }, {
+                    onConflict: "sesi_id, santri_nis",
+                    ignoreDuplicates: false,
+                })
+                .select("id")
+                .single();
+            if (absErr) throw absErr;
+
+            // 3. Jika SETOR, upsert hafalan_tahfidz (hindari duplikat via unique absensi_id)
+            if (absensiStatus === 'HADIR' && isSetter) {
+                const { penyimak_id, keterangan_absensi, total_hafalan, alasan_tolak, ...hafalanValues } = values;
+                const { error: hafError } = await supabaseClient
+                    .from("hafalan_tahfidz")
+                    .upsert({
+                        ...hafalanValues,
+                        absensi_id: absensi!.id,
+                        status: "LANCAR",
+                        status_setoran: statusSetoran,
+                        alasan_tolak: statusSetoran === 'MENGULANG' ? (values.alasan_tolak || null) : null,
+                    }, { onConflict: "absensi_id" });
+                if (hafError) throw hafError;
+
+                await logActivity({ user, action: "CREATE", resource: "hafalan", details: values });
+
+                if (values.total_hafalan !== undefined && values.total_hafalan !== null) {
+                    updateSantri({
+                        resource: "santri",
+                        id: values.santri_nis,
+                        values: { total_hafalan: values.total_hafalan },
+                        successNotification: () => ({
+                            message: "Setoran & Absensi berhasil dicatat",
+                            description: "Sukses",
+                            type: "success",
+                        }),
+                    });
+                }
+
+                message.success("Setoran & Absensi berhasil dicatat");
+            } else {
+                message.success(`Absensi ${STATUS_LABEL[absensiStatus] || absensiStatus} berhasil dicatat`);
+                navigate("/hafalan");
+            }
+        } catch (err: any) {
+            message.error(err.message || "Gagal menyimpan data");
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -541,9 +659,14 @@ export const HafalanCreate = () => {
             </div>
 
             <Form
-                {...formProps}
+                form={form}
                 layout="vertical"
                 onFinish={onFinishHandler}
+                onValuesChange={(changedValues) => {
+                    if ('santri_nis' in changedValues) {
+                        setSelectedSantriNis(changedValues.santri_nis);
+                    }
+                }}
                 initialValues={{
                     tanggal: dayjs(),
                     dicatat_oleh_id: user?.id,
@@ -554,6 +677,123 @@ export const HafalanCreate = () => {
             >
                 <Form.Item name="dicatat_oleh_id" hidden><Input /></Form.Item>
                 <Form.Item name="status" hidden><Input /></Form.Item>
+
+                {/* ── STATUS KEHADIRAN ── */}
+                <div style={{
+                    background: token.colorBgContainer,
+                    border: `1px solid ${token.colorBorderSecondary}`,
+                    borderRadius: 16, padding: "20px 24px",
+                    marginBottom: 16,
+                }}>
+                    <SectionHeader
+                        step={0} title="Status Kehadiran"
+                        sub="Pilih status absensi santri sebelum setoran"
+                        icon={<UserOutlined />} accent="#C9A84C" isDark={isDark}
+                    />
+                    <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+                        {STATUS_ABSENSI.map(s => {
+                            const isActive = absensiStatus === s.key;
+                            return (
+                                <div
+                                    key={s.key} onClick={() => setAbsensiStatus(s.key)}
+                                    style={{
+                                        flex: 1, minWidth: 100, padding: "14px 16px", borderRadius: 12,
+                                        cursor: "pointer", userSelect: "none", textAlign: "center",
+                                        border: `2px solid ${isActive ? s.color : token.colorBorder}`,
+                                        background: isActive ? `${s.color}15` : "transparent",
+                                        transition: "all 0.15s",
+                                        transform: isActive ? "scale(1.04)" : "scale(1)",
+                                    }}
+                                >
+                                    <div style={{ fontSize: 28, marginBottom: 4 }}>{s.icon}</div>
+                                    <div style={{
+                                        fontSize: 13, fontWeight: 700,
+                                        color: isActive ? s.color : token.colorText,
+                                    }}>{s.label}</div>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {absensiStatus === 'HADIR' && (
+                        <div style={{ marginTop: 16, display: "flex", gap: 12 }}>
+                            <div
+                                onClick={() => setIsSetter(true)}
+                                style={{
+                                    flex: 1, padding: "12px 16px", borderRadius: 10, cursor: "pointer",
+                                    border: `2px solid ${isSetter ? '#047857' : token.colorBorder}`,
+                                    background: isSetter ? 'rgba(4,120,87,0.08)' : 'transparent',
+                                    textAlign: "center",
+                                }}
+                            >
+                                <div style={{ fontSize: 24 }}>📖</div>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: isSetter ? '#047857' : token.colorText }}>
+                                    SETOR
+                                </div>
+                                <div style={{ fontSize: 11, color: token.colorTextSecondary }}>
+                                    Santri menyetorkan hafalan
+                                </div>
+                            </div>
+                            <div
+                                onClick={() => setIsSetter(false)}
+                                style={{
+                                    flex: 1, padding: "12px 16px", borderRadius: 10, cursor: "pointer",
+                                    border: `2px solid ${!isSetter ? '#DC2626' : token.colorBorder}`,
+                                    background: !isSetter ? 'rgba(220,38,38,0.06)' : 'transparent',
+                                    textAlign: "center",
+                                }}
+                            >
+                                <div style={{ fontSize: 24 }}>🚫</div>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: !isSetter ? '#DC2626' : token.colorText }}>
+                                    TIDAK SETOR
+                                </div>
+                                <div style={{ fontSize: 11, color: token.colorTextSecondary }}>
+                                    Santri hadir tapi tidak setor
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {absensiStatus !== 'HADIR' && (
+                        <div style={{ marginTop: 12 }}>
+                            <div style={{
+                                padding: "10px 14px", borderRadius: 8, marginBottom: 12,
+                                background: isDark ? "#1E293B" : "#FFF7ED",
+                                border: `1px solid ${isDark ? "#334155" : "#FED7AA"}`,
+                                fontSize: 12, color: token.colorTextSecondary,
+                            }}>
+                                Status "{STATUS_LABEL[absensiStatus]}" — absensi tanpa data setoran.
+                            </div>
+                            {absensiStatus === 'GHAIB' && (
+                                <Form.Item
+                                    name="keterangan_absensi"
+                                    label={<span style={labelStyle}>Alasan Ghaib</span>}
+                                    rules={[{ required: true, message: "Harap isi alasan ghaib" }]}
+                                    style={{ marginBottom: 0 }}
+                                >
+                                    <Input.TextArea
+                                        rows={2}
+                                        placeholder="Contoh: pulang kampung, sakit, izin keluarga..."
+                                        style={{ borderRadius: 8, resize: "none", fontSize: 13 }}
+                                    />
+                                </Form.Item>
+                            )}
+                            {absensiStatus === 'SAKIT' && (
+                                <Form.Item
+                                    name="keterangan_absensi"
+                                    label={<span style={labelStyle}>Keterangan Sakit</span>}
+                                    style={{ marginBottom: 0 }}
+                                >
+                                    <Input.TextArea
+                                        rows={2}
+                                        placeholder="Opsional: jenis sakit, keterangan..."
+                                        style={{ borderRadius: 8, resize: "none", fontSize: 13 }}
+                                    />
+                                </Form.Item>
+                            )}
+                        </div>
+                    )}
+                </div>
 
                 <Row gutter={[20, 0]}>
 
@@ -595,6 +835,37 @@ export const HafalanCreate = () => {
                             {/* Preview Card Santri */}
                             <SantriPreview nis={selectedSantriNis} isDark={isDark} />
 
+                            {absensiStatus === 'HADIR' && (
+                                <>
+                                    <Divider style={{ borderColor: isDark ? "#1E293B" : "#F1F5F9", margin: "16px 0" }} />
+                                    <Form.Item
+                                        label={
+                                            <span style={labelStyle}>
+                                                <SafetyCertificateOutlined style={{ marginRight: 4 }} />
+                                                Penyimak
+                                            </span>
+                                        }
+                                        name="penyimak_id"
+                                        style={{ marginBottom: 0 }}
+                                    >
+                                        <Select
+                                            placeholder="Pilih penyimak (ustadz penguji)"
+                                            allowClear
+                                            showSearch
+                                            size="large"
+                                            style={{ borderRadius: 8 }}
+                                            filterOption={(input, option) =>
+                                                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                            }
+                                            options={penyimakOptions.map(p => ({
+                                                label: p.full_name || p.id,
+                                                value: p.id,
+                                            }))}
+                                        />
+                                    </Form.Item>
+                                </>
+                            )}
+
                             <Divider style={{ borderColor: isDark ? "#1E293B" : "#F1F5F9", margin: "20px 0" }} />
 
                             <Form.Item
@@ -612,6 +883,28 @@ export const HafalanCreate = () => {
                                     suffixIcon={<CalendarOutlined style={{ color: token.colorTextSecondary }} />}
                                 />
                             </Form.Item>
+
+                            <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10 }}>
+                                <Text style={{ ...labelStyle, margin: 0, whiteSpace: "nowrap" }}>Sesi</Text>
+                                <Segmented
+                                    value={manualSesiWaktu || (dayjs().hour() < 12 ? 'PAGI' : 'SIANG')}
+                                    onChange={(v) => setManualSesiWaktu(v as 'PAGI' | 'SIANG')}
+                                    options={[
+                                        { value: 'PAGI', label: <span>☀️ PAGI</span> },
+                                        { value: 'SIANG', label: <span>🌤️ SIANG</span> },
+                                    ]}
+                                    size="small"
+                                />
+                                {manualSesiWaktu && (
+                                    <Tag
+                                        color="blue"
+                                        style={{ cursor: "pointer", margin: 0, fontSize: 11 }}
+                                        onClick={() => setManualSesiWaktu(null)}
+                                    >
+                                        Auto
+                                    </Tag>
+                                )}
+                            </div>
                         </div>
 
                         {/* Total Hafalan Card */}
@@ -677,6 +970,7 @@ export const HafalanCreate = () => {
 
                     {/* ── KOLOM KANAN ── */}
                     <Col xs={24} lg={14}>
+                    {absensiStatus === 'HADIR' && isSetter ? (
                         <div
                             style={{
                                 background: token.colorBgContainer,
@@ -795,40 +1089,89 @@ export const HafalanCreate = () => {
                                     completedJuz={parseTotalHafalan(currentTotalSource)}
                                 />
                             </Form.Item>
-                        </div>
 
-                        {/* Predikat + Catatan */}
-                        <div
-                            style={{
-                                background: token.colorBgContainer,
-                                border: `1px solid ${token.colorBorderSecondary}`,
-                                borderRadius: 16,
-                                padding: "24px",
-                            }}
-                        >
-                            <SectionHeader
-                                step={4}
-                                title="Penilaian Musyrif"
-                                sub="Kualitas hafalan & catatan tambahan"
-                                icon={<StarFilled />}
-                                accent="#D97706"
-                                isDark={isDark}
-                            />
-
-                            <Form.Item
-                                label={<span style={labelStyle}>Kualitas Hafalan (Predikat)</span>}
-                                name="predikat"
-                                style={{ marginBottom: 16 }}
+                            {/* Predikat + Catatan */}
+                            <div
+                                style={{
+                                    background: token.colorBgContainer,
+                                    border: `1px solid ${token.colorBorderSecondary}`,
+                                    borderRadius: 16,
+                                    padding: "24px",
+                                }}
                             >
-                                <PredikatSelector isDark={isDark} />
-                            </Form.Item>
+                                <SectionHeader
+                                    step={4}
+                                    title="Penilaian Musyrif"
+                                    sub="Kualitas hafalan & catatan tambahan"
+                                    icon={<StarFilled />}
+                                    accent="#D97706"
+                                    isDark={isDark}
+                                />
 
-                            <Form.Item
-                                label={<span style={labelStyle}>Catatan Musyrif</span>}
-                                name="catatan"
-                                style={{ marginBottom: 0 }}
-                            >
-                                <Input.TextArea
+                                <Form.Item
+                                    label={<span style={labelStyle}>Kualitas Hafalan (Predikat)</span>}
+                                    name="predikat"
+                                    style={{ marginBottom: 16 }}
+                                >
+                                    <PredikatSelector isDark={isDark} />
+                                </Form.Item>
+
+                                {/* Status Setoran */}
+                                {absensiStatus === 'HADIR' && isSetter && (
+                                    <div style={{ marginBottom: 16 }}>
+                                        <div style={labelStyle}>Status Setoran</div>
+                                        <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                                            <Tag
+                                                color="success"
+                                                onClick={() => setStatusSetoran('LANCAR')}
+                                                style={{
+                                                    padding: "6px 16px", borderRadius: 8, cursor: "pointer",
+                                                    fontSize: 12, fontWeight: statusSetoran === 'LANCAR' ? 700 : 400,
+                                                    border: `1.5px solid ${statusSetoran === 'LANCAR' ? '#16A34A' : token.colorBorder}`,
+                                                    background: statusSetoran === 'LANCAR' ? 'rgba(22,163,74,0.10)' : 'transparent',
+                                                    color: statusSetoran === 'LANCAR' ? '#16A34A' : token.colorTextTertiary,
+                                                    margin: 0, transition: "all 0.12s",
+                                                }}
+                                            >
+                                                ✅ Lancar
+                                            </Tag>
+                                            <Tag
+                                                color="warning"
+                                                onClick={() => setStatusSetoran('MENGULANG')}
+                                                style={{
+                                                    padding: "6px 16px", borderRadius: 8, cursor: "pointer",
+                                                    fontSize: 12, fontWeight: statusSetoran === 'MENGULANG' ? 700 : 400,
+                                                    border: `1.5px solid ${statusSetoran === 'MENGULANG' ? '#D97706' : token.colorBorder}`,
+                                                    background: statusSetoran === 'MENGULANG' ? 'rgba(217,119,6,0.10)' : 'transparent',
+                                                    color: statusSetoran === 'MENGULANG' ? '#D97706' : token.colorTextTertiary,
+                                                    margin: 0, transition: "all 0.12s",
+                                                }}
+                                            >
+                                                🔄 Mengulang
+                                            </Tag>
+                                        </div>
+                                        {statusSetoran === 'MENGULANG' && (
+                                            <Form.Item
+                                                name="alasan_tolak"
+                                                rules={[{ required: true, message: "Harap isi alasan perlu mengulang" }]}
+                                                style={{ marginTop: 8, marginBottom: 0 }}
+                                            >
+                                                <Input.TextArea
+                                                    rows={2}
+                                                    placeholder="Alasan setoran perlu diulang (misal: tajwid belum sesuai, makhraj kurang tepat)..."
+                                                    style={{ borderRadius: 8, resize: "none", fontSize: 13 }}
+                                                />
+                                            </Form.Item>
+                                        )}
+                                    </div>
+                                )}
+
+                                <Form.Item
+                                    label={<span style={labelStyle}>Catatan Musyrif</span>}
+                                    name="catatan"
+                                    style={{ marginBottom: 0 }}
+                                >
+                                    <Input.TextArea
                                     rows={3}
                                     placeholder="Tambahkan catatan evaluasi, tajwid yang perlu diperbaiki, atau pencapaian khusus..."
                                     style={{
@@ -839,6 +1182,27 @@ export const HafalanCreate = () => {
                                 />
                             </Form.Item>
                         </div>
+                        </div>
+                    ) : (
+                        <div style={{
+                            background: token.colorBgContainer,
+                            border: `1px solid ${token.colorBorderSecondary}`,
+                            borderRadius: 16, padding: "40px 24px",
+                            textAlign: "center",
+                        }}>
+                            <div style={{ fontSize: 48, marginBottom: 12 }}>
+                                {absensiStatus === 'HADIR' ? '🚫' : STATUS_ABSENSI.find(s => s.key === absensiStatus)?.icon || '📝'}
+                            </div>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: token.colorText, marginBottom: 4 }}>
+                                {absensiStatus === 'HADIR' ? 'Tidak Ada Setoran' : `${STATUS_LABEL[absensiStatus] || absensiStatus}`}
+                            </div>
+                            <div style={{ fontSize: 13, color: token.colorTextSecondary }}>
+                                {absensiStatus === 'HADIR'
+                                    ? 'Santri hadir tapi tidak menyetorkan hafalan. Hanya absensi yang dicatat.'
+                                    : `Absensi dicatat sebagai "${STATUS_LABEL[absensiStatus]}". Tidak ada data hafalan.`}
+                            </div>
+                        </div>
+                    )}
                     </Col>
                 </Row>
 
@@ -863,7 +1227,9 @@ export const HafalanCreate = () => {
                     }}
                 >
                     <Text style={{ fontSize: 12, color: token.colorTextSecondary }}>
-                        Pastikan semua data sudah benar sebelum menyimpan
+                        {absensiStatus === 'HADIR' && isSetter
+                            ? 'Pastikan semua data setoran sudah benar'
+                            : 'Absensi akan dicatat tanpa data setoran'}
                     </Text>
                     <Button
                         onClick={() => navigate("/hafalan")}
@@ -877,12 +1243,15 @@ export const HafalanCreate = () => {
                         Batal
                     </Button>
                     <Button
-                        {...saveButtonProps}
+                        htmlType="submit"
                         type="primary"
                         size="large"
                         icon={<CheckCircleFilled />}
+                        loading={submitting}
                         style={{
-                            background: "linear-gradient(135deg, #047857, #10B981)",
+                            background: absensiStatus === 'HADIR' && isSetter
+                                ? "linear-gradient(135deg, #047857, #10B981)"
+                                : "linear-gradient(135deg, #C9A84C, #8B6E23)",
                             border: "none",
                             borderRadius: 8,
                             fontWeight: 700,
@@ -890,7 +1259,7 @@ export const HafalanCreate = () => {
                             paddingRight: 24,
                         }}
                     >
-                        Simpan Setoran
+                        {absensiStatus === 'HADIR' && isSetter ? 'Simpan Setoran' : 'Simpan Absensi'}
                     </Button>
                 </div>
             </Form>

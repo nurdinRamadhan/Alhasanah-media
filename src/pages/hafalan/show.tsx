@@ -49,6 +49,8 @@ type HafalanRow = {
     status: string | null;
     predikat: string | null;
     catatan: string | null;
+    status_setoran: string | null;
+    alasan_tolak: string | null;
 };
 
 type HafalanSummary = {
@@ -266,7 +268,7 @@ export const HafalanShow = () => {
         setLoadingStats(true);
         supabaseClient
             .from("hafalan_tahfidz")
-            .select("id,tanggal,surat,ayat_awal,ayat_akhir,juz,total_hafalan,status,predikat,catatan", { count: "exact" })
+            .select("id,tanggal,surat,ayat_awal,ayat_akhir,juz,total_hafalan,status,predikat,catatan,status_setoran,alasan_tolak", { count: "exact" })
             .eq("santri_nis", id)
             .order("tanggal", { ascending: false })
             .order("id", { ascending: false })
@@ -310,7 +312,7 @@ export const HafalanShow = () => {
         ws.getCell("A2").alignment = { horizontal: "center" };
 
         ws.addRow([]);
-        const headerRow = ws.addRow(["NO", "TANGGAL", "SURAT", "AYAT", "JUZ", "TOTAL HAFALAN", "PREDIKAT", "CATATAN"]);
+        const headerRow = ws.addRow(["NO", "TANGGAL", "SURAT", "AYAT", "JUZ", "TOTAL HAFALAN", "PREDIKAT", "STATUS SETORAN", "ALASAN", "CATATAN"]);
         headerRow.eachCell((cell) => {
             cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF047857" } };
             cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
@@ -330,6 +332,8 @@ export const HafalanShow = () => {
                 item.juz ?? "-",
                 item.total_hafalan ?? "-",
                 item.predikat || "-",
+                item.status_setoran === 'LANCAR' ? 'Lancar' : item.status_setoran === 'MENGULANG' ? 'Mengulang' : '-',
+                item.status_setoran === 'MENGULANG' && item.alasan_tolak ? item.alasan_tolak : '-',
                 item.catatan || "-",
             ]);
             row.eachCell((cell) => {
@@ -344,8 +348,8 @@ export const HafalanShow = () => {
             });
         });
 
-        ws.autoFilter = "A4:H4";
-        [5, 18, 20, 10, 8, 14, 14, 30].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+        ws.autoFilter = "A4:J4";
+        [5, 18, 20, 10, 8, 14, 14, 14, 20, 30].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
         const buffer = await workbook.xlsx.writeBuffer();
         const dateStr = new Date().toISOString().split("T")[0];

@@ -9,7 +9,7 @@ import {
   DashboardOutlined, BankOutlined, ShoppingCartOutlined,
   SafetyCertificateOutlined, HistoryOutlined,
   DatabaseOutlined, MessageOutlined, ShopOutlined,
-  TrophyOutlined,
+  TrophyOutlined, BarChartOutlined,
 } from "@ant-design/icons";
 
 export const resources: ResourceProps[] = [
@@ -38,6 +38,8 @@ export const resources: ResourceProps[] = [
     meta:{ label:"Ziyadah (Baru)", parent:"tahfidz_menu", icon:<BookOutlined /> } },
   { name:"murojaah_tahfidz", list:"/murojaah", create:"/murojaah/create", show:"/murojaah/show/:id",
     meta:{ label:"Murojaah (Ulang)", parent:"tahfidz_menu", icon:<SyncOutlined /> } },
+  { name:"tahfidz_rekap", list:"/hafalan/rekap",
+    meta:{ label:"Rekap Tahfidz", parent:"tahfidz_menu", icon:<BarChartOutlined /> } },
   { name:"hafalan_kitab", list:"/hafalan-kitab", create:"/hafalan-kitab/create", show:"/hafalan-kitab/show/:id",
     meta:{ label:"Hafalan Kitab", parent:"tahfidz_menu", icon:<BookOutlined /> } },
   { name:"diklat", meta:{ label:"Diklat & Pasaran", parent:"akademik_menu", icon:<RocketOutlined /> } },

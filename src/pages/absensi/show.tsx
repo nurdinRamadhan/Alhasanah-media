@@ -691,7 +691,7 @@ export const AttendanceShow: React.FC = () => {
         onCancel={() => setIsScanning(false)}
         footer={null}
         width={480}
-        destroyOnClose
+        destroyOnHidden
       >
         <div style={{ textAlign: "center", padding: "16px 0" }}>
           <Text type="secondary" style={{ display: "block", marginBottom: 16 }}>
