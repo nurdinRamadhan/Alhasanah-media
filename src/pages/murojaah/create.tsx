@@ -175,6 +175,7 @@ export const MurojaahCreate = () => {
                 if (murojaahError) throw murojaahError;
 
                 message.success("Setoran & Absensi Murojaah berhasil dicatat");
+                navigate("/murojaah");
             } else {
                 message.success(`Absensi ${STATUS_ABSENSI.find(s => s.key === absensiStatus)?.label} berhasil dicatat`);
                 navigate("/murojaah");

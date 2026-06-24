@@ -84,13 +84,14 @@ import {
   BeritaList, BeritaCreate, BeritaEdit, InventarisList, InventarisCreate, 
   InventarisShow, TagihanList, TagihanCreate, TagihanEdit, TransaksiList, 
   JenisPembayaranList, TransaksiCreate, DompetSantriList, DompetOperasionalList, DompetSecurityAuditList, KantinManagementList,
-  MurojaahList, MurojaahCreate, MurojaahShow, HafalanKitabList, 
+  MurojaahList, MurojaahCreate, MurojaahShow, MingguanList, NgajiList, SholatHifdziList, HafalanKitabList, 
   HafalanKitabCreate, HafalanKitabShow, PengeluaranList, DiklatList, 
   MasterDataPage, AuditLogList, AkademikPage, ScanQR, CreateAdminPage, 
   AdminList, AlumniList, ForumModerationList, ForumReportsList, AlumniChatMonitoringList,
   WeeklyTestList, WeeklyTestCreate, WeeklyTestArsip,
   NotificationList, NotificationCreate, SelfHealingCenterPage, BackendDiagnosticsPage,
-  PrivateAuditLogPage, RagKnowledgePage, LoadingFallback
+  PrivateAuditLogPage, RagKnowledgePage, LoadingFallback,
+  KoreksiHijriahList
 } from "./lazyPages";
 
 import { AiFloatingButton }   from "./components/AiFloatingButton";
@@ -1215,6 +1216,9 @@ const InnerApp: React.FC = () => {
                   <Route path="create"  element={<HafalanKitabCreate />} />
                   <Route path="show/:id" element={<HafalanKitabShow />}  />
                 </Route>
+                <Route path="/tahfidz/mingguan" element={<MingguanList />} />
+<Route path="/tahfidz/sholat-hifdzi" element={<SholatHifdziList />} />
+<Route path="/tahfidz/ngaji" element={<NgajiList />} />
 
                 <Route path="/alumni">    <Route index element={<AlumniList />}    /></Route>
                 <Route path="/forum-alumni" element={<ForumModerationList />} />
@@ -1249,6 +1253,7 @@ const InnerApp: React.FC = () => {
                 <Route path="/scanQr"                      element={<ScanQR />}           />
                 <Route path="/admin-management/create"     element={<CreateAdminPage />}  />
                 <Route path="/admin-management/list"       element={<AdminList />}        />
+                <Route path="/koreksi-hijriah"               element={<KoreksiHijriahList />}  />
 
                 <Route path="/inventaris">
                   <Route index          element={<InventarisList />}   />

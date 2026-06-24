@@ -99,7 +99,9 @@ const formatLatestHafalan = (record?: LatestHafalan) => {
                 : "";
         return `${record.surat}${ayat}`;
     }
-    return record.juz ? `Juz ${record.juz}` : "Belum ada setoran";
+    if (record.juz) return `Juz ${record.juz}`;
+    if (record.tanggal) return "Setoran (tanpa detail)";
+    return "Belum ada setoran";
 };
 
 const totalNum = (value?: string | number | null) => {
@@ -681,25 +683,62 @@ export const HafalanList = () => {
         }
         let mounted = true;
         setLoadingLatest(true);
-        supabaseClient
-            .from("hafalan_tahfidz")
-            .select("santri_nis,tanggal,surat,ayat_awal,ayat_akhir,juz")
-            .in("santri_nis", nisList)
-            .order("tanggal", { ascending: false })
-            .order("id", { ascending: false })
-            .then(({ data }) => {
-                if (!mounted) return;
-                const next: Record<string, LatestHafalan> = {};
-                (data || []).forEach((item) => {
-                    if (item.santri_nis && !next[item.santri_nis]) {
-                        next[item.santri_nis] = item as LatestHafalan;
-                    }
-                });
-                setLatestByNis(next);
-                setLoadingLatest(false);
+
+        const fetchLatest = async () => {
+            const [{ data: hafalanData }, { data: absensiData }] = await Promise.all([
+            supabaseClient
+                .from("hafalan_tahfidz")
+                .select("santri_nis,tanggal,surat,ayat_awal,ayat_akhir,juz")
+                .in("santri_nis", nisList)
+                .not("tanggal", "is", null)
+                .order("tanggal", { ascending: false })
+                .order("id", { ascending: false }),
+            supabaseClient
+                .from("tahfidz_absensi")
+                .select("santri_nis, tahfidz_sesi!inner(tanggal)")
+                .in("santri_nis", nisList)
+                .eq("setoran", true),
+            ]);
+
+            if (!mounted) return;
+
+            const next: Record<string, LatestHafalan> = {};
+            const latestDateKey: Record<string, string> = {};
+
+            (hafalanData || []).forEach((item) => {
+                if (item.santri_nis && item.tanggal && !next[item.santri_nis]) {
+                    next[item.santri_nis] = item as LatestHafalan;
+                    latestDateKey[item.santri_nis] = dayjs(item.tanggal).format("YYYY-MM-DD");
+                }
             });
+
+            (absensiData || []).forEach((item: any) => {
+                const nis = item.santri_nis;
+                if (!nis) return;
+                const sesiDate = item.tahfidz_sesi?.tanggal;
+                if (!sesiDate) return;
+
+                const currentDateKey = latestDateKey[nis] || "";
+                if (sesiDate > currentDateKey) {
+                    next[nis] = {
+                        santri_nis: nis,
+                        tanggal: sesiDate,
+                        surat: null,
+                        ayat_awal: null,
+                        ayat_akhir: null,
+                        juz: null,
+                    };
+                    latestDateKey[nis] = sesiDate;
+                }
+            });
+
+            setLatestByNis(next);
+            setLoadingLatest(false);
+        };
+
+        fetchLatest();
         return () => { mounted = false; };
-    }, [tableQueryResult?.data?.data]);
+    }, [tableQueryResult?.data?.data, fetchKey]);
 
     // Fetch jumlah santri yang sudah setoran hari ini
     React.useEffect(() => {
@@ -900,7 +939,7 @@ export const HafalanList = () => {
 
         // ── Column headers (row 4) ──
         ws.getRow(4).values = [
-            "NO", "Tanggal (M)", "Tanggal (H)", "NIS", "Nama Santri", "Kelas",
+            "NO", "Hari, Tgl (M)", "Tanggal (H)", "NIS", "Nama Santri", "Kelas",
             "Status", "Setoran", "Materi", "Predikat", "Penyimak",
             "Status", "Setoran", "Materi", "Predikat", "Penyimak",
         ];
@@ -910,7 +949,7 @@ export const HafalanList = () => {
         // ── Column widths ──
         ws.columns = [
             { key: "no", width: 5 },
-            { key: "tglM", width: 13 },
+            { key: "tglM", width: 22 },
             { key: "tglH", width: 18 },
             { key: "nis", width: 13 },
             { key: "nama", width: 24 },
@@ -954,7 +993,7 @@ export const HafalanList = () => {
             const siang = lookup.get(`${r.tgl}::SIANG::${r.nis}`);
             ws.addRow({
                 no: idx + 1,
-                tglM: formatMasehi(r.tgl),
+                tglM: `${DAYS_INDO[new Date(r.tgl).getDay()]}, ${formatMasehi(r.tgl)}`,
                 tglH: formatHijri(new Date(r.tgl + "T00:00:00")),
                 nis: r.nis,
                 nama: r.nama,

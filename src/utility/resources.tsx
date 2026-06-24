@@ -9,7 +9,7 @@ import {
   DashboardOutlined, BankOutlined, ShoppingCartOutlined,
   SafetyCertificateOutlined, HistoryOutlined,
   DatabaseOutlined, MessageOutlined, ShopOutlined,
-  TrophyOutlined, BarChartOutlined,
+  TrophyOutlined, BarChartOutlined, CalendarOutlined,
 } from "@ant-design/icons";
 
 export const resources: ResourceProps[] = [
@@ -42,6 +42,12 @@ export const resources: ResourceProps[] = [
     meta:{ label:"Rekap Tahfidz", parent:"tahfidz_menu", icon:<BarChartOutlined /> } },
   { name:"hafalan_kitab", list:"/hafalan-kitab", create:"/hafalan-kitab/create", show:"/hafalan-kitab/show/:id",
     meta:{ label:"Hafalan Kitab", parent:"tahfidz_menu", icon:<BookOutlined /> } },
+  { name:"mingguan_absensi", list:"/tahfidz/mingguan",
+    meta:{ label:"Mingguan", parent:"tahfidz_menu", icon:<CalendarOutlined /> } },
+  { name:"ngaji_absensi", list:"/tahfidz/ngaji",
+    meta:{ label:"Ngaji", parent:"tahfidz_menu", icon:<ReadOutlined /> } },
+  { name:"sholat_hifdzi_absensi", list:"/tahfidz/sholat-hifdzi",
+    meta:{ label:"Sholat Hifdzi", parent:"tahfidz_menu", icon:<CalendarOutlined /> } },
   { name:"diklat", meta:{ label:"Diklat & Pasaran", parent:"akademik_menu", icon:<RocketOutlined /> } },
   { name:"diklat_list", list:"/diklat",
     meta:{ label:"Daftar Peserta", parent:"diklat", icon:<TeamOutlined /> } },
@@ -106,6 +112,8 @@ export const resources: ResourceProps[] = [
   { name:"sistem_menu", meta:{ label:"Sistem", icon:<SafetyCertificateOutlined /> } },
   { name:"audit_logs", list:"/audit-logs",
     meta:{ label:"Log Aktivitas", parent:"sistem_menu", icon:<SafetyCertificateOutlined /> } },
+  { name:"koreksi_hijriah", list:"/koreksi-hijriah",
+    meta:{ label:"Koreksi Hijriah", parent:"sistem_menu", icon:<CalendarOutlined /> } },
   { name:"backend_command_center", meta:{ label:"Backend Center", parent:"sistem_menu", icon:<DatabaseOutlined /> } },
   { name:"backend_self_healing", list:"/backend-command-center/self-healing",
     meta:{ label:"Self-Healing", parent:"backend_command_center", icon:<SafetyCertificateOutlined /> } },

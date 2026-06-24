@@ -41,6 +41,8 @@ const hexLum = (hex: string): number => {
 const { Text } = Typography;
 const { RangePicker } = DatePicker;
 
+const DAYS_INDO = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type DetailSetoran = {
@@ -802,7 +804,7 @@ export const MurojaahList: React.FC = () => {
 
                 // Header baris 2: nama kolom detail
                 ws.getRow(4).values = [
-                    "NO", "Tanggal (M)", "Tanggal (H)", "NIS", "Nama Santri", "Kelas",
+                    "NO", "Hari, Tgl (M)", "Tanggal (H)", "NIS", "Nama Santri", "Kelas",
                     "Status", "Jenis", "Cakupan", "Penyimak",
                     "Status", "Jenis", "Cakupan", "Penyimak",
                 ];
@@ -811,7 +813,7 @@ export const MurojaahList: React.FC = () => {
 
                 ws.columns = [
                     { key: "no", width: 5 },
-                    { key: "tglM", width: 13 },
+                    { key: "tglM", width: 22 },
                     { key: "tglH", width: 18 },
                     { key: "nis", width: 13 },
                     { key: "nama", width: 24 },
@@ -823,7 +825,7 @@ export const MurojaahList: React.FC = () => {
                 rows.forEach((r: any, idx: number) => {
                     ws.addRow({
                         no: idx + 1,
-                        tglM: formatMasehi(r.tanggal),
+                        tglM: `${DAYS_INDO[new Date(r.tanggal).getDay()]}, ${formatMasehi(r.tanggal)}`,
                         tglH: formatHijri(r.tanggal),
                         nis: r.santri_nis,
                         nama: r.nama,
@@ -938,7 +940,7 @@ export const MurojaahList: React.FC = () => {
                 applySesiHeaderStyle(ws.getCell("G7"), "FF2563EB");
 
                 ws.getRow(8).values = [
-                    "Masehi", "Hijriah",
+                    "Hari, Masehi", "Hijriah",
                     "Status", "Jenis", "Cakupan", "Penyimak",
                     "Status", "Jenis", "Cakupan", "Penyimak",
                 ];
@@ -946,7 +948,7 @@ export const MurojaahList: React.FC = () => {
                 ws.getRow(8).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
 
                 ws.columns = [
-                    { key: "tglM", width: 13 },
+                    { key: "tglM", width: 22 },
                     { key: "tglH", width: 18 },
                     ...sesiColumns("pagi"),
                     ...sesiColumns("siang"),
@@ -954,7 +956,7 @@ export const MurojaahList: React.FC = () => {
 
                 rows.forEach((r: any) => {
                     ws.addRow({
-                        tglM: formatMasehi(r.tanggal),
+                        tglM: `${DAYS_INDO[new Date(r.tanggal).getDay()]}, ${formatMasehi(r.tanggal)}`,
                         tglH: formatHijri(r.tanggal),
                         pagi_status: r.pagi?.status || "-",
                         pagi_jenis: r.pagi?.jenis || "-",

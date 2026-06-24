@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import { useOne } from "@refinedev/core";
 import { ProTable, ProColumns } from "@ant-design/pro-components";
-import { Typography, Card, Row, Col, Avatar, Tag, Button, Statistic, Divider, Spin, Space, theme, Tooltip, Badge } from "antd";
+import { Typography, Card, Row, Col, Avatar, Tag, Button, Statistic, Divider, Spin, Space, theme, Tooltip, Badge, DatePicker } from "antd";
 import {
     ReadOutlined,
     HistoryOutlined,
@@ -16,11 +16,12 @@ import {
 } from "@ant-design/icons";
 import { ISantri } from "../../types";
 import { useNavigate, useParams } from "react-router-dom";
-import { formatFullDate, formatDualDate, formatMasehi } from "../../utility/dateHelper";
+import { formatFullDate, formatDualDate } from "../../utility/dateHelper";
 import { supabaseClient } from "../../utility/supabaseClient";
 import { santriAlias } from "../../utility/privacy";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
+import dayjs from "dayjs";
 import {
     AreaChart,
     Area,
@@ -51,6 +52,9 @@ type HafalanRow = {
     catatan: string | null;
     status_setoran: string | null;
     alasan_tolak: string | null;
+    status_absensi: string | null;
+    sesi: string | null;
+    penyimak_id: string | null;
 };
 
 type HafalanSummary = {
@@ -262,25 +266,67 @@ export const HafalanShow = () => {
 
     const [summary, setSummary] = React.useState<HafalanSummary>({ total_count: 0, latest: null, all_rows: [] });
     const [loadingStats, setLoadingStats] = React.useState(true);
+    const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([
+        dayjs().startOf("month"),
+        dayjs().endOf("month"),
+    ]);
 
-    React.useEffect(() => {
+    const flattenHafalan = (raw: any): HafalanRow => ({
+        id: raw.id,
+        tanggal: raw.tanggal,
+        surat: raw.surat,
+        ayat_awal: raw.ayat_awal,
+        ayat_akhir: raw.ayat_akhir,
+        juz: raw.juz,
+        total_hafalan: raw.total_hafalan,
+        status: raw.status,
+        predikat: raw.predikat,
+        catatan: raw.catatan,
+        status_setoran: raw.status_setoran,
+        alasan_tolak: raw.alasan_tolak,
+        status_absensi: raw.tahfidz_absensi?.status ?? null,
+        sesi: raw.tahfidz_absensi?.tahfidz_sesi?.sesi ?? null,
+        penyimak_id: raw.tahfidz_absensi?.penyimak_id ?? null,
+    });
+
+    const fetchHafalan = React.useCallback(async (start: string, end: string) => {
         if (!id) return;
         setLoadingStats(true);
-        supabaseClient
-            .from("hafalan_tahfidz")
-            .select("id,tanggal,surat,ayat_awal,ayat_akhir,juz,total_hafalan,status,predikat,catatan,status_setoran,alasan_tolak", { count: "exact" })
-            .eq("santri_nis", id)
-            .order("tanggal", { ascending: false })
-            .order("id", { ascending: false })
-            .then(({ data, count }) => {
-                setSummary({
-                    total_count: count || 0,
-                    latest: (data?.[0] as HafalanRow | undefined) || null,
-                    all_rows: (data || []) as HafalanRow[],
-                });
-                setLoadingStats(false);
+        try {
+            const { data, count, error } = await supabaseClient
+                .from("hafalan_tahfidz")
+                .select(`
+                    id,tanggal,surat,ayat_awal,ayat_akhir,juz,total_hafalan,status,predikat,catatan,status_setoran,alasan_tolak,
+                    tahfidz_absensi!absensi_id(
+                        status,
+                        penyimak_id,
+                        tahfidz_sesi!inner(sesi)
+                    )
+                `, { count: "exact" })
+                .eq("santri_nis", id)
+                .gte("tanggal", start)
+                .lte("tanggal", end + "T23:59:59")
+                .order("tanggal", { ascending: false })
+                .order("id", { ascending: false });
+            if (error) throw error;
+            const rows = (data || []).map(flattenHafalan);
+            setSummary({
+                total_count: count || 0,
+                latest: rows[0] || null,
+                all_rows: rows,
             });
+        } catch (err: any) {
+            console.error("Fetch hafalan error:", err);
+        } finally {
+            setLoadingStats(false);
+        }
     }, [id]);
+
+    React.useEffect(() => {
+        const start = dateRange[0].startOf("day").toISOString();
+        const end = dateRange[1].endOf("day").toISOString();
+        fetchHafalan(start, end);
+    }, [dateRange, fetchHafalan]);
 
     const record = santriData?.data;
 
@@ -289,7 +335,11 @@ export const HafalanShow = () => {
     const mumtazRate = summary.total_count > 0 ? Math.round((mumtazCount / summary.total_count) * 100) : 0;
     const kurangCount = summary.all_rows.filter((r) => r.predikat === "KURANG").length;
     const kurangRate = summary.total_count > 0 ? Math.round((kurangCount / summary.total_count) * 100) : 0;
-    const completedJuz = summary.latest?.total_hafalan ?? 0;
+    const completedJuz = record?.total_hafalan ? (() => {
+        const raw = String(record.total_hafalan);
+        const parsed = parseInt(raw, 10);
+        return isNaN(parsed) ? 0 : Math.min(Math.max(0, parsed), 30);
+    })() : 0;
 
     // Streak: consecutive days with setoran (sederhana)
     const uniqueDays = [...new Set(summary.all_rows.map((r) => r.tanggal).filter(Boolean))];
@@ -300,19 +350,19 @@ export const HafalanShow = () => {
     const exportLaporan = async () => {
         const workbook = new ExcelJS.Workbook();
         const ws = workbook.addWorksheet("Riwayat Hafalan");
-        ws.mergeCells("A1:H1");
+        ws.mergeCells("A1:L1");
         const titleCell = ws.getCell("A1");
         titleCell.value = `LAPORAN HAFALAN — ${record?.nama || santriAlias(record?.nis)} (${record?.nis})`;
         titleCell.font = { name: "Arial", size: 14, bold: true, color: { argb: "FF047857" } };
         titleCell.alignment = { vertical: "middle", horizontal: "center" };
 
-        ws.mergeCells("A2:H2");
-        ws.getCell("A2").value = `Riwayat setoran ${summary.total_count} kali · ${formatMasehi(new Date())}`;
+        ws.mergeCells("A2:L2");
+        ws.getCell("A2").value = `Riwayat setoran ${summary.total_count} kali · ${dateRange[0].format("DD MMM YYYY")} – ${dateRange[1].format("DD MMM YYYY")}`;
         ws.getCell("A2").font = { name: "Arial", size: 10, italic: true };
         ws.getCell("A2").alignment = { horizontal: "center" };
 
         ws.addRow([]);
-        const headerRow = ws.addRow(["NO", "TANGGAL", "SURAT", "AYAT", "JUZ", "TOTAL HAFALAN", "PREDIKAT", "STATUS SETORAN", "ALASAN", "CATATAN"]);
+        const headerRow = ws.addRow(["NO", "TANGGAL", "SESI", "STATUS ABSENSI", "SURAT", "AYAT", "JUZ", "TOTAL HAFALAN", "PREDIKAT", "STATUS SETORAN", "ALASAN", "CATATAN"]);
         headerRow.eachCell((cell) => {
             cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF047857" } };
             cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
@@ -324,16 +374,20 @@ export const HafalanShow = () => {
         });
 
         summary.all_rows.forEach((item, index) => {
+            const st = item.status_setoran;
+            const statusLabel = st === 'LANCAR' ? 'Lancar' : st === 'MENGULANG' ? 'Mengulang' : '-';
             const row = ws.addRow([
                 index + 1,
                 item.tanggal ? formatFullDate(item.tanggal) : "-",
+                item.sesi || "-",
+                STATUS_CFG[item.status_absensi ?? ""]?.label || item.status_absensi || "-",
                 item.surat || "-",
                 item.ayat_awal && item.ayat_akhir ? `${item.ayat_awal}–${item.ayat_akhir}` : "-",
                 item.juz ?? "-",
                 item.total_hafalan ?? "-",
                 item.predikat || "-",
-                item.status_setoran === 'LANCAR' ? 'Lancar' : item.status_setoran === 'MENGULANG' ? 'Mengulang' : '-',
-                item.status_setoran === 'MENGULANG' && item.alasan_tolak ? item.alasan_tolak : '-',
+                statusLabel,
+                st === 'MENGULANG' && item.alasan_tolak ? item.alasan_tolak : '-',
                 item.catatan || "-",
             ]);
             row.eachCell((cell) => {
@@ -348,8 +402,8 @@ export const HafalanShow = () => {
             });
         });
 
-        ws.autoFilter = "A4:J4";
-        [5, 18, 20, 10, 8, 14, 14, 14, 20, 30].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+        ws.autoFilter = "A4:L4";
+        [5, 18, 8, 14, 20, 10, 8, 14, 14, 14, 20, 30].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
         const buffer = await workbook.xlsx.writeBuffer();
         const dateStr = new Date().toISOString().split("T")[0];
@@ -367,6 +421,14 @@ export const HafalanShow = () => {
 
     // ── Helpers ──
 
+    const STATUS_CFG: Record<string, { label: string; color: string }> = {
+        HADIR: { label: "Hadir", color: "#16A34A" },
+        SAKIT: { label: "Sakit", color: "#D97706" },
+        GHAIB: { label: "Ghaib", color: "#DC2626" },
+        SEKOLAH: { label: "Sekolah", color: "#2563EB" },
+        PULANG: { label: "Pulang", color: "#9333EA" },
+    };
+
     // ── Table columns ──
     const columns: ProColumns<HafalanRow>[] = [
         {
@@ -383,6 +445,34 @@ export const HafalanShow = () => {
                     </Text>
                 </Space>
             ),
+        },
+        {
+            title: "Sesi",
+            dataIndex: "sesi",
+            width: 80,
+            render: (_, item) => item.sesi ? (
+                <Tag style={{
+                    background: item.sesi === 'PAGI' ? '#FEF3C7' : '#DBEAFE',
+                    border: 'none', borderRadius: 6,
+                    color: item.sesi === 'PAGI' ? '#D97706' : '#2563EB',
+                    fontWeight: 600, fontSize: 10,
+                }}>
+                    {item.sesi}
+                </Tag>
+            ) : <Text style={{ color: token.colorTextSecondary }}>–</Text>,
+        },
+        {
+            title: "Status",
+            dataIndex: "status_absensi",
+            width: 90,
+            render: (_, item) => {
+                const cfg = STATUS_CFG[item.status_absensi ?? ""];
+                return cfg ? (
+                    <Tag color={cfg.color} style={{ borderRadius: 6, fontWeight: 600, fontSize: 10 }}>
+                        {cfg.label}
+                    </Tag>
+                ) : <Text style={{ color: token.colorTextSecondary }}>–</Text>;
+            },
         },
         {
             title: "Surat / Ayat",
@@ -469,17 +559,32 @@ export const HafalanShow = () => {
                 >
                     Kembali
                 </Button>
-                <Button
-                    type="primary"
-                    icon={<DownloadOutlined />}
-                    onClick={exportLaporan}
-                    style={{
-                        background: "linear-gradient(135deg, #047857, #10B981)",
-                        border: "none", borderRadius: 8, fontWeight: 600,
-                    }}
-                >
-                    Eksport Laporan
-                </Button>
+                <Space>
+                    <DatePicker.RangePicker
+                        value={dateRange}
+                        onChange={(dates: any) => {
+                            if (dates?.[0] && dates?.[1]) setDateRange([dates[0], dates[1]]);
+                        }}
+                        format="DD MMM YYYY"
+                        presets={[
+                            { label: "Bulan ini", value: [dayjs().startOf("month"), dayjs().endOf("month")] },
+                            { label: "Bulan lalu", value: [dayjs().subtract(1, "month").startOf("month"), dayjs().subtract(1, "month").endOf("month")] },
+                            { label: "Semua", value: [dayjs("2020-01-01"), dayjs()] },
+                        ]}
+                        style={{ borderRadius: 8 }}
+                    />
+                    <Button
+                        type="primary"
+                        icon={<DownloadOutlined />}
+                        onClick={exportLaporan}
+                        style={{
+                            background: "linear-gradient(135deg, #047857, #10B981)",
+                            border: "none", borderRadius: 8, fontWeight: 600,
+                        }}
+                    >
+                        Eksport Laporan
+                    </Button>
+                </Space>
             </div>
 
             <Row gutter={[20, 20]}>
@@ -675,6 +780,7 @@ export const HafalanShow = () => {
                         borderRadius: 16, overflow: "hidden",
                     }}>
                         <ProTable<HafalanRow>
+                            key={`${dateRange[0].format("YYYYMMDD")}-${dateRange[1].format("YYYYMMDD")}`}
                             columns={columns}
                             rowKey="id"
                             search={false}
@@ -706,8 +812,17 @@ export const HafalanShow = () => {
                                 const to = from + pageSize - 1;
                                 let query = supabaseClient
                                     .from("hafalan_tahfidz")
-                                    .select("id,tanggal,surat,ayat_awal,ayat_akhir,juz,total_hafalan,status,predikat,catatan", { count: "exact" })
-                                    .eq("santri_nis", id);
+                                    .select(`
+                                        id,tanggal,surat,ayat_awal,ayat_akhir,juz,total_hafalan,status,predikat,catatan,status_setoran,alasan_tolak,
+                                        tahfidz_absensi!absensi_id(
+                                            status,
+                                            penyimak_id,
+                                            tahfidz_sesi!inner(sesi)
+                                        )
+                                    `, { count: "exact" })
+                                    .eq("santri_nis", id)
+                                    .gte("tanggal", dateRange[0].startOf("day").toISOString())
+                                    .lte("tanggal", dateRange[1].endOf("day").toISOString());
                                 if (predikatFilter) {
                                     query = query.eq("predikat", predikatFilter);
                                 }
@@ -716,7 +831,7 @@ export const HafalanShow = () => {
                                     .order("id", { ascending: false })
                                     .range(from, to);
                                 if (error) return { data: [], success: false, total: 0 };
-                                return { data: (data || []) as HafalanRow[], success: true, total: count || 0 };
+                                return { data: (data || []).map(flattenHafalan), success: true, total: count || 0 };
                             }}
                             pagination={{
                                 defaultPageSize: 20,

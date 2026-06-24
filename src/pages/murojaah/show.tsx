@@ -1,13 +1,14 @@
-import React from "react";
+import React, { useState } from "react";
 import { useOne } from "@refinedev/core";
 import {
     Typography, Avatar, Tag, Button, Spin, Tooltip, theme,
+    DatePicker, Space,
 } from "antd";
 import { ProTable, ProColumns } from "@ant-design/pro-components";
 import {
     ArrowLeftOutlined, UserOutlined, FireOutlined,
     BookOutlined, TrophyOutlined, BarChartOutlined,
-    RiseOutlined, CalendarOutlined,
+    RiseOutlined, CalendarOutlined, DownloadOutlined,
 } from "@ant-design/icons";
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
@@ -18,6 +19,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabaseClient } from "../../utility/supabaseClient";
 import { formatDualDate } from "../../utility/dateHelper";
 import { santriAlias } from "../../utility/privacy";
+import dayjs from "dayjs";
 
 const { Text } = Typography;
 
@@ -35,6 +37,8 @@ type MurojaahRow = {
     halaman_akhir: number | null;
     predikat: string | null;
     catatan: string | null;
+    status_absensi: string | null;
+    sesi: string | null;
 };
 
 type MurojaahSummary = {
@@ -318,6 +322,26 @@ export const MurojaahShow: React.FC = () => {
     const [agg, setAgg] = React.useState<AggregateData | null>(null);
     const [dateCountMap, setDateCountMap] = React.useState<Map<string, number>>(new Map());
     const [aggLoading, setAggLoading] = React.useState(true);
+    const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([
+        dayjs().startOf("month"),
+        dayjs().endOf("month"),
+    ]);
+
+    const flattenMurojaah = (raw: any): MurojaahRow => ({
+        id: raw.id,
+        tanggal: raw.tanggal,
+        jenis_murojaah: raw.jenis_murojaah,
+        juz: raw.juz,
+        surat: raw.surat,
+        ayat_awal: raw.ayat_awal,
+        ayat_akhir: raw.ayat_akhir,
+        halaman_awal: raw.halaman_awal,
+        halaman_akhir: raw.halaman_akhir,
+        predikat: raw.predikat,
+        catatan: raw.catatan,
+        status_absensi: raw.tahfidz_absensi?.status ?? null,
+        sesi: raw.tahfidz_absensi?.tahfidz_sesi?.sesi ?? null,
+    });
 
     React.useEffect(() => {
         if (!id) return;
@@ -336,12 +360,16 @@ export const MurojaahShow: React.FC = () => {
                 }
             });
 
-        // Aggregate fetch — only the columns we need, no pagination limit
+        // Aggregate fetch with date filter
         setAggLoading(true);
+        const start = dateRange[0].startOf("day").toISOString();
+        const end = dateRange[1].endOf("day").toISOString();
         supabaseClient
             .from("murojaah_tahfidz")
             .select("tanggal, jenis_murojaah, juz, predikat")
             .eq("santri_nis", id)
+            .gte("tanggal", start)
+            .lte("tanggal", end)
             .order("tanggal", { ascending: true })
             .then(({ data }) => {
                 if (!data) { setAggLoading(false); return; }
@@ -359,7 +387,7 @@ export const MurojaahShow: React.FC = () => {
                 setDateCountMap(dcm);
                 setAggLoading(false);
             });
-    }, [id]);
+    }, [id, dateRange]);
 
     if (isLoading || !santriData?.data) {
         return (
@@ -374,6 +402,14 @@ export const MurojaahShow: React.FC = () => {
     const initials = displayName.split(" ").slice(0, 2).map((w: string) => w[0]).join("").toUpperCase();
     const total = summary.total_count;
 
+    const STATUS_CFG: Record<string, { label: string; color: string }> = {
+        HADIR: { label: "Hadir", color: "#16A34A" },
+        SAKIT: { label: "Sakit", color: "#D97706" },
+        GHAIB: { label: "Ghaib", color: "#DC2626" },
+        SEKOLAH: { label: "Sekolah", color: "#2563EB" },
+        PULANG: { label: "Pulang", color: "#9333EA" },
+    };
+
     // ── ProTable columns ────────────────────────────────────────────────────
     const columns: ProColumns<MurojaahRow>[] = [
         {
@@ -385,6 +421,34 @@ export const MurojaahShow: React.FC = () => {
                     {item.tanggal ? formatDualDate(item.tanggal) : "–"}
                 </Text>
             ),
+        },
+        {
+            title: "Sesi",
+            dataIndex: "sesi",
+            width: 70,
+            render: (_, item) => item.sesi ? (
+                <Tag style={{
+                    background: item.sesi === 'PAGI' ? '#FEF3C7' : '#DBEAFE',
+                    border: 'none', borderRadius: 6,
+                    color: item.sesi === 'PAGI' ? '#D97706' : '#2563EB',
+                    fontWeight: 600, fontSize: 10,
+                }}>
+                    {item.sesi}
+                </Tag>
+            ) : <Text style={{ color: "var(--ant-color-text-tertiary)" }}>–</Text>,
+        },
+        {
+            title: "Status",
+            dataIndex: "status_absensi",
+            width: 85,
+            render: (_, item) => {
+                const cfg = STATUS_CFG[item.status_absensi ?? ""];
+                return cfg ? (
+                    <Tag color={cfg.color} style={{ borderRadius: 6, fontWeight: 600, fontSize: 10 }}>
+                        {cfg.label}
+                    </Tag>
+                ) : <Text style={{ color: "var(--ant-color-text-tertiary)" }}>–</Text>;
+            },
         },
         {
             title: "Jenis",
@@ -462,16 +526,31 @@ export const MurojaahShow: React.FC = () => {
         <div style={{ padding: "16px 16px 80px" }}>
 
             {/* ── Header ── */}
-            <div style={{ marginBottom: 16 }}>
-                <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/murojaah")} style={{ marginBottom: 12 }}>
-                    Kembali
-                </Button>
+            <div style={{ marginBottom: 16, display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
                 <div>
-                    <Text style={{ fontSize: 18, fontWeight: 500, display: "block" }}>Detail Murojaah</Text>
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                        Progres, konsistensi & riwayat aktivitas tahfidz santri
-                    </Text>
+                    <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/murojaah")} style={{ marginBottom: 12 }}>
+                        Kembali
+                    </Button>
+                    <div>
+                        <Text style={{ fontSize: 18, fontWeight: 500, display: "block" }}>Detail Murojaah</Text>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                            Progres, konsistensi & riwayat aktivitas tahfidz santri
+                        </Text>
+                    </div>
                 </div>
+                <DatePicker.RangePicker
+                    value={dateRange}
+                    onChange={(dates: any) => {
+                        if (dates?.[0] && dates?.[1]) setDateRange([dates[0], dates[1]]);
+                    }}
+                    format="DD MMM YYYY"
+                    presets={[
+                        { label: "Bulan ini", value: [dayjs().startOf("month"), dayjs().endOf("month")] },
+                        { label: "Bulan lalu", value: [dayjs().subtract(1, "month").startOf("month"), dayjs().subtract(1, "month").endOf("month")] },
+                        { label: "Semua", value: [dayjs("2020-01-01"), dayjs()] },
+                    ]}
+                    style={{ borderRadius: 8 }}
+                />
             </div>
 
             {/* ── Profile + KPI row ── */}
@@ -564,9 +643,10 @@ export const MurojaahShow: React.FC = () => {
                         />
                         <KpiCard
                             icon={<CalendarOutlined />}
-                            value={agg ? agg.avgPerWeek : "–"}
-                            label="Rata-rata/pekan"
-                            sub="(12 bulan terakhir)"
+                            value={agg ? `${agg.jenisDist.SABAQ} vs ${agg.jenisDist.MANZIL}` : "–"}
+                            label="Sabaq vs Manzil"
+                            sub={agg ? `${Math.round((agg.jenisDist.SABAQ / (agg.jenisDist.SABAQ + agg.jenisDist.MANZIL || 1)) * 100)}% Sabaq` : undefined}
+                            accent="#3b82f6"
                             isDark={isDark}
                         />
                     </div>
@@ -667,6 +747,7 @@ export const MurojaahShow: React.FC = () => {
                 {/* Row 2: Full width — Log table */}
                 <div style={{ ...card, padding: 0, overflow: "hidden", flex: 1 }}>
                     <ProTable<MurojaahRow>
+                        key={`${dateRange[0].format("YYYYMMDD")}-${dateRange[1].format("YYYYMMDD")}`}
                         columns={columns}
                         rowKey="id"
                         search={false}
@@ -685,14 +766,22 @@ export const MurojaahShow: React.FC = () => {
 
                             const { data, error, count } = await supabaseClient
                                 .from("murojaah_tahfidz")
-                                .select("id,tanggal,jenis_murojaah,juz,surat,ayat_awal,ayat_akhir,halaman_awal,halaman_akhir,predikat,catatan", { count: "exact" })
+                                .select(`
+                                    id,tanggal,jenis_murojaah,juz,surat,ayat_awal,ayat_akhir,halaman_awal,halaman_akhir,predikat,catatan,
+                                    tahfidz_absensi!absensi_id(
+                                        status,
+                                        tahfidz_sesi!inner(sesi)
+                                    )
+                                `, { count: "exact" })
                                 .eq("santri_nis", id)
+                                .gte("tanggal", dateRange[0].startOf("day").toISOString())
+                                .lte("tanggal", dateRange[1].endOf("day").toISOString())
                                 .order("tanggal", { ascending: false })
                                 .order("id", { ascending: false })
                                 .range(from, to);
 
                             if (error) return { data: [], success: false, total: 0 };
-                            return { data: (data || []) as MurojaahRow[], success: true, total: count || 0 };
+                            return { data: (data || []).map(flattenMurojaah), success: true, total: count || 0 };
                         }}
                         pagination={{ defaultPageSize: 15, showSizeChanger: true, size: "small" }}
                         size="small"

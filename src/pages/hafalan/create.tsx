@@ -595,6 +595,7 @@ export const HafalanCreate = () => {
                 }
 
                 message.success("Setoran & Absensi berhasil dicatat");
+                navigate("/hafalan");
             } else {
                 message.success(`Absensi ${STATUS_LABEL[absensiStatus] || absensiStatus} berhasil dicatat`);
                 navigate("/hafalan");

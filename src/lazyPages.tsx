@@ -48,6 +48,10 @@ export const DompetOperasionalList = React.lazy(() => import("./pages/dompet-ope
 export const KantinManagementList = React.lazy(() => import("./pages/kantin-management/list").then(m => ({ default: m.KantinManagementList })));
 export const DompetSecurityAuditList = React.lazy(() => import("./pages/dompet-security-audit/list").then(m => ({ default: m.DompetSecurityAuditList })));
 export const MurojaahList       = React.lazy(() => import("./pages/murojaah/list").then(m => ({ default: m.MurojaahList })));
+export const MingguanList       = React.lazy(() => import("./pages/mingguan/list").then(m => ({ default: m.MingguanList })));
+export const NgajiList          = React.lazy(() => import("./pages/ngaji/list").then(m => ({ default: m.NgajiList })));
+export const SholatHifdziList   = React.lazy(() => import("./pages/mingguan/sholat").then(m => ({ default: m.SholatHifdziList })));
+export const KoreksiHijriahList = React.lazy(() => import("./pages/koreksi-hijriah/list").then(m => ({ default: m.KoreksiHijriahList })));
 export const MurojaahCreate     = React.lazy(() => import("./pages/murojaah/create").then(m => ({ default: m.MurojaahCreate })));
 export const MurojaahShow       = React.lazy(() => import("./pages/murojaah/show").then(m => ({ default: m.MurojaahShow })));
 export const HafalanKitabList   = React.lazy(() => import("./pages/hafalan-kitab/list").then(m => ({ default: m.HafalanKitabList })));
