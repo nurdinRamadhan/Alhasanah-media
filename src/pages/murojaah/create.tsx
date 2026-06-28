@@ -107,14 +107,14 @@ export const MurojaahCreate = () => {
         color: token.colorText,
     };
 
-    const [manualSesiWaktu, setManualSesiWaktu] = useState<'PAGI' | 'SIANG' | null>(null);
+    const [manualSesiWaktu, setManualSesiWaktu] = useState<'SIANG' | null>(null);
 
     const onFinishHandler = async (values: any) => {
         if (submitting) return;
         setSubmitting(true);
         try {
             const today = dayjs(values.tanggal).format('YYYY-MM-DD');
-            const sesiWaktu = manualSesiWaktu || (dayjs(values.tanggal).hour() < 12 ? 'PAGI' : 'SIANG');
+            const sesiWaktu = manualSesiWaktu || 'SIANG';
 
             const { data: sesiList } = await supabaseClient
                 .from("tahfidz_sesi")
@@ -281,23 +281,13 @@ export const MurojaahCreate = () => {
                             <div style={{ marginTop: 12, marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
                                 <Text style={{ ...labelStyle, margin: 0, whiteSpace: "nowrap" }}>Sesi</Text>
                                 <Segmented
-                                    value={manualSesiWaktu || (dayjs().hour() < 12 ? 'PAGI' : 'SIANG')}
-                                    onChange={(v) => setManualSesiWaktu(v as 'PAGI' | 'SIANG')}
+                                    value={manualSesiWaktu || 'SIANG'}
+                                    onChange={(v) => setManualSesiWaktu(v as 'SIANG')}
                                     options={[
-                                        { value: 'PAGI', label: <span>☀️ PAGI</span> },
                                         { value: 'SIANG', label: <span>🌤️ SIANG</span> },
                                     ]}
                                     size="small"
                                 />
-                                {manualSesiWaktu && (
-                                    <Tag
-                                        color="blue"
-                                        style={{ cursor: "pointer", margin: 0, fontSize: 11 }}
-                                        onClick={() => setManualSesiWaktu(null)}
-                                    >
-                                        Auto
-                                    </Tag>
-                                )}
                             </div>
 
                             <Divider style={{ borderColor: isDark ? "#1E293B" : "#F1F5F9", margin: "16px 0" }} />

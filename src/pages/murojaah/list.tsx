@@ -464,7 +464,7 @@ export const MurojaahList: React.FC = () => {
     const [sessionModalOpen, setSessionModalOpen] = useState(false);
     const [sesiTanggal, setSesiTanggal] = useState<dayjs.Dayjs>(dayjs());
     const [sesiJenis] = useState<string>('MUROJAAH');
-    const [sesiWaktu, setSesiWaktu] = useState<string>(dayjs().hour() < 12 ? 'PAGI' : 'SIANG');
+    const [sesiWaktu, setSesiWaktu] = useState<string>('SIANG');
     const [sesiRecords, setSesiRecords] = useState<Record<string, {status: string; setoran: boolean}>>({});
     const [savingSesi, setSavingSesi] = useState<Record<string, boolean>>({});
     const [santriForSesi, setSantriForSesi] = useState<any[]>([]);
@@ -796,16 +796,12 @@ export const MurojaahList: React.FC = () => {
                 ws.getCell("A3").value = "DATA SANTRI";
                 applySesiHeaderStyle(ws.getCell("A3"), "FF374151");
                 ws.mergeCells("G3:J3");
-                ws.getCell("G3").value = "SESI PAGI";
-                applySesiHeaderStyle(ws.getCell("G3"), "FFD97706");
-                ws.mergeCells("K3:N3");
-                ws.getCell("K3").value = "SESI SIANG";
-                applySesiHeaderStyle(ws.getCell("K3"), "FF2563EB");
+                ws.getCell("G3").value = "SESI SIANG";
+                applySesiHeaderStyle(ws.getCell("G3"), "FF2563EB");
 
                 // Header baris 2: nama kolom detail
                 ws.getRow(4).values = [
                     "NO", "Hari, Tgl (M)", "Tanggal (H)", "NIS", "Nama Santri", "Kelas",
-                    "Status", "Jenis", "Cakupan", "Penyimak",
                     "Status", "Jenis", "Cakupan", "Penyimak",
                 ];
                 ws.getRow(4).font = { bold: true };
@@ -818,7 +814,6 @@ export const MurojaahList: React.FC = () => {
                     { key: "nis", width: 13 },
                     { key: "nama", width: 24 },
                     { key: "kelas", width: 8 },
-                    ...sesiColumns("pagi"),
                     ...sesiColumns("siang"),
                 ];
 
@@ -830,20 +825,14 @@ export const MurojaahList: React.FC = () => {
                         nis: r.santri_nis,
                         nama: r.nama,
                         kelas: r.kelas,
-                        pagi_status: r.pagi?.status || "-",
-                        pagi_jenis: r.pagi?.jenis || "-",
-                        pagi_cakupan: r.pagi?.cakupan || "-",
-                        pagi_penyimak: r.pagi?.penyimak || "-",
                         siang_status: r.siang?.status || "-",
                         siang_jenis: r.siang?.jenis || "-",
                         siang_cakupan: r.siang?.cakupan || "-",
                         siang_penyimak: r.siang?.penyimak || "-",
                     });
                     const row = ws.getRow(ws.rowCount);
-                    const pFill = r.pagi?.status ? STATUS_FILLS[r.pagi.status] : undefined;
-                    if (pFill) row.getCell(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: pFill } };
                     const sFill = r.siang?.status ? STATUS_FILLS[r.siang.status] : undefined;
-                    if (sFill) row.getCell(11).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: sFill } };
+                    if (sFill) row.getCell(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: sFill } };
                 });
 
                 // ── Summary block: rekap jumlah per santri ──
@@ -872,7 +861,7 @@ export const MurojaahList: React.FC = () => {
                 });
 
                 const rekapStart = ws.rowCount + 2;
-                ws.mergeCells(`A${rekapStart}:N${rekapStart}`);
+                ws.mergeCells(`A${rekapStart}:J${rekapStart}`);
                 const rekapTitle = ws.getCell(`A${rekapStart}`);
                 rekapTitle.value = '▸ REKAP JUMLAH PER SANTRI';
                 rekapTitle.font = { size: 11, bold: true, color: { argb: 'FF065F46' } };
@@ -901,7 +890,7 @@ export const MurojaahList: React.FC = () => {
                 });
 
                 // Filter & freeze pada baris header detail (baris 4)
-                ws.autoFilter = { from: "A4", to: "N4" };
+                ws.autoFilter = { from: "A4", to: "J4" };
                 ws.views = [{ state: "frozen", ySplit: 4 }];
             } else {
                 if (!selectedSantri) {
@@ -933,15 +922,11 @@ export const MurojaahList: React.FC = () => {
                 ws.getCell("A7").value = "TANGGAL";
                 applySesiHeaderStyle(ws.getCell("A7"), "FF374151");
                 ws.mergeCells("C7:F7");
-                ws.getCell("C7").value = "SESI PAGI";
-                applySesiHeaderStyle(ws.getCell("C7"), "FFD97706");
-                ws.mergeCells("G7:J7");
-                ws.getCell("G7").value = "SESI SIANG";
-                applySesiHeaderStyle(ws.getCell("G7"), "FF2563EB");
+                ws.getCell("C7").value = "SESI SIANG";
+                applySesiHeaderStyle(ws.getCell("C7"), "FF2563EB");
 
                 ws.getRow(8).values = [
                     "Hari, Masehi", "Hijriah",
-                    "Status", "Jenis", "Cakupan", "Penyimak",
                     "Status", "Jenis", "Cakupan", "Penyimak",
                 ];
                 ws.getRow(8).font = { bold: true };
@@ -950,7 +935,6 @@ export const MurojaahList: React.FC = () => {
                 ws.columns = [
                     { key: "tglM", width: 22 },
                     { key: "tglH", width: 18 },
-                    ...sesiColumns("pagi"),
                     ...sesiColumns("siang"),
                 ];
 
@@ -958,23 +942,17 @@ export const MurojaahList: React.FC = () => {
                     ws.addRow({
                         tglM: `${DAYS_INDO[new Date(r.tanggal).getDay()]}, ${formatMasehi(r.tanggal)}`,
                         tglH: formatHijri(r.tanggal),
-                        pagi_status: r.pagi?.status || "-",
-                        pagi_jenis: r.pagi?.jenis || "-",
-                        pagi_cakupan: r.pagi?.cakupan || "-",
-                        pagi_penyimak: r.pagi?.penyimak || "-",
                         siang_status: r.siang?.status || "-",
                         siang_jenis: r.siang?.jenis || "-",
                         siang_cakupan: r.siang?.cakupan || "-",
                         siang_penyimak: r.siang?.penyimak || "-",
                     });
                     const row = ws.getRow(ws.rowCount);
-                    const pFill = r.pagi?.status ? STATUS_FILLS[r.pagi.status] : undefined;
-                    if (pFill) row.getCell(3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: pFill } };
                     const sFill = r.siang?.status ? STATUS_FILLS[r.siang.status] : undefined;
-                    if (sFill) row.getCell(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: sFill } };
+                    if (sFill) row.getCell(3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: sFill } };
                 });
 
-                ws.autoFilter = { from: "A8", to: "J8" };
+                ws.autoFilter = { from: "A8", to: "F8" };
                 ws.views = [{ state: "frozen", ySplit: 8 }];
             }
 
@@ -1456,7 +1434,6 @@ export const MurojaahList: React.FC = () => {
                                                 onChange={(v) => setSesiWaktu(v as string)}
                                                 size="small"
                                                 options={[
-                                                    { label: '🌅 Pagi', value: 'PAGI' },
                                                     { label: '☀️ Siang', value: 'SIANG' },
                                                 ]}
                                             />
@@ -1599,7 +1576,6 @@ export const MurojaahList: React.FC = () => {
                         value={sesiWaktu}
                         onChange={(v) => setSesiWaktu(v as string)}
                         options={[
-                            { label: '🌅 Pagi', value: 'PAGI' },
                             { label: '☀️ Siang', value: 'SIANG' },
                         ]}
                     />

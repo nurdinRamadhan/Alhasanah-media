@@ -788,6 +788,11 @@ export const SantriList = () => {
                                     color: isDark ? GOLD_BRIGHT : GOLD_DEEP,
                                     padding: "1px 7px", borderRadius: 5,
                                     border: `1px solid ${G(isDark ? 0.25 : 0.16)}`,
+                                    maxWidth: 120,
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                    display: "inline-block",
                                 }}>
                                     {record.nis}
                                 </span>
@@ -868,8 +873,12 @@ export const SantriList = () => {
             width: 155,
             search: false,
             render: (_, record) => (
-                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                    <span style={{ fontSize: 12.5, fontWeight: 600, color: token.colorText }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                    <span style={{
+                        fontSize: 12.5, fontWeight: 600, color: token.colorText,
+                        whiteSpace: "nowrap", overflow: "hidden",
+                        textOverflow: "ellipsis",
+                    }}>
                         NIS {record.nis || "—"}
                     </span>
                     <span style={{ fontSize: 10.5, color: token.colorTextSecondary,

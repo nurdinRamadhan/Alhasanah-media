@@ -519,7 +519,7 @@ export const HafalanCreate = () => {
         try {
             // 1. Cari atau buat sesi hari ini
             const today = dayjs(values.tanggal).format("YYYY-MM-DD");
-            const sesiWaktu = manualSesiWaktu || (dayjs(values.tanggal).hour() < 12 ? 'PAGI' : 'SIANG');
+            const sesiWaktu = manualSesiWaktu || 'PAGI';
 
             const { data: sesiList } = await supabaseClient
                 .from("tahfidz_sesi")
@@ -888,11 +888,10 @@ export const HafalanCreate = () => {
                             <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10 }}>
                                 <Text style={{ ...labelStyle, margin: 0, whiteSpace: "nowrap" }}>Sesi</Text>
                                 <Segmented
-                                    value={manualSesiWaktu || (dayjs().hour() < 12 ? 'PAGI' : 'SIANG')}
-                                    onChange={(v) => setManualSesiWaktu(v as 'PAGI' | 'SIANG')}
+                                    value={manualSesiWaktu || 'PAGI'}
+                                    onChange={(v) => setManualSesiWaktu(v as 'PAGI')}
                                     options={[
                                         { value: 'PAGI', label: <span>☀️ PAGI</span> },
-                                        { value: 'SIANG', label: <span>🌤️ SIANG</span> },
                                     ]}
                                     size="small"
                                 />

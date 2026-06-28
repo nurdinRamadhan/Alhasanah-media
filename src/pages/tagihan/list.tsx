@@ -997,8 +997,11 @@ export const TagihanList = () => {
                             flexShrink: 0,
                         }}
                     />
-                    <div>
-                        <div style={{ fontWeight: 700, fontSize: 14, color: token.colorText, lineHeight: 1.25 }}>
+                    <div style={{ minWidth: 0 }}>
+                        <div style={{
+                            fontWeight: 700, fontSize: 14, color: token.colorText, lineHeight: 1.25,
+                            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                        }}>
                             {record.santri?.nama || santriAlias(record.santri?.nis)}
                         </div>
                         <Space size={5} style={{ marginTop: 5 }}>
@@ -1167,16 +1170,22 @@ export const TagihanList = () => {
                             flexShrink: 0,
                         }}
                     />
-                    <div>
-                        <div style={{ fontWeight: 800, fontSize: 14, color: token.colorText, lineHeight: 1.25 }}>
+                    <div style={{ minWidth: 0 }}>
+                        <div style={{
+                            fontWeight: 800, fontSize: 14, color: token.colorText, lineHeight: 1.25,
+                            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                        }}>
                             {record.santri?.nama || santriAlias(record.santri_nis)}
                         </div>
-                        <Space size={5} style={{ marginTop: 6 }}>
+                        <Space size={5} style={{ marginTop: 6 }} wrap>
                             <span style={{
                                 fontSize: 10, padding: "1px 8px", borderRadius: 4,
                                 background: token.colorFillAlter,
                                 border: `1px solid ${token.colorBorderSecondary}`,
                                 color: token.colorTextSecondary, fontWeight: 700,
+                                maxWidth: 140, overflow: "hidden",
+                                textOverflow: "ellipsis", whiteSpace: "nowrap",
+                                display: "inline-block",
                             }}>
                                 NIS {record.santri_nis}
                             </span>

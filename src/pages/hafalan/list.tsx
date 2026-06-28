@@ -545,7 +545,7 @@ export const HafalanList = () => {
     const [sessionModalOpen, setSessionModalOpen] = useState(false);
     const [sesiTanggal, setSesiTanggal] = useState<dayjs.Dayjs>(dayjs());
     const [sesiJenis, setSesiJenis] = useState<string>('ZIYADAH');
-    const [sesiWaktu, setSesiWaktu] = useState<string>(dayjs().hour() < 12 ? 'PAGI' : 'SIANG');
+    const [sesiWaktu, setSesiWaktu] = useState<string>('PAGI');
     const [sesiRecords, setSesiRecords] = useState<Record<string, {status: string; setoran: boolean}>>({});
     const [savingSesi, setSavingSesi] = useState<Record<string, boolean>>({});
     const [santriForSesi, setSantriForSesi] = useState<any[]>([]);
@@ -909,7 +909,7 @@ export const HafalanList = () => {
         santriMap: Map<string, any>,
         dateRange: [dayjs.Dayjs, dayjs.Dayjs],
     ) => {
-        const totalCols = 16;
+        const totalCols = 11;
 
         const applySesiHeaderStyle = (cell: any, fillColor: string) => {
             cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -933,14 +933,9 @@ export const HafalanList = () => {
         ws.mergeCells("G3:K3");
         ws.getCell("G3").value = "SESI PAGI";
         applySesiHeaderStyle(ws.getCell("G3"), "FFD97706");
-        ws.mergeCells("L3:P3");
-        ws.getCell("L3").value = "SESI SIANG";
-        applySesiHeaderStyle(ws.getCell("L3"), "FF2563EB");
-
         // ── Column headers (row 4) ──
         ws.getRow(4).values = [
             "NO", "Hari, Tgl (M)", "Tanggal (H)", "NIS", "Nama Santri", "Kelas",
-            "Status", "Setoran", "Materi", "Predikat", "Penyimak",
             "Status", "Setoran", "Materi", "Predikat", "Penyimak",
         ];
         ws.getRow(4).font = { bold: true };
@@ -959,11 +954,6 @@ export const HafalanList = () => {
             { key: "pagi_materi", width: 26 },
             { key: "pagi_predikat", width: 13 },
             { key: "pagi_penyimak", width: 16 },
-            { key: "siang_status", width: 11 },
-            { key: "siang_setoran", width: 11 },
-            { key: "siang_materi", width: 26 },
-            { key: "siang_predikat", width: 13 },
-            { key: "siang_penyimak", width: 16 },
         ];
 
         // ── Build rows: one per (santri, tanggal) ──
@@ -972,8 +962,7 @@ export const HafalanList = () => {
         for (const nis of santriNis) {
             for (const tgl of dates) {
                 const pagi = lookup.get(`${tgl}::PAGI::${nis}`);
-                const siang = lookup.get(`${tgl}::SIANG::${nis}`);
-                if (pagi || siang) {
+                if (pagi) {
                     rows.push({ nama: santriMap.get(nis)?.nama || nis, nis, tgl, kelas: santriMap.get(nis)?.kelas || '' });
                 }
             }
@@ -990,7 +979,6 @@ export const HafalanList = () => {
 
         rows.forEach((r, idx) => {
             const pagi = lookup.get(`${r.tgl}::PAGI::${r.nis}`);
-            const siang = lookup.get(`${r.tgl}::SIANG::${r.nis}`);
             ws.addRow({
                 no: idx + 1,
                 tglM: `${DAYS_INDO[new Date(r.tgl).getDay()]}, ${formatMasehi(r.tgl)}`,
@@ -1003,17 +991,10 @@ export const HafalanList = () => {
                 pagi_materi: pagi?.materi || "-",
                 pagi_predikat: pagi?.predikat || "-",
                 pagi_penyimak: pagi?.penyimak || "-",
-                siang_status: siang?.status || "-",
-                siang_setoran: siang?.setoranLabel || "-",
-                siang_materi: siang?.materi || "-",
-                siang_predikat: siang?.predikat || "-",
-                siang_penyimak: siang?.penyimak || "-",
             });
             const row = ws.getRow(ws.rowCount);
             const pFill = pagi?.status ? STATUS_FILLS[pagi.status] : undefined;
             if (pFill) row.getCell(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: pFill } };
-            const sFill = siang?.status ? STATUS_FILLS[siang.status] : undefined;
-            if (sFill) row.getCell(12).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: sFill } };
         });
 
         // ── AutoFilter & frozen pane ──
@@ -1049,14 +1030,12 @@ export const HafalanList = () => {
             const nama = santriMap.get(nis)?.nama || nis;
             const totals: Record<string, number> = { H: 0, TS: 0, S: 0, GH: 0, Sk: 0, P: 0 };
             for (const tgl of dates) {
-                for (const ses of ['PAGI', 'SIANG']) {
-                    const entry = lookup.get(`${tgl}::${ses}::${nis}`);
-                    if (!entry) continue;
-                    const code = entry.status === 'HADIR'
-                        ? (entry.setoranLabel === 'SETOR' ? 'H' : 'TS')
-                        : (entry.status === 'SAKIT' ? 'S' : entry.status === 'GHAIB' ? 'GH' : entry.status === 'SEKOLAH' ? 'Sk' : entry.status === 'PULANG' ? 'P' : '');
-                    if (code && code in totals) totals[code]++;
-                }
+                const entry = lookup.get(`${tgl}::PAGI::${nis}`);
+                if (!entry) continue;
+                const code = entry.status === 'HADIR'
+                    ? (entry.setoranLabel === 'SETOR' ? 'H' : 'TS')
+                    : (entry.status === 'SAKIT' ? 'S' : entry.status === 'GHAIB' ? 'GH' : entry.status === 'SEKOLAH' ? 'Sk' : entry.status === 'PULANG' ? 'P' : '');
+                if (code && code in totals) totals[code]++;
             }
             ws.addRow([nama, '', '', '', '', '', totals.H || '', totals.TS || '', totals.S || '', totals.GH || '', totals.Sk || '', totals.P || '']);
             const row = ws.getRow(ws.rowCount);
@@ -1582,7 +1561,6 @@ export const HafalanList = () => {
                                     onChange={(v) => setSesiWaktu(v as string)}
                                     options={[
                                         { label: '🌅 Pagi', value: 'PAGI' },
-                                        { label: '☀️ Siang', value: 'SIANG' },
                                     ]}
                                 />
                                 <Button
@@ -1640,7 +1618,6 @@ export const HafalanList = () => {
                         onChange={(v) => setSesiWaktu(v as string)}
                         options={[
                             { label: '🌅 Pagi', value: 'PAGI' },
-                            { label: '☀️ Siang', value: 'SIANG' },
                         ]}
                     />
                     <DatePicker

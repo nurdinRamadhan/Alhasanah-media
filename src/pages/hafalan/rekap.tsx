@@ -848,7 +848,7 @@ export const HafalanRekap = () => {
             }
 
             const dates = [...allDates1].sort();
-            const totalCols1 = 16;
+            const totalCols1 = 11;
 
             const applySesiHeaderStyle = (cell: any, fillColor: string) => {
                 cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -872,14 +872,10 @@ export const HafalanRekap = () => {
             ws1.mergeCells("G3:K3");
             ws1.getCell("G3").value = "SESI PAGI";
             applySesiHeaderStyle(ws1.getCell("G3"), "FFD97706");
-            ws1.mergeCells("L3:P3");
-            ws1.getCell("L3").value = "SESI SIANG";
-            applySesiHeaderStyle(ws1.getCell("L3"), "FF2563EB");
 
             // ── Column headers (row 4) ──
             ws1.getRow(4).values = [
                 "NO", "Hari, Tgl (M)", "Tanggal (H)", "NIS", "Nama Santri", "Kelas",
-                "Status", "Setoran", "Materi", "Predikat", "Penyimak",
                 "Status", "Setoran", "Materi", "Predikat", "Penyimak",
             ];
             ws1.getRow(4).font = { bold: true };
@@ -898,11 +894,6 @@ export const HafalanRekap = () => {
                 { key: "pagi_materi", width: 26 },
                 { key: "pagi_predikat", width: 13 },
                 { key: "pagi_penyimak", width: 16 },
-                { key: "siang_status", width: 11 },
-                { key: "siang_setoran", width: 11 },
-                { key: "siang_materi", width: 26 },
-                { key: "siang_predikat", width: 13 },
-                { key: "siang_penyimak", width: 16 },
             ];
 
             // ── Data rows: one per tanggal ──
@@ -914,7 +905,6 @@ export const HafalanRekap = () => {
 
             dates.forEach((tgl, idx) => {
                 const pagi = lookup.get(`${tgl}::PAGI::${nis}`);
-                const siang = lookup.get(`${tgl}::SIANG::${nis}`);
                 ws1.addRow({
                     no: idx + 1,
                     tglM: `${DAYS_INDO[new Date(tgl).getDay()]}, ${formatMasehi(tgl)}`,
@@ -927,17 +917,10 @@ export const HafalanRekap = () => {
                     pagi_materi: pagi?.materi || "-",
                     pagi_predikat: pagi?.predikat || "-",
                     pagi_penyimak: pagi?.penyimak || "-",
-                    siang_status: siang?.status || "-",
-                    siang_setoran: siang?.setoranLabel || "-",
-                    siang_materi: siang?.materi || "-",
-                    siang_predikat: siang?.predikat || "-",
-                    siang_penyimak: siang?.penyimak || "-",
                 });
                 const row = ws1.getRow(ws1.rowCount);
                 const pFill = pagi?.status ? STATUS_FILLS_ZY[pagi.status] : undefined;
                 if (pFill) row.getCell(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: pFill } };
-                const sFill = siang?.status ? STATUS_FILLS_ZY[siang.status] : undefined;
-                if (sFill) row.getCell(12).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: sFill } };
             });
 
             // ── AutoFilter & frozen pane ──
@@ -1008,7 +991,7 @@ export const HafalanRekap = () => {
             });
 
             const dates2 = [...allDates2].sort();
-            const totalCols2 = 14;
+            const totalCols2 = 10;
 
             const applySesiHeaderStyle2 = (cell: any, fillColor: string) => {
                 cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -1029,16 +1012,12 @@ export const HafalanRekap = () => {
             ws2.getCell("A3").value = "DATA SANTRI";
             applySesiHeaderStyle2(ws2.getCell("A3"), "FF374151");
             ws2.mergeCells("G3:J3");
-            ws2.getCell("G3").value = "SESI PAGI";
-            applySesiHeaderStyle2(ws2.getCell("G3"), "FFD97706");
-            ws2.mergeCells("K3:N3");
-            ws2.getCell("K3").value = "SESI SIANG";
-            applySesiHeaderStyle2(ws2.getCell("K3"), "FF2563EB");
+            ws2.getCell("G3").value = "SESI SIANG";
+            applySesiHeaderStyle2(ws2.getCell("G3"), "FF2563EB");
 
             // ── Column headers (row 4) ──
             ws2.getRow(4).values = [
                 "NO", "Hari, Tgl (M)", "Tanggal (H)", "NIS", "Nama Santri", "Kelas",
-                "Status", "Jenis", "Cakupan", "Penyimak",
                 "Status", "Jenis", "Cakupan", "Penyimak",
             ];
             ws2.getRow(4).font = { bold: true };
@@ -1052,10 +1031,6 @@ export const HafalanRekap = () => {
                 { key: "nis", width: 13 },
                 { key: "nama", width: 24 },
                 { key: "kelas", width: 8 },
-                { key: "pagi_status", width: 11 },
-                { key: "pagi_jenis", width: 11 },
-                { key: "pagi_cakupan", width: 26 },
-                { key: "pagi_penyimak", width: 16 },
                 { key: "siang_status", width: 11 },
                 { key: "siang_jenis", width: 11 },
                 { key: "siang_cakupan", width: 26 },
@@ -1069,7 +1044,6 @@ export const HafalanRekap = () => {
             };
 
             dates2.forEach((tgl, idx) => {
-                const pagi = lookup2.get(`${tgl}::PAGI::${nis2}`);
                 const siang = lookup2.get(`${tgl}::SIANG::${nis2}`);
                 ws2.addRow({
                     no: idx + 1,
@@ -1078,20 +1052,14 @@ export const HafalanRekap = () => {
                     nis: expSantriNis,
                     nama: namaSantri,
                     kelas: (sRow2 as any).kelas || '-',
-                    pagi_status: pagi?.status || "-",
-                    pagi_jenis: pagi?.jenis || "-",
-                    pagi_cakupan: pagi?.cakupan || "-",
-                    pagi_penyimak: pagi?.penyimak || "-",
                     siang_status: siang?.status || "-",
                     siang_jenis: siang?.jenis || "-",
                     siang_cakupan: siang?.cakupan || "-",
                     siang_penyimak: siang?.penyimak || "-",
                 });
                 const row = ws2.getRow(ws2.rowCount);
-                const pFill = pagi?.status ? STATUS_FILLS_MR[pagi.status] : undefined;
-                if (pFill) row.getCell(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: pFill } };
                 const sFill = siang?.status ? STATUS_FILLS_MR[siang.status] : undefined;
-                if (sFill) row.getCell(11).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: sFill } };
+                if (sFill) row.getCell(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: sFill } };
             });
 
             // ── AutoFilter & frozen pane ──
