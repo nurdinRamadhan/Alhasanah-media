@@ -239,8 +239,9 @@ export const MasterDataPage = () => {
                         dataIndex: "jenis_kelamin",
                         valueType: "select",
                         width: 135,
+                        formItemProps: { rules: [{ required: true, message: "Wajib dipilih" }] },
                         valueEnum: {
-                            ALL: { text: "Semua" },
+                            ALL: { text: "Semua (L & P)" },
                             L: { text: "Putra" },
                             P: { text: "Putri" },
                         },
@@ -261,6 +262,25 @@ export const MasterDataPage = () => {
                             PERLENGKAPAN: { text: "Perlengkapan" },
                             BUKU: { text: "Buku" },
                         },
+                    },
+                    {
+                        title: "Ruang",
+                        dataIndex: "ruang",
+                        valueType: "select",
+                        width: 120,
+                        valueEnum: {
+                            "": { text: "Tanpa Ruang" },
+                            "1": { text: "Ruang 1" },
+                            "2": { text: "Ruang 2" },
+                            "3": { text: "Ruang 3" },
+                        },
+                        render: (_, record) => {
+                            const value = record.ruang;
+                            if (value === null || value === undefined) {
+                                return <Tag color="default" style={{ borderRadius: 4, fontWeight: 700 }}>TANPA RUANG</Tag>;
+                            }
+                            return <Tag color="blue" style={{ borderRadius: 4, fontWeight: 700 }}>Ruang {value}</Tag>;
+                        }
                     },
                     {
                         title: "Wajib",
@@ -307,7 +327,8 @@ export const MasterDataPage = () => {
                             jenis_kelamin: row.jenis_kelamin || "ALL",
                             kategori: row.kategori || "KITAB",
                             is_wajib: !!row.is_wajib,
-                            is_active: row.is_active
+                            is_active: row.is_active,
+                            ruang: row.ruang == null ? null : Number(row.ruang)
                         };
                         await updateMutate({ 
                             resource: "master_kitab", 
@@ -315,7 +336,7 @@ export const MasterDataPage = () => {
                             values: cleanValues 
                         });
                         await fetchKitabManual();
-                        message.success("Harga kitab diperbarui");
+                        message.success("Data kitab diperbarui");
                     },
                 }}
             />

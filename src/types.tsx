@@ -376,6 +376,7 @@ export interface IMasterKitab {
     kategori?: 'KITAB' | 'PERLENGKAPAN' | 'BUKU';
     is_wajib?: boolean;
     is_active: boolean;
+    ruang?: number | null;
 }
 
 export interface IPesertaDiklat {
@@ -393,6 +394,7 @@ export interface IPesertaDiklat {
     pesantren_asal: string;
     jenis_diklat: 'MAULID' | 'SYABAN' | 'RAMADHAN' | 'DZULHIJJAH';
     tahun_diklat: number;
+    ruang?: number | null;
     biaya_pendaftaran: number;
     uang_miftah: number;
     biaya_listrik: number;

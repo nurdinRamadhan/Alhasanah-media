@@ -339,6 +339,19 @@ export const DiklatList = () => {
             },
         },
         {
+            title: "RUANG",
+            dataIndex: "ruang",
+            width: 100,
+            align: "center",
+            render: (val) => {
+                const value = val as number | null;
+                if (!value) {
+                    return <Tag color="default" style={{ borderRadius: 14, fontWeight: 800, padding: "3px 10px" }}>-</Tag>;
+                }
+                return <Tag color="blue" style={{ borderRadius: 14, fontWeight: 800, padding: "3px 10px" }}>Ruang {value}</Tag>;
+            },
+        },
+        {
             title: "ADMINISTRASI",
             dataIndex: "biaya_pendaftaran",
             align: "right",
