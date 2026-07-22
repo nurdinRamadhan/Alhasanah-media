@@ -24,7 +24,7 @@ import dayjs from "dayjs";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import { supabaseClient } from "../../utility/supabaseClient";
-import { IPengeluaran, IUserIdentity } from "../../types";
+import { IPengeluaran, IUserIdentity, IRefJenisPembayaran, IRecordPengeluaranDanaResult } from "../../types";
 import { formatHijri } from "../../utility/dateHelper";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -65,6 +65,9 @@ const SCOPE_LABEL: Record<string, { label: string; color: string }> = {
 };
 
 const PIE_PALETTE = [INFO, PURPLE, AMBER, SUCCESS, GOLD_BRIGHT];
+
+const getErrorMessage = (err: any) =>
+    err?.message || err?.details || err?.hint || "Terjadi kesalahan";
 
 const USER_SCOPE_LABEL = (u: IUserIdentity | undefined): string => {
     if (!u || ["super_admin", "rois", "dewan"].includes(u.role)) return "Semua Unit";
@@ -327,12 +330,72 @@ export const PengeluaranList = () => {
     const [uploading,      setUploading]      = useState(false);
     const [buktiUrl,       setBuktiUrl]       = useState<string | null>(null);
     const [deleteConfirm,  setDeleteConfirm]  = useState<number | null>(null);
+    const [sumberDanaList, setSumberDanaList]  = useState<IRefJenisPembayaran[]>([]);
+    const [filterSumberDana, setFilterSumberDana] = useState<number | null>(null);
+    const [saldoByScope, setSaldoByScope] = useState<Record<string, number>>({});
+    const [saldoDanaData, setSaldoDanaData] = useState<any[]>([]);
+
+    // ── Fetch saldo_dana per scope + full data for export ────────────────────
+    useEffect(() => {
+        const fetchSaldo = async () => {
+            const { data, error } = await supabaseClient
+                .from("saldo_dana")
+                .select("scope_gender, scope_jurusan, saldo_tersedia");
+            if (!error && data) {
+                const map: Record<string, number> = {};
+                data.forEach((r: any) => {
+                    const key = `${r.scope_gender}-${r.scope_jurusan}`;
+                    map[key] = (map[key] || 0) + Number(r.saldo_tersedia || 0);
+                });
+                setSaldoByScope(map);
+            }
+            const { data: fullSaldo } = await supabaseClient
+                .from("v_saldo_dana_rekap")
+                .select("*");
+            if (fullSaldo) setSaldoDanaData(fullSaldo);
+        };
+        fetchSaldo();
+    }, []);
+
+    // ── RBAC: which scope KPIs to show ───────────────────────────────────────
+    const visibleScopeKpis = useMemo(() => {
+        if (!user) return [];
+        if (isScopeFree || isDewan) {
+            return [
+                { key: "L-TAHFIDZ", label: "Dana Putra Tahfidz", gender: "L", jurusan: "TAHFIDZ", color: INFO },
+                { key: "L-KITAB",   label: "Dana Putra Kitab",   gender: "L", jurusan: "KITAB",   color: PURPLE },
+                { key: "P-ALL",     label: "Dana Putri",         gender: "P", jurusan: "ALL",     color: "#EC4899" },
+            ];
+        }
+        if (user.scopeGender === "P") {
+            return [{ key: "P-ALL", label: "Dana Putri", gender: "P", jurusan: "ALL", color: "#EC4899" }];
+        }
+        if (user.scopeGender === "L" && user.scopeJurusan === "TAHFIDZ") {
+            return [{ key: "L-TAHFIDZ", label: "Dana Putra Tahfidz", gender: "L", jurusan: "TAHFIDZ", color: INFO }];
+        }
+        if (user.scopeGender === "L" && user.scopeJurusan === "KITAB") {
+            return [{ key: "L-KITAB", label: "Dana Putra Kitab", gender: "L", jurusan: "KITAB", color: PURPLE }];
+        }
+        return [];
+    }, [user, isScopeFree, isDewan]);
 
     const prevAutoScope = useRef(autoScope);
     useEffect(() => {
         if (autoScope && autoScope !== prevAutoScope.current) setFilterScope(autoScope);
         prevAutoScope.current = autoScope;
     }, [autoScope]);
+
+    useEffect(() => {
+        const fetchSumberDana = async () => {
+            const { data, error } = await supabaseClient
+                .from("ref_jenis_pembayaran")
+                .select("*")
+                .eq("is_aktif", true)
+                .order("id");
+            if (!error && data) setSumberDanaList(data as IRefJenisPembayaran[]);
+        };
+        fetchSumberDana();
+    }, []);
 
     // ── Table Data ────────────────────────────────────────────────────────────
     const { tableProps, tableQueryResult } = useTable<IPengeluaran>({
@@ -358,7 +421,9 @@ export const PengeluaranList = () => {
     };
 
     const filteredData = (tableQueryResult?.data?.data ?? []).filter(
-        item => (!filterKategori || item.kategori === filterKategori) && scopeMatch(item)
+        item => (!filterKategori || item.kategori === filterKategori)
+            && scopeMatch(item)
+            && (!filterSumberDana || item.jenis_pembayaran_id === filterSumberDana)
     );
 
     const isLoading = tableQueryResult?.isLoading || tableQueryResult?.isFetching;
@@ -412,6 +477,7 @@ export const PengeluaranList = () => {
             dicatat_oleh_nama: user?.name,
             scope_gender:  isScopeFree ? undefined : (user?.scopeGender === "ALL" ? "ALL" : user?.scopeGender),
             scope_jurusan: isScopeFree ? undefined : (user?.scopeGender === "P" ? "ALL" : (user?.scopeJurusan === "ALL" ? "ALL" : user?.scopeJurusan)),
+            jenis_pembayaran_id: undefined,
         });
         setIsModalOpen(true);
     };
@@ -452,8 +518,22 @@ export const PengeluaranList = () => {
         };
         try {
             if (modalMode === "CREATE") {
-                await createMutate({ resource: "pengeluaran", values: payload });
-                logActivity({ user, action: "CREATE", resource: "pengeluaran", record_id: "-", details: { judul: String(payload.judul), nominal: Number(payload.nominal), scope: `${payload.scope_gender}/${payload.scope_jurusan}` } });
+                const idempotencyKey = `pengeluaran-${user?.id}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+                const { data: rpcData, error: rpcError } = await supabaseClient.rpc("record_pengeluaran_dana", {
+                    p_judul: payload.judul,
+                    p_kategori: payload.kategori,
+                    p_nominal: Number(payload.nominal),
+                    p_tanggal_pengeluaran: payload.tanggal_pengeluaran,
+                    p_jenis_pembayaran_id: Number(payload.jenis_pembayaran_id),
+                    p_scope_gender: payload.scope_gender,
+                    p_scope_jurusan: payload.scope_jurusan,
+                    p_keterangan: payload.keterangan || null,
+                    p_bukti_url: buktiUrl || null,
+                    p_idempotency_key: idempotencyKey,
+                });
+                if (rpcError) throw rpcError;
+                const result = rpcData as IRecordPengeluaranDanaResult;
+                logActivity({ user, action: "CREATE", resource: "pengeluaran", record_id: String(result?.pengeluaran_id || "-"), details: { judul: String(payload.judul), nominal: Number(payload.nominal), jenis_pembayaran_id: payload.jenis_pembayaran_id, scope: `${payload.scope_gender}/${payload.scope_jurusan}`, mutasi_dana_id: result?.mutasi_dana_id } });
                 message.success("Pengeluaran berhasil dicatat");
             } else {
                 await updateMutate({ resource: "pengeluaran", id: editingItem!.id, values: payload });
@@ -462,40 +542,577 @@ export const PengeluaranList = () => {
             }
             setIsModalOpen(false);
             tableQueryResult.refetch();
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
-            message.error("Terjadi kesalahan");
+            message.error(getErrorMessage(err));
         }
     };
 
     const handleDelete = (id: number) => {
-        deleteMutate({ resource: "pengeluaran", id });
-        setDeleteConfirm(null);
-        message.success("Data dihapus");
+        deleteMutate(
+            { resource: "pengeluaran", id },
+            {
+                onSuccess: () => {
+                    setDeleteConfirm(null);
+                    message.success("Data dihapus");
+                    tableQueryResult.refetch();
+                },
+                onError: (err: any) => {
+                    setDeleteConfirm(null);
+                    const msg = getErrorMessage(err);
+                    if (msg.toLowerCase().includes("ledger") || msg.toLowerCase().includes("mutasi") || msg.toLowerCase().includes("sudah diposting")) {
+                        message.error("Pengeluaran sudah masuk ledger dan tidak bisa dihapus. Gunakan koreksi.");
+                    } else {
+                        message.error("Gagal menghapus: " + msg);
+                    }
+                },
+            }
+        );
     };
 
     const handleExportExcel = async () => {
         if (!filteredData.length) return message.warning("Tidak ada data untuk diekspor");
+
         const wb = new ExcelJS.Workbook();
-        const ws = wb.addWorksheet("Pengeluaran");
-        ws.columns = [
-            { header: "Tanggal",    key: "tanggal", width: 18 },
-            { header: "Judul",      key: "judul",   width: 36 },
-            { header: "Kategori",   key: "kat",     width: 16 },
-            { header: "Scope",      key: "scope",   width: 18 },
-            { header: "Nominal",    key: "nominal", width: 20 },
-            { header: "Keterangan", key: "ket",     width: 30 },
+        wb.creator = user?.name || "Admin";
+        wb.created = new Date();
+
+        // ── Helpers ─────────────────────────────────────────────────────────
+        const fmtRp = (v: number) => `Rp ${v.toLocaleString("id-ID")}`;
+        const scopeLabel = (g: string, j: string) =>
+            g === "P" ? "Putri" : `Putra ${j}`;
+        const sumberDanaMap = new Map(sumberDanaList.map(s => [s.id, s.nama_pembayaran]));
+        const sumberDanaTipeMap = new Map(sumberDanaList.map(s => [s.id, s.tipe]));
+
+        // ── RBAC: filter saldo_dana sesuai role ────────────────────────────
+        const filteredSaldo = saldoDanaData.filter((sd: any) => {
+            if (isScopeFree || isDewan) return true;
+            if (user?.scopeGender === "P") return sd.scope_gender === "P";
+            if (user?.scopeGender === "L") {
+                if (user?.scopeJurusan === "ALL") return sd.scope_gender === "L";
+                return sd.scope_gender === "L" && sd.scope_jurusan === user?.scopeJurusan;
+            }
+            return false;
+        });
+
+        // ── Hitung ringkasan ───────────────────────────────────────────────
+        const totalPengeluaran = filteredData.reduce((a, d) => a + Number(d.nominal), 0);
+        const totalSaldoMasuk  = filteredSaldo.reduce((a: number, s: any) => a + Number(s.total_masuk || 0), 0);
+        const totalSaldoKeluar = filteredSaldo.reduce((a: number, s: any) => a + Number(s.total_keluar || 0), 0);
+        const totalSaldoTersisa = filteredSaldo.reduce((a: number, s: any) => a + Number(s.saldo_tersedia || 0), 0);
+        const jumlahTransaksi  = filteredData.length;
+
+        // Rincian per kategori pengeluaran
+        const byKategori: Record<string, { jumlah: number; nominal: number }> = {};
+        filteredData.forEach(d => {
+            const k = d.kategori || "LAINNYA";
+            if (!byKategori[k]) byKategori[k] = { jumlah: 0, nominal: 0 };
+            byKategori[k].jumlah++;
+            byKategori[k].nominal += Number(d.nominal);
+        });
+
+        // Rincian pengeluaran per sumber dana (jenis_pembayaran_id)
+        const bySumberDana: Record<number, { jumlah: number; nominal: number }> = {};
+        filteredData.forEach(d => {
+            const id = Number(d.jenis_pembayaran_id) || 0;
+            if (!bySumberDana[id]) bySumberDana[id] = { jumlah: 0, nominal: 0 };
+            bySumberDana[id].jumlah++;
+            bySumberDana[id].nominal += Number(d.nominal);
+        });
+
+        // Rincian pengeluaran per scope
+        const byScope: Record<string, { jumlah: number; nominal: number }> = {};
+        filteredData.forEach(d => {
+            const key = `${d.scope_gender}-${d.scope_jurusan}`;
+            if (!byScope[key]) byScope[key] = { jumlah: 0, nominal: 0 };
+            byScope[key].jumlah++;
+            byScope[key].nominal += Number(d.nominal);
+        });
+
+        // Saldo per sumber dana
+        const saldoPerSumber: Record<number, { masuk: number; keluar: number; tersisa: number }> = {};
+        filteredSaldo.forEach((sd: any) => {
+            const id = Number(sd.jenis_pembayaran_id) || 0;
+            if (!saldoPerSumber[id]) saldoPerSumber[id] = { masuk: 0, keluar: 0, tersisa: 0 };
+            saldoPerSumber[id].masuk   += Number(sd.total_masuk || 0);
+            saldoPerSumber[id].keluar  += Number(sd.total_keluar || 0);
+            saldoPerSumber[id].tersisa += Number(sd.saldo_tersedia || 0);
+        });
+
+        // ── Warna kategori ─────────────────────────────────────────────────
+        const KAT_COLORS: Record<string, { fill: string; font: string }> = {
+            OPERASIONAL: { fill: "EBF5FF", font: "2563EB" },
+            PENDIDIKAN:  { fill: "F3E8FF", font: "7C3AED" },
+            SARANA:      { fill: "FEF3C7", font: "D97706" },
+            KEGIATAN:    { fill: "D1FAE5", font: "059669" },
+            LAINNYA:     { fill: "FEF9C3", font: "C9A84C" },
+        };
+
+        // ════════════════════════════════════════════════════════════════════════
+        // SHEET 1: RINGKASAN
+        // ════════════════════════════════════════════════════════════════════════
+        const ws1 = wb.addWorksheet("Ringkasan", { pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
+        ws1.properties.defaultRowHeight = 20;
+
+        // Helper: styled header row
+        const writeHeader = (sheet: ExcelJS.Worksheet, row: number, cols: { text: string; width: number; bold?: boolean; bg?: string; fontColor?: string; align?: string }[]) => {
+            const r = sheet.getRow(row);
+            cols.forEach((c, i) => {
+                const cell = r.getCell(i + 1);
+                cell.value = c.text;
+                cell.font = { bold: c.bold ?? true, size: 11, color: { argb: c.fontColor ? `FF${c.fontColor}` : "FFFFFFFF" } };
+                cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: c.bg ? `FF${c.bg}` : "FFC9A84C" } };
+                cell.alignment = { horizontal: (c.align as any) || "center", vertical: "middle" };
+                cell.border = {
+                    top: { style: "thin", color: { argb: "FFD4D4D4" } },
+                    bottom: { style: "thin", color: { argb: "FFD4D4D4" } },
+                    left: { style: "thin", color: { argb: "FFD4D4D4" } },
+                    right: { style: "thin", color: { argb: "FFD4D4D4" } },
+                };
+            });
+            sheet.getRow(row).height = 26;
+        };
+
+        // Helper: write data row
+        const writeDataRow = (sheet: ExcelJS.Worksheet, row: number, values: (string | number)[], opts?: { bold?: boolean; bg?: string; fontColor?: string; numFmt?: string; align?: string; border?: boolean }) => {
+            const r = sheet.getRow(row);
+            values.forEach((v, i) => {
+                const cell = r.getCell(i + 1);
+                cell.value = v;
+                cell.font = { bold: opts?.bold ?? false, size: 11, color: { argb: opts?.fontColor ? `FF${opts?.fontColor}` : "FF1F2937" } };
+                if (opts?.bg) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${opts.bg}` } };
+                if (opts?.numFmt) cell.numFmt = opts.numFmt;
+                cell.alignment = { horizontal: (opts?.align as any) || "left", vertical: "middle" };
+                if (opts?.border !== false) {
+                    cell.border = {
+                        top: { style: "hair", color: { argb: "FFE5E7EB" } },
+                        bottom: { style: "hair", color: { argb: "FFE5E7EB" } },
+                        left: { style: "hair", color: { argb: "FFE5E7EB" } },
+                        right: { style: "hair", color: { argb: "FFE5E7EB" } },
+                    };
+                }
+            });
+        };
+
+        // ── Header Ringkasan ───────────────────────────────────────────────
+        ws1.mergeCells("A1:H1");
+        const titleCell = ws1.getCell("A1");
+        titleCell.value = "LAPORAN PENGELUARAN BULANAN";
+        titleCell.font = { bold: true, size: 16, color: { argb: "FFC9A84C" } };
+        titleCell.alignment = { horizontal: "center", vertical: "middle" };
+        ws1.getRow(1).height = 32;
+
+        ws1.mergeCells("A2:H2");
+        const subtitleCell = ws1.getCell("A2");
+        subtitleCell.value = "Yayasan Al-Hasanah";
+        subtitleCell.font = { bold: true, size: 12, color: { argb: "FF6B7280" } };
+        subtitleCell.alignment = { horizontal: "center", vertical: "middle" };
+
+        const scopeText = (isScopeFree || isDewan) ? "Semua Scope" : user ? scopeLabel(user.scopeGender || "L", user.scopeJurusan || "TAHFIDZ") : "-";
+        const periodText = filterMonth.format("MMMM YYYY");
+        const printDate = dayjs().format("DD/MM/YYYY HH:mm");
+        const roleName = user?.role === "super_admin" ? "Super Admin" : user?.role === "rois" ? "ROIS" : user?.role === "dewan" ? "Dewan" : "Bendahara";
+
+        ws1.mergeCells("A3:H3");
+        const infoCell = ws1.getCell("A3");
+        infoCell.value = `Periode: ${periodText}  ·  Dicetak: ${printDate}  ·  Oleh: ${user?.name || "Admin"} (${roleName})  ·  Scope: ${scopeText}`;
+        infoCell.font = { size: 10, italic: true, color: { argb: "FF9CA3AF" } };
+        infoCell.alignment = { horizontal: "center", vertical: "middle" };
+        ws1.getRow(3).height = 22;
+
+        // ── KPI Strip ──────────────────────────────────────────────────────
+        const kpiRow = 5;
+        const kpis = [
+            { label: "TOTAL PENGELUARAN", value: fmtRp(totalPengeluaran), color: "DC2626" },
+            { label: "SALDO TERSISA",     value: fmtRp(totalSaldoTersisa), color: "059669" },
+            { label: "TOTAL SALDO MASUK",  value: fmtRp(totalSaldoMasuk),  color: "2563EB" },
+            { label: "JUMLAH TRANSAKSI",   value: `${jumlahTransaksi} transaksi`, color: "7C3AED" },
         ];
-        filteredData.forEach(d => ws.addRow({
-            tanggal: dayjs(d.tanggal_pengeluaran).format("DD/MM/YYYY"),
-            judul:   d.judul,
-            kat:     d.kategori,
-            scope:   d.scope_gender === "P" ? "Putri" : `Putra ${d.scope_jurusan}`,
-            nominal: Number(d.nominal),
-            ket:     d.keterangan || "",
-        }));
+        kpis.forEach((kpi, i) => {
+            const colStart = String.fromCharCode(65 + i * 2); // A, C, E, G
+            const colEnd   = String.fromCharCode(66 + i * 2); // B, D, F, H
+            ws1.mergeCells(`${colStart}${kpiRow}:${colEnd}${kpiRow}`);
+            const cell = ws1.getCell(`${colStart}${kpiRow}`);
+            cell.value = kpi.label;
+            cell.font = { bold: true, size: 9, color: { argb: `FF${kpi.color}` } };
+            cell.alignment = { horizontal: "center" };
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${kpi.color}10` } };
+
+            ws1.mergeCells(`${colStart}${kpiRow + 1}:${colEnd}${kpiRow + 1}`);
+            const valCell = ws1.getCell(`${colStart}${kpiRow + 1}`);
+            valCell.value = kpi.value;
+            valCell.font = { bold: true, size: 14, color: { argb: `FF${kpi.color}` } };
+            valCell.alignment = { horizontal: "center" };
+        });
+        ws1.getRow(kpiRow).height = 18;
+        ws1.getRow(kpiRow + 1).height = 28;
+
+        // ── Rincian Saldo per Sumber Dana ──────────────────────────────────
+        let curRow = 8;
+        ws1.mergeCells(`A${curRow}:H${curRow}`);
+        const secTitle1 = ws1.getCell(`A${curRow}`);
+        secTitle1.value = "RINCIAN SALDO PER SUMBER DANA";
+        secTitle1.font = { bold: true, size: 11, color: { argb: "FFC9A84C" } };
+        secTitle1.alignment = { vertical: "middle" };
+        ws1.getRow(curRow).height = 24;
+        curRow++;
+
+        writeHeader(ws1, curRow, [
+            { text: "No", width: 6 },
+            { text: "Sumber Dana", width: 22, align: "left" },
+            { text: "Tipe", width: 14 },
+            { text: "Scope", width: 18 },
+            { text: "Saldo Masuk", width: 18 },
+            { text: "Saldo Keluar", width: 18 },
+            { text: "Saldo Tersisa", width: 18 },
+        ]);
+        curRow++;
+
+        const saldoEntries = filteredSaldo
+            .map((sd: any) => ({
+                id: Number(sd.jenis_pembayaran_id),
+                nama: sd.nama_pembayaran || sumberDanaMap.get(Number(sd.jenis_pembayaran_id)) || `-`,
+                tipe: sd.tipe || sumberDanaTipeMap.get(Number(sd.jenis_pembayaran_id)) || `-`,
+                scope: scopeLabel(sd.scope_gender, sd.scope_jurusan),
+                masuk: Number(sd.total_masuk || 0),
+                keluar: Number(sd.total_keluar || 0),
+                tersisa: Number(sd.saldo_tersedia || 0),
+            }))
+            .sort((a, b) => a.nama.localeCompare(b.nama));
+
+        let no = 1;
+        saldoEntries.forEach(e => {
+            writeDataRow(ws1, curRow, [
+                no++, e.nama, e.tipe, e.scope,
+                fmtRp(e.masuk), fmtRp(e.keluar), fmtRp(e.tersisa),
+            ], { align: "center" });
+            // Override alignment for nama
+            ws1.getRow(curRow).getCell(2).alignment = { horizontal: "left", vertical: "middle" };
+            curRow++;
+        });
+
+        // Total row
+        writeDataRow(ws1, curRow, [
+            "", "TOTAL", "", "",
+            fmtRp(totalSaldoMasuk), fmtRp(totalSaldoKeluar), fmtRp(totalSaldoTersisa),
+        ], { bold: true, bg: "FEF3C7", fontColor: "92400E", align: "center" });
+        ws1.getRow(curRow).getCell(2).alignment = { horizontal: "left", vertical: "middle" };
+        ws1.getRow(curRow).height = 24;
+        curRow += 2;
+
+        // ── Rincian Pengeluaran per Kategori ───────────────────────────────
+        ws1.mergeCells(`A${curRow}:H${curRow}`);
+        const secTitle2 = ws1.getCell(`A${curRow}`);
+        secTitle2.value = "RINCIAN PENGELUARAN PER KATEGORI";
+        secTitle2.font = { bold: true, size: 11, color: { argb: "FFC9A84C" } };
+        ws1.getRow(curRow).height = 24;
+        curRow++;
+
+        writeHeader(ws1, curRow, [
+            { text: "No", width: 6 },
+            { text: "Kategori", width: 22, align: "left" },
+            { text: "Jumlah Transaksi", width: 18 },
+            { text: "Total Nominal", width: 20 },
+            { text: "% dari Total", width: 14 },
+        ]);
+        curRow++;
+
+        const katEntries = Object.entries(byKategori).sort((a, b) => b[1].nominal - a[1].nominal);
+        no = 1;
+        katEntries.forEach(([kat, data]) => {
+            const pct = totalPengeluaran > 0 ? data.nominal / totalPengeluaran : 0;
+            const kc = KAT_COLORS[kat] || KAT_COLORS.LAINNYA;
+            writeDataRow(ws1, curRow, [
+                no++, kat, `${data.jumlah} transaksi`, fmtRp(data.nominal), `${(pct * 100).toFixed(1)}%`,
+            ], { bg: kc.fill, fontColor: "000000", align: "center" });
+            ws1.getRow(curRow).getCell(2).alignment = { horizontal: "left", vertical: "middle" };
+            ws1.getRow(curRow).getCell(2).font = { bold: true, size: 11, color: { argb: `FF${kc.font}` } };
+            curRow++;
+        });
+
+        writeDataRow(ws1, curRow, [
+            "", "TOTAL", `${jumlahTransaksi} transaksi`, fmtRp(totalPengeluaran), "100.0%",
+        ], { bold: true, bg: "FEF3C7", fontColor: "92400E", align: "center" });
+        ws1.getRow(curRow).getCell(2).alignment = { horizontal: "left", vertical: "middle" };
+        ws1.getRow(curRow).height = 24;
+        curRow += 2;
+
+        // ── Rincian Pengeluaran per Sumber Dana ────────────────────────────
+        ws1.mergeCells(`A${curRow}:H${curRow}`);
+        const secTitle3 = ws1.getCell(`A${curRow}`);
+        secTitle3.value = "RINCIAN PENGELUARAN PER SUMBER DANA";
+        secTitle3.font = { bold: true, size: 11, color: { argb: "FFC9A84C" } };
+        ws1.getRow(curRow).height = 24;
+        curRow++;
+
+        writeHeader(ws1, curRow, [
+            { text: "No", width: 6 },
+            { text: "Sumber Dana", width: 22, align: "left" },
+            { text: "Jumlah Transaksi", width: 18 },
+            { text: "Total Nominal", width: 20 },
+            { text: "% dari Total", width: 14 },
+            { text: "Saldo Tersisa", width: 18 },
+        ]);
+        curRow++;
+
+        const sdKeys = Object.keys(bySumberDana).map(Number).sort((a, b) => a - b);
+        no = 1;
+        sdKeys.forEach(id => {
+            const data = bySumberDana[id];
+            const pct = totalPengeluaran > 0 ? data.nominal / totalPengeluaran : 0;
+            const nama = sumberDanaMap.get(id) || `Dana #${id}`;
+            const sisa = saldoPerSumber[id]?.tersisa ?? 0;
+            writeDataRow(ws1, curRow, [
+                no++, nama, `${data.jumlah} transaksi`, fmtRp(data.nominal),
+                `${(pct * 100).toFixed(1)}%`, fmtRp(sisa),
+            ], { align: "center" });
+            ws1.getRow(curRow).getCell(2).alignment = { horizontal: "left", vertical: "middle" };
+            // Warna merah jika saldo negatif
+            if (sisa < 0) {
+                ws1.getRow(curRow).getCell(6).font = { bold: true, size: 11, color: { argb: "FFDC2626" } };
+            }
+            curRow++;
+        });
+
+        // Sumber dana yang ada saldo tapi belum ada pengeluaran
+        if (saldoPerSumber) {
+            Object.keys(saldoPerSumber).map(Number).forEach(id => {
+                if (bySumberDana[id]) return;
+                const sisa = saldoPerSumber[id].tersisa;
+                const nama = sumberDanaMap.get(id) || `Dana #${id}`;
+                writeDataRow(ws1, curRow, [
+                    no++, nama, "0 transaksi", fmtRp(0), "0.0%", fmtRp(sisa),
+                ], { align: "center", bg: "F9FAFB" });
+                ws1.getRow(curRow).getCell(2).alignment = { horizontal: "left", vertical: "middle" };
+                curRow++;
+            });
+        }
+
+        writeDataRow(ws1, curRow, [
+            "", "TOTAL", `${jumlahTransaksi} transaksi`, fmtRp(totalPengeluaran),
+            "100.0%", fmtRp(totalSaldoTersisa),
+        ], { bold: true, bg: "FEF3C7", fontColor: "92400E", align: "center" });
+        ws1.getRow(curRow).getCell(2).alignment = { horizontal: "left", vertical: "middle" };
+        ws1.getRow(curRow).height = 24;
+        curRow += 2;
+
+        // ── Rincian Pengeluaran per Scope ──────────────────────────────────
+        ws1.mergeCells(`A${curRow}:H${curRow}`);
+        const secTitle4 = ws1.getCell(`A${curRow}`);
+        secTitle4.value = "RINCIAN PENGELUARAN PER SCOPE";
+        secTitle4.font = { bold: true, size: 11, color: { argb: "FFC9A84C" } };
+        ws1.getRow(curRow).height = 24;
+        curRow++;
+
+        writeHeader(ws1, curRow, [
+            { text: "No", width: 6 },
+            { text: "Scope", width: 22, align: "left" },
+            { text: "Jumlah Transaksi", width: 18 },
+            { text: "Total Nominal", width: 20 },
+            { text: "% dari Total", width: 14 },
+            { text: "Saldo Tersisa", width: 18 },
+        ]);
+        curRow++;
+
+        const scopeKeys = Object.keys(byScope).sort();
+        no = 1;
+        scopeKeys.forEach(key => {
+            const [g, j] = key.split("-");
+            const data = byScope[key];
+            const pct = totalPengeluaran > 0 ? data.nominal / totalPengeluaran : 0;
+            const saldoScope = filteredSaldo
+                .filter((sd: any) => `${sd.scope_gender}-${sd.scope_jurusan}` === key)
+                .reduce((a: number, s: any) => a + Number(s.saldo_tersedia || 0), 0);
+            writeDataRow(ws1, curRow, [
+                no++, scopeLabel(g, j), `${data.jumlah} transaksi`, fmtRp(data.nominal),
+                `${(pct * 100).toFixed(1)}%`, fmtRp(saldoScope),
+            ], { align: "center" });
+            ws1.getRow(curRow).getCell(2).alignment = { horizontal: "left", vertical: "middle" };
+            curRow++;
+        });
+
+        // Scope yang ada saldo tapi belum ada pengeluaran
+        const saldoScopeKeys = new Set(filteredSaldo.map((sd: any) => `${sd.scope_gender}-${sd.scope_jurusan}`));
+        saldoScopeKeys.forEach(key => {
+            if (byScope[key]) return;
+            const [g, j] = key.split("-");
+            const saldoScope = filteredSaldo
+                .filter((sd: any) => `${sd.scope_gender}-${sd.scope_jurusan}` === key)
+                .reduce((a: number, s: any) => a + Number(s.saldo_tersedia || 0), 0);
+            writeDataRow(ws1, curRow, [
+                no++, scopeLabel(g, j), "0 transaksi", fmtRp(0), "0.0%", fmtRp(saldoScope),
+            ], { align: "center", bg: "F9FAFB" });
+            ws1.getRow(curRow).getCell(2).alignment = { horizontal: "left", vertical: "middle" };
+            curRow++;
+        });
+
+        writeDataRow(ws1, curRow, [
+            "", "TOTAL", `${jumlahTransaksi} transaksi`, fmtRp(totalPengeluaran),
+            "100.0%", fmtRp(totalSaldoTersisa),
+        ], { bold: true, bg: "FEF3C7", fontColor: "92400E", align: "center" });
+        ws1.getRow(curRow).getCell(2).alignment = { horizontal: "left", vertical: "middle" };
+        ws1.getRow(curRow).height = 24;
+
+        // Set column widths for Ringkasan
+        ws1.columns = [
+            { width: 6 },  { width: 24 }, { width: 18 }, { width: 20 },
+            { width: 20 }, { width: 20 }, { width: 20 }, { width: 4 },
+        ];
+
+        // ════════════════════════════════════════════════════════════════════════
+        // SHEET 2: DETAIL TRANSAKSI
+        // ════════════════════════════════════════════════════════════════════════
+        const ws2 = wb.addWorksheet("Detail Transaksi", { pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
+
+        // Title row
+        ws2.mergeCells("A1:J1");
+        const detailTitle = ws2.getCell("A1");
+        detailTitle.value = `DETAIL PENGELUARAN — ${periodText.toUpperCase()}`;
+        detailTitle.font = { bold: true, size: 14, color: { argb: "FFFFFFFF" } };
+        detailTitle.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFC9A84C" } };
+        detailTitle.alignment = { horizontal: "center", vertical: "middle" };
+        ws2.getRow(1).height = 30;
+
+        // Column headers
+        const detailCols = [
+            { header: "No", key: "no", width: 6 },
+            { header: "Tanggal", key: "tanggal", width: 14 },
+            { header: "Judul", key: "judul", width: 32 },
+            { header: "Kategori", key: "kategori", width: 16 },
+            { header: "Sumber Dana", key: "sumber_dana", width: 20 },
+            { header: "Scope", key: "scope", width: 16 },
+            { header: "Nominal", key: "nominal", width: 18 },
+            { header: "Keterangan", key: "keterangan", width: 28 },
+            { header: "Dicatat Oleh", key: "dicatat", width: 18 },
+            { header: "Waktu Input", key: "waktu", width: 18 },
+        ];
+        ws2.columns = detailCols.map(c => ({ width: c.width }));
+
+        // Header row
+        const hdrRow = ws2.getRow(2);
+        detailCols.forEach((c, i) => {
+            const cell = hdrRow.getCell(i + 1);
+            cell.value = c.header;
+            cell.font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFC9A84C" } };
+            cell.alignment = { horizontal: "center", vertical: "middle" };
+            cell.border = {
+                top: { style: "thin", color: { argb: "FFB8960C" } },
+                bottom: { style: "thin", color: { argb: "FFB8960C" } },
+                left: { style: "thin", color: { argb: "FFB8960C" } },
+                right: { style: "thin", color: { argb: "FFB8960C" } },
+            };
+        });
+        ws2.getRow(2).height = 26;
+
+        // Enable auto-filter
+        ws2.autoFilter = { from: "A2", to: "J2" };
+
+        // Freeze panes (freeze rows 1-2)
+        ws2.views = [{ state: "frozen", ySplit: 2, activeCell: "A3" }];
+
+        // Data rows
+        let detailRow = 3;
+        filteredData.forEach((d, idx) => {
+            const r = ws2.getRow(detailRow);
+            const sdName = (d.jenis_pembayaran_id ? sumberDanaMap.get(d.jenis_pembayaran_id) : null) || "-";
+            const sc = scopeLabel(d.scope_gender, d.scope_jurusan);
+            const katColor = KAT_COLORS[d.kategori] || KAT_COLORS.LAINNYA;
+
+            const vals = [
+                idx + 1,
+                dayjs(d.tanggal_pengeluaran).format("DD/MM/YYYY"),
+                d.judul,
+                d.kategori,
+                sdName,
+                sc,
+                Number(d.nominal),
+                d.keterangan || "",
+                d.dicatat_oleh_nama || "",
+                d.created_at ? dayjs(d.created_at).format("DD/MM/YYYY HH:mm") : "",
+            ];
+            vals.forEach((v, i) => {
+                const cell = r.getCell(i + 1);
+                cell.value = v;
+                cell.font = { size: 11, color: { argb: "FF1F2937" } };
+                cell.alignment = { vertical: "middle", horizontal: i === 0 || i === 3 || i === 5 ? "center" : "left" };
+                cell.border = {
+                    top: { style: "hair", color: { argb: "FFE5E7EB" } },
+                    bottom: { style: "hair", color: { argb: "FFE5E7EB" } },
+                    left: { style: "hair", color: { argb: "FFE5E7EB" } },
+                    right: { style: "hair", color: { argb: "FFE5E7EB" } },
+                };
+            });
+
+            // Nominal formatting
+            r.getCell(7).numFmt = "#,##0";
+            r.getCell(7).alignment = { horizontal: "right", vertical: "middle" };
+            r.getCell(7).font = { bold: true, size: 11, color: { argb: "FFDC2626" } };
+
+            // Kategori cell color
+            r.getCell(4).fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${katColor.fill}` } };
+            r.getCell(4).font = { bold: true, size: 11, color: { argb: `FF${katColor.font}` } };
+            r.getCell(4).alignment = { horizontal: "center", vertical: "middle" };
+
+            // Alternate row shading
+            if (idx % 2 === 1) {
+                for (let c = 1; c <= 10; c++) {
+                    if (c !== 4) { // skip kategori (already has its own fill)
+                        r.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF9FAFB" } };
+                    }
+                }
+            }
+
+            detailRow++;
+        });
+
+        // Total row
+        const totalRow = ws2.getRow(detailRow);
+        ws2.mergeCells(`A${detailRow}:F${detailRow}`);
+        const totalLabelCell = totalRow.getCell(1);
+        totalLabelCell.value = `TOTAL — ${jumlahTransaksi} transaksi`;
+        totalLabelCell.font = { bold: true, size: 11, color: { argb: "FF92400E" } };
+        totalLabelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF3C7" } };
+        totalLabelCell.alignment = { horizontal: "right", vertical: "middle" };
+        for (let c = 1; c <= 6; c++) {
+            totalRow.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF3C7" } };
+            totalRow.getCell(c).border = {
+                top: { style: "medium", color: { argb: "FFC9A84C" } },
+                bottom: { style: "medium", color: { argb: "FFC9A84C" } },
+                left: { style: "hair", color: { argb: "FFE5E7EB" } },
+                right: { style: "hair", color: { argb: "FFE5E7EB" } },
+            };
+        }
+
+        // SUM formula for nominal
+        const nomCell = totalRow.getCell(7);
+        nomCell.value = { formula: `SUM(G3:G${detailRow - 1})` } as any;
+        nomCell.numFmt = "#,##0";
+        nomCell.font = { bold: true, size: 12, color: { argb: "FFDC2626" } };
+        nomCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF3C7" } };
+        nomCell.alignment = { horizontal: "right", vertical: "middle" };
+        nomCell.border = {
+            top: { style: "medium", color: { argb: "FFC9A84C" } },
+            bottom: { style: "medium", color: { argb: "FFC9A84C" } },
+            left: { style: "hair", color: { argb: "FFE5E7EB" } },
+            right: { style: "hair", color: { argb: "FFE5E7EB" } },
+        };
+
+        for (let c = 8; c <= 10; c++) {
+            totalRow.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF3C7" } };
+            totalRow.getCell(c).border = {
+                top: { style: "medium", color: { argb: "FFC9A84C" } },
+                bottom: { style: "medium", color: { argb: "FFC9A84C" } },
+                left: { style: "hair", color: { argb: "FFE5E7EB" } },
+                right: { style: "hair", color: { argb: "FFE5E7EB" } },
+            };
+        }
+        totalRow.height = 26;
+
+        // ── Download ───────────────────────────────────────────────────────
         const buf = await wb.xlsx.writeBuffer();
         saveAs(new Blob([buf]), `Pengeluaran_${filterMonth.format("MMMM_YYYY")}.xlsx`);
+        message.success("Berhasil mengekspor laporan pengeluaran");
     };
 
     // ── Card Style ────────────────────────────────────────────────────────────
@@ -540,6 +1157,22 @@ export const PengeluaranList = () => {
         {
             title: "Kategori", dataIndex: "kategori", width: 150,
             render: (val: any) => <KategoriChip value={val as string} />,
+        },
+        {
+            title: "Sumber Dana", dataIndex: "jenis_pembayaran_id", width: 150,
+            render: (val: any) => {
+                const sumber = sumberDanaList.find(s => s.id === val);
+                return sumber ? (
+                    <span style={{
+                        display: "inline-flex", alignItems: "center", gap: 5,
+                        padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 700,
+                        background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}30`,
+                    }}>
+                        <WalletOutlined style={{ fontSize: 10 }} />
+                        {sumber.nama_pembayaran}
+                    </span>
+                ) : <span style={{ fontSize: 10, color: token.colorTextTertiary }}>—</span>;
+            },
         },
         {
             title: "Nominal", dataIndex: "nominal", width: 175, align: "right",
@@ -773,6 +1406,32 @@ export const PengeluaranList = () => {
                 </Row>
             </motion.div>
 
+            {/* ── SCOPE KPI STRIP (RBAC-aware) ────────────────────────────── */}
+            {visibleScopeKpis.length > 0 && (
+                <motion.div variants={stagger} style={{ marginBottom: 32 }}>
+                    <Row gutter={[14, 14]}>
+                        {visibleScopeKpis.map((scope, i) => {
+                            const val = saldoByScope[scope.key] || 0;
+                            return (
+                                <Col key={scope.key} xs={12} sm={8} lg={visibleScopeKpis.length === 1 ? 8 : visibleScopeKpis.length === 2 ? 6 : 4}>
+                                    <KpiCard
+                                        label={scope.label}
+                                        value={val}
+                                        icon={<WalletOutlined />}
+                                        color={scope.color}
+                                        formatter={fmtShort}
+                                        subtext={`Saldo tersedia per unit`}
+                                        isDark={isDark}
+                                        token={token}
+                                        delay={i}
+                                    />
+                                </Col>
+                            );
+                        })}
+                    </Row>
+                </motion.div>
+            )}
+
             {/* ── CHARTS ───────────────────────────────────────────────────────── */}
             <motion.div variants={fadeUp} custom={2} style={{ marginBottom: 32 }}>
                 <Card bordered={false} style={cardStyle} bodyStyle={{ padding: "26px 28px 20px" }}>
@@ -996,6 +1655,21 @@ export const PengeluaranList = () => {
                                 allowClear
                             />
                         </Col>
+                        <Col xs={24} sm={8} lg={6}>
+                            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: GOLD, marginBottom: 7 }}>
+                                SUMBER DANA
+                            </div>
+                            <Select
+                                placeholder="Semua Sumber Dana"
+                                options={sumberDanaList.map(s => ({
+                                    label: s.nama_pembayaran,
+                                    value: s.id,
+                                }))}
+                                onChange={(val) => setFilterSumberDana(val || null)}
+                                style={{ width: "100%", borderRadius: 10 }}
+                                allowClear
+                            />
+                        </Col>
                         {isScopeFree && (
                             <Col xs={24} sm={8} lg={6}>
                                 <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: GOLD, marginBottom: 7 }}>
@@ -1045,6 +1719,21 @@ export const PengeluaranList = () => {
                                         }}
                                         onClick={() => setFilterScope("ALL")}>
                                         {SCOPE_LABEL[filterScope]?.label} ×
+                                    </motion.span>
+                                )}
+                                {filterSumberDana && (
+                                    <motion.span
+                                        initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                                        style={{
+                                            display: "inline-flex", alignItems: "center", gap: 5,
+                                            padding: "3px 10px", borderRadius: 99, fontSize: 10, fontWeight: 700,
+                                            background: `${GOLD}18`,
+                                            border: `1px solid ${GOLD}35`,
+                                            color: GOLD,
+                                            cursor: "pointer",
+                                        }}
+                                        onClick={() => setFilterSumberDana(null)}>
+                                        {sumberDanaList.find(s => s.id === filterSumberDana)?.nama_pembayaran || "Sumber Dana"} ×
                                     </motion.span>
                                 )}
                             </div>
@@ -1167,6 +1856,7 @@ export const PengeluaranList = () => {
                             <Form.Item label={<span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>Kategori</span>}
                                 name="kategori" rules={[{ required: true, message: "Wajib diisi" }]}>
                                 <Select
+                                    disabled={modalMode === "EDIT"}
                                     options={KATEGORI_LIST.map(k => ({
                                         label: (
                                             <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
@@ -1181,6 +1871,33 @@ export const PengeluaranList = () => {
                         </Col>
                     </Row>
 
+                    <Form.Item label={<span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>Sumber Dana</span>}
+                        name="jenis_pembayaran_id" rules={[{ required: modalMode === "CREATE", message: "Wajib pilih sumber dana" }]}>
+                        <Select
+                            placeholder="Pilih Sumber Dana"
+                            disabled={modalMode === "EDIT"}
+                            options={sumberDanaList.map(s => ({
+                                label: (
+                                    <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                                        <WalletOutlined style={{ fontSize: 12, color: GOLD }} />
+                                        <span>{s.nama_pembayaran}</span>
+                                        {s.nominal_default > 0 && (
+                                            <span style={{ fontSize: 10, color: "rgba(128,128,128,0.6)", marginLeft: "auto" }}>
+                                                {IDR(s.nominal_default)}
+                                            </span>
+                                        )}
+                                    </span>
+                                ),
+                                value: s.id,
+                            }))}
+                            style={{ borderRadius: 10 }}
+                            showSearch
+                            filterOption={(input, option) =>
+                                (option?.label as any)?.props?.children?.[1]?.props?.children?.toLowerCase().includes(input.toLowerCase())
+                            }
+                        />
+                    </Form.Item>
+
                     <Divider style={{ borderColor: isDark ? GOLD + "18" : GOLD + "22", margin: "4px 0 16px" }}>
                         <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: GOLD }}>SCOPING UNIT</span>
                     </Divider>
@@ -1189,7 +1906,7 @@ export const PengeluaranList = () => {
                             <Form.Item label={<span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>Target Gender</span>}
                                 name="scope_gender" rules={[{ required: true }]}>
                                 <Select
-                                    disabled={!isScopeFree && user?.scopeGender !== "ALL"}
+                                    disabled={modalMode === "EDIT" || (!isScopeFree && user?.scopeGender !== "ALL")}
                                     options={[
                                         { label: "Putra", value: "L" },
                                         { label: "Putri", value: "P" },
@@ -1203,7 +1920,7 @@ export const PengeluaranList = () => {
                             <Form.Item label={<span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>Target Takhasus</span>}
                                 name="scope_jurusan" rules={[{ required: true }]}>
                                 <Select
-                                    disabled={!isScopeFree && (user?.scopeGender === "P" || user?.scopeJurusan !== "ALL")}
+                                    disabled={modalMode === "EDIT" || (!isScopeFree && (user?.scopeGender === "P" || user?.scopeJurusan !== "ALL"))}
                                     options={[
                                         { label: "Kitab",   value: "KITAB"   },
                                         { label: "Tahfidz", value: "TAHFIDZ" },
@@ -1225,6 +1942,7 @@ export const PengeluaranList = () => {
                         label={<span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>Nominal (Rp)</span>}
                         name="nominal" rules={[{ required: true, message: "Wajib diisi" }]}>
                         <InputNumber
+                            disabled={modalMode === "EDIT"}
                             style={{ width: "100%", borderRadius: 10 }}
                             formatter={v => `Rp ${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
                             parser={v => v?.replace(/\Rp\s?|(\.*)/g, "") as any}

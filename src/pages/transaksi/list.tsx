@@ -338,6 +338,21 @@ export const TransaksiList: React.FC = () => {
     const [chartMode,      setChartMode]      = useState<"area"|"bar"|"combo">("combo");
     const [isExporting,    setIsExporting]    = useState(false);
 
+    // ── Saldo Dana (cumulative, not filtered by date) ─────────────────────────
+    const [danaTerkumpul, setDanaTerkumpul] = useState(0);
+    useEffect(() => {
+        const fetchSaldo = async () => {
+            const { data, error } = await supabaseClient
+                .from("saldo_dana")
+                .select("total_masuk");
+            if (!error && data) {
+                const total = data.reduce((s: number, r: any) => s + Number(r.total_masuk || 0), 0);
+                setDanaTerkumpul(total);
+            }
+        };
+        fetchSaldo();
+    }, []);
+
     // ── Table ─────────────────────────────────────────────────────────────────
     const { tableProps, tableQueryResult } = useTable<ITransaksiKeuangan>({
         resource: "transaksi_keuangan",
@@ -875,8 +890,9 @@ export const TransaksiList: React.FC = () => {
             <motion.div variants={stagger}>
                 <Row gutter={[14,14]}>
                     {[
-                        { label:"Kas Masuk Sukses", value:kpi.totalMasuk, icon:<RiseOutlined />,
-                          color:SUCCESS, formatter:fCompact, subtext:`${kpi.sukses} trx sukses` },
+                        { label:"Dana Terkumpul", value:danaTerkumpul, icon:<FundOutlined />,
+                          color:GOLD_BRIGHT, formatter:fCompact,
+                          subtext:`total dari saldo_dana` },
                         { label:"Kas Keluar Sukses", value:kpi.totalKeluar, icon:<FallOutlined />,
                           color:DANGER,  formatter:fCompact, subtext:"transaksi keluar" },
                         { label:"Net Saldo",         value:kpi.netSaldo,   icon:<SwapOutlined />,

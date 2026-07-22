@@ -168,7 +168,6 @@ export interface IBerita {
 
 // --- AKADEMIK & KESISWAAN ---
 
-// ... interface lainnya
 
 export interface IHafalanTahfidz {
   id: number;
@@ -412,7 +411,7 @@ export interface IPengeluaran {
     id: number;
     created_at: string;
     judul: string;
-    kategori: 'OPERASIONAL' | 'PEMBANGUNAN' | 'DAPUR' | 'KEGIATAN' | 'LAINNYA';
+    kategori: 'OPERASIONAL' | 'PENDIDIKAN' | 'SARANA' | 'KEGIATAN' | 'LAINNYA';
     nominal: number;
     tanggal_pengeluaran: string;
     keterangan: string;
@@ -421,6 +420,14 @@ export interface IPengeluaran {
     dicatat_oleh_nama: string;
     scope_gender: TGenderScope;
     scope_jurusan: TJurusanScope;
+    jenis_pembayaran_id?: number | null;
+    ref_jenis_pembayaran?: IRefJenisPembayaran | null;
+}
+
+export interface IRecordPengeluaranDanaResult {
+    pengeluaran_id: number;
+    mutasi_dana_id: number;
+    idempotent: boolean;
 }
 
 export interface IAuditLog {

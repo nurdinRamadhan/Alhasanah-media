@@ -762,7 +762,6 @@ export const HafalanList = () => {
             });
     }, [tableQueryResult?.data?.data, sesiTanggal]);
 
-    // Fetch kehadiran hari ini & rata-rata 7 hari
     React.useEffect(() => {
         const nisList = (tableQueryResult?.data?.data || [])
             .map((item) => item.nis)
