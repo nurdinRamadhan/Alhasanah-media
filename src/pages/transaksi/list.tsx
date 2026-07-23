@@ -344,9 +344,9 @@ export const TransaksiList: React.FC = () => {
         const fetchSaldo = async () => {
             const { data, error } = await supabaseClient
                 .from("saldo_dana")
-                .select("total_masuk");
+                .select("saldo_tersedia");
             if (!error && data) {
-                const total = data.reduce((s: number, r: any) => s + Number(r.total_masuk || 0), 0);
+                const total = data.reduce((s: number, r: any) => s + Number(r.saldo_tersedia || 0), 0);
                 setDanaTerkumpul(total);
             }
         };

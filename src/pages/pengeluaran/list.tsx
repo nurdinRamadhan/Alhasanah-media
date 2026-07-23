@@ -5,7 +5,7 @@ import { ProTable, ProColumns } from "@ant-design/pro-components";
 import {
     Tag, Space, Button, Typography, Tooltip, Modal, Form,
     Select, InputNumber, Input, message, DatePicker, Row, Col,
-    Upload, Image, theme, Divider, Card, Skeleton, Segmented, Empty,
+    Upload, Image, theme, Divider, Card, Skeleton, Segmented, Empty, Alert,
 } from "antd";
 import {
     PlusOutlined, DeleteOutlined, EditOutlined,
@@ -14,7 +14,7 @@ import {
     FileExcelOutlined, FilePdfOutlined, PieChartOutlined,
     FilterOutlined, TeamOutlined, ArrowUpOutlined,
     ThunderboltOutlined, HistoryOutlined, CheckCircleOutlined,
-    ApartmentOutlined,
+    ApartmentOutlined, WarningOutlined,
 } from "@ant-design/icons";
 import {
     useDelete, useCreate, useUpdate, useGetIdentity, CrudFilter,
@@ -357,6 +357,25 @@ export const PengeluaranList = () => {
         fetchSaldo();
     }, []);
 
+    // ── Watch form values for saldo validation ────────────────────────────────
+    const watchSumberDana = Form.useWatch("jenis_pembayaran_id", form);
+    const watchScopeGender = Form.useWatch("scope_gender", form);
+    const watchScopeJurusan = Form.useWatch("scope_jurusan", form);
+    const watchNominal = Form.useWatch("nominal", form);
+
+    const availableSaldo = useMemo(() => {
+        if (!watchSumberDana || !watchScopeGender || !watchScopeJurusan) return null;
+        const match = saldoDanaData.find((s: any) =>
+            s.jenis_pembayaran_id === watchSumberDana
+            && s.scope_gender === watchScopeGender
+            && s.scope_jurusan === watchScopeJurusan
+        );
+        return match ? Number(match.saldo_tersedia || 0) : 0;
+    }, [watchSumberDana, watchScopeGender, watchScopeJurusan, saldoDanaData]);
+
+    const nominalNum = Number(watchNominal) || 0;
+    const isSaldoInsufficient = availableSaldo !== null && nominalNum > 0 && nominalNum > availableSaldo;
+
     // ── RBAC: which scope KPIs to show ───────────────────────────────────────
     const visibleScopeKpis = useMemo(() => {
         if (!user) return [];
@@ -507,6 +526,10 @@ export const PengeluaranList = () => {
     };
 
     const handleSubmit = async (values: any) => {
+        if (modalMode === "CREATE" && isSaldoInsufficient) {
+            message.error("Saldo tidak cukup. Silakan kurangi nominal atau pilih sumber dana lain.");
+            return;
+        }
         const payload = {
             ...values,
             nominal: Number(values.nominal),
@@ -1897,6 +1920,17 @@ export const PengeluaranList = () => {
                             }
                         />
                     </Form.Item>
+                    {availableSaldo !== null && modalMode === "CREATE" && (
+                        <div style={{
+                            marginTop: -12, marginBottom: 16, padding: "6px 12px",
+                            borderRadius: 8, fontSize: 12, fontWeight: 600,
+                            background: isSaldoInsufficient ? "#fff2f0" : "#f6ffed",
+                            border: `1px solid ${isSaldoInsufficient ? "#ffccc7" : "#b7eb8f"}`,
+                            color: isSaldoInsufficient ? DANGER : "#52c41a",
+                        }}>
+                            Saldo tersedia: {IDR(availableSaldo)}
+                        </div>
+                    )}
 
                     <Divider style={{ borderColor: isDark ? GOLD + "18" : GOLD + "22", margin: "4px 0 16px" }}>
                         <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: GOLD }}>SCOPING UNIT</span>
@@ -1940,7 +1974,19 @@ export const PengeluaranList = () => {
 
                     <Form.Item
                         label={<span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>Nominal (Rp)</span>}
-                        name="nominal" rules={[{ required: true, message: "Wajib diisi" }]}>
+                        name="nominal" rules={[
+                            { required: true, message: "Wajib diisi" },
+                            {
+                                validator: (_, value) => {
+                                    if (!value || modalMode === "EDIT") return Promise.resolve();
+                                    const num = Number(value);
+                                    if (availableSaldo !== null && num > availableSaldo) {
+                                        return Promise.reject(new Error(`Saldo tidak cukup. Tersedia: ${IDR(availableSaldo)}`));
+                                    }
+                                    return Promise.resolve();
+                                },
+                            },
+                        ]}>
                         <InputNumber
                             disabled={modalMode === "EDIT"}
                             style={{ width: "100%", borderRadius: 10 }}
@@ -1949,6 +1995,16 @@ export const PengeluaranList = () => {
                             placeholder="0"
                         />
                     </Form.Item>
+                    {isSaldoInsufficient && modalMode === "CREATE" && (
+                        <Alert
+                            type="warning"
+                            showIcon
+                            icon={<WarningOutlined />}
+                            message="Saldo Tidak Cukup"
+                            description={`Nominal ${IDR(nominalNum)} melebihi saldo tersedia ${IDR(availableSaldo)}. Silakan pilih sumber dana lain atau kurangi nominal.`}
+                            style={{ marginBottom: 16, borderRadius: 10 }}
+                        />
+                    )}
 
                     <Form.Item
                         label={<span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>Keterangan</span>}

@@ -66,7 +66,6 @@ const fmtFull   = (v: number) =>
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface SegmentKpi   { segment: string; total_cash_in: number; total_opex: number; total_receivables: number; surplus_deficit: number }
-interface CashflowRow  { month_index: number; month_name: string; segment: string; income: number; expense: number }
 interface ExpenseRow   { segment: string; name: string; value: number }
 
 // ─── Animated Value Counter ───────────────────────────────────────────────────
@@ -338,9 +337,13 @@ export const DashboardPage = () => {
     const [chartMode, setChartMode]               = useState<"area" | "bar" | "combo">("area");
 
     const [segmentKpis, setSegmentKpis]   = useState<SegmentKpi[]>([]);
-    const [cashflowData, setCashflowData] = useState<CashflowRow[]>([]);
     const [expenseData, setExpenseData]   = useState<ExpenseRow[]>([]);
     const [isLoadingFinance, setIsLoadingFinance] = useState(true);
+
+    // ── Saldo Dana state (source of truth) ──────────────────────────────────
+    const [saldoDanaData, setSaldoDanaData]           = useState<any[]>([]);
+    const [mutasiDanaData, setMutasiDanaData]         = useState<any[]>([]);
+    const [isLoadingSaldo, setIsLoadingSaldo]         = useState(true);
 
     const availableSegments = useMemo(() => segmentKpis.map(s => s.segment), [segmentKpis]);
 
@@ -353,16 +356,14 @@ export const DashboardPage = () => {
     const fetchSegmentData = useCallback(async () => {
         setIsLoadingFinance(true);
         try {
-            const [kpiRes, cashRes, expRes] = await Promise.all([
+            const [kpiRes, , expRes] = await Promise.all([
                 supabaseClient.rpc("get_dashboard_segment_kpis",     { p_year: selectedYear }),
                 supabaseClient.rpc("get_dashboard_segment_cashflow",  { p_year: selectedYear }),
                 supabaseClient.rpc("get_dashboard_segment_expense",   { p_year: selectedYear }),
             ]);
             if (kpiRes.error)  throw kpiRes.error;
-            if (cashRes.error) throw cashRes.error;
             if (expRes.error)  throw expRes.error;
             setSegmentKpis(  (kpiRes.data  || []) as SegmentKpi[]);
-            setCashflowData( (cashRes.data || []) as CashflowRow[]);
             setExpenseData(  (expRes.data  || []) as ExpenseRow[]);
         } catch (err: any) {
             console.error("Dashboard segment RPC error:", err);
@@ -373,6 +374,21 @@ export const DashboardPage = () => {
     }, [selectedYear]);
 
     useEffect(() => { fetchSegmentData(); }, [fetchSegmentData]);
+
+    // ── Fetch saldo_dana + mutasi_dana (source of truth) ────────────────────
+    useEffect(() => {
+        const fetchSaldo = async () => {
+            setIsLoadingSaldo(true);
+            const [saldoRes, mutasiRes] = await Promise.all([
+                supabaseClient.from("v_saldo_dana_rekap").select("*"),
+                supabaseClient.from("mutasi_dana").select("*").order("created_at", { ascending: true }),
+            ]);
+            if (saldoRes.data) setSaldoDanaData(saldoRes.data);
+            if (mutasiRes.data) setMutasiDanaData(mutasiRes.data);
+            setIsLoadingSaldo(false);
+        };
+        fetchSaldo();
+    }, []);
 
     const { data: santriData, isLoading: santriLoading } = useList<ISantri>({
         resource: "santri", pagination: { mode: "off" },
@@ -406,15 +422,6 @@ export const DashboardPage = () => {
         return m;
     }, [segmentKpis]);
 
-    const cashflowMap = useMemo(() => {
-        const m = new Map<string, CashflowRow[]>();
-        cashflowData.forEach(r => {
-            if (!m.has(r.segment)) m.set(r.segment, []);
-            m.get(r.segment)!.push(r);
-        });
-        return m;
-    }, [cashflowData]);
-
     const expenseMap = useMemo(() => {
         const m = new Map<string, ExpenseRow[]>();
         expenseData.forEach(r => {
@@ -424,18 +431,43 @@ export const DashboardPage = () => {
         return m;
     }, [expenseData]);
 
-    const displayCashflow = cashflowTab === "ALL"
-        ? (cashflowMap.get("TOTAL") || [])
-        : (cashflowMap.get(cashflowTab) || []);
+    // ── Cashflow chart dari mutasi_dana (source of truth) ──────────────────
+    const displayCashflow = useMemo(() => {
+        const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+        const map: Record<number, { income: number; expense: number }> = {};
+        months.forEach((_, i) => { map[i] = { income: 0, expense: 0 }; });
 
-    // Aggregates
-    const totalCashIn      = useMemo(() => segmentKpis.reduce((a, k) => a + k.total_cash_in, 0),      [segmentKpis]);
-    const totalOpex        = useMemo(() => segmentKpis.reduce((a, k) => a + k.total_opex, 0),          [segmentKpis]);
-    const totalReceivables = useMemo(() => segmentKpis.reduce((a, k) => a + k.total_receivables, 0),   [segmentKpis]);
-    const totalBalance     = useMemo(() => segmentKpis.reduce((a, k) => a + k.surplus_deficit, 0),     [segmentKpis]);
+        mutasiDanaData.forEach((m: any) => {
+            const d = dayjs(m.created_at);
+            if (d.year() !== selectedYear) return;
+            const mi = d.month();
+            if (m.tipe_mutasi === "MASUK" || m.tipe_mutasi === "KOREKSI_MASUK") {
+                map[mi].income += Number(m.nominal || 0);
+            } else if (m.tipe_mutasi === "KELUAR" || m.tipe_mutasi === "KOREKSI_KELUAR") {
+                map[mi].expense += Number(m.nominal || 0);
+            }
+        });
 
-    const cfIncome  = displayCashflow.reduce((a, r) => a + r.income, 0);
-    const cfExpense = displayCashflow.reduce((a, r) => a + r.expense, 0);
+        return months.map((name, i) => ({
+            month_index: i,
+            month_name: name,
+            segment: "TOTAL",
+            income: map[i].income,
+            expense: map[i].expense,
+        }));
+    }, [mutasiDanaData, selectedYear]);
+
+    // Aggregates — dari saldo_dana + mutasi_dana (source of truth)
+    const totalCashIn      = useMemo(() => saldoDanaData.reduce((a: number, s: any) => a + Number(s.total_masuk || 0), 0), [saldoDanaData]);
+    const totalBalance     = useMemo(() => saldoDanaData.reduce((a: number, s: any) => a + Number(s.saldo_tersedia || 0), 0), [saldoDanaData]);
+    // Total pengeluaran hanya dari mutasi tipe KELUAR (bukan KOREKSI_KELUAR)
+    const totalOpex        = useMemo(() => mutasiDanaData
+        .filter((m: any) => m.tipe_mutasi === "KELUAR")
+        .reduce((a: number, m: any) => a + Number(m.nominal || 0), 0), [mutasiDanaData]);
+    const totalReceivables = useMemo(() => segmentKpis.reduce((a, k) => a + k.total_receivables, 0), [segmentKpis]);
+
+    const cfIncome  = displayCashflow.reduce((a: number, r: any) => a + r.income, 0);
+    const cfExpense = displayCashflow.reduce((a: number, r: any) => a + r.expense, 0);
     const cfNet     = cfIncome - cfExpense;
 
     const yearOptions = Array.from({ length: 5 }, (_, i) => {
@@ -564,21 +596,21 @@ export const DashboardPage = () => {
                         },
                         {
                             label: "Total Pemasukan", value: totalCashIn,   icon: <ArrowUpOutlined />,
-                            color: GOLD_BRIGHT, formatter: fmtShort, subtext: `Tahun ${selectedYear}`,
-                            loading: isLoadingFinance,
+                            color: GOLD_BRIGHT, formatter: fmtShort, subtext: `Total saldo masuk`,
+                            loading: isLoadingSaldo,
                         },
                         {
                             label: "Saldo Kas Bersih",value: totalBalance,  icon: <WalletOutlined />,
                             color: totalBalance >= 0 ? SUCCESS : DANGER,
                             formatter: fmtShort,
                             subtext: totalBalance >= 0 ? "Posisi Surplus ↑" : "Posisi Defisit ↓",
-                            loading: isLoadingFinance,
+                            loading: isLoadingSaldo,
                         },
                         {
                             label: "Total Pengeluaran",value: totalOpex,    icon: <ArrowDownOutlined />,
                             color: DANGER, formatter: fmtShort,
                             subtext: totalCashIn > 0 ? `Rasio ${((totalOpex / totalCashIn) * 100).toFixed(1)}%` : "—",
-                            loading: isLoadingFinance,
+                            loading: isLoadingSaldo,
                         },
                         {
                             label: "Tunggakan Piutang",value: totalReceivables, icon: <HistoryOutlined />,
@@ -668,7 +700,7 @@ export const DashboardPage = () => {
                                     fontFamily: "'DM Mono', monospace", fontWeight: 800,
                                     fontSize: 16, color: item.color,
                                 }}>
-                                    {isLoadingFinance ? "—" : fmtFull(item.value)}
+                                    {isLoadingSaldo ? "—" : fmtFull(item.value)}
                                 </div>
                             </div>
                         ))}
@@ -676,7 +708,7 @@ export const DashboardPage = () => {
 
                     {/* Chart canvas */}
                     <div style={{ width: "100%", height: 310 }}>
-                        {isLoadingFinance ? (
+                        {isLoadingSaldo ? (
                             <Skeleton active paragraph={{ rows: 7 }} />
                         ) : displayCashflow.length === 0 ? (
                             <Empty description="Belum ada data cashflow" image={Empty.PRESENTED_IMAGE_SIMPLE} />
