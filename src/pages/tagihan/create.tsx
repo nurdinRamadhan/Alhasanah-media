@@ -7,11 +7,15 @@ import dayjs from "dayjs";
 import { useGetIdentity } from "@refinedev/core";
 import { supabaseClient } from "../../utility/supabaseClient";
 import { buildSpecialRateMap, loadSpecialRates, resolveNominalWithSpecialRate } from "../../utility/paymentRates";
+import { getHijriMonthYear, hijriToGregorian, formatHijriPeriod, HIJRI_MONTH_OPTIONS, HIJRI_YEAR_OPTIONS } from "../../utility/dateHelper";
 
 export const TagihanCreate = () => {
     const { data: user } = useGetIdentity();
     const [paymentRefs, setPaymentRefs] = useState<IRefJenisPembayaran[]>([]);
     const [specialRateApplied, setSpecialRateApplied] = useState(false);
+    const currentHijri = getHijriMonthYear();
+    const [hijriMonth, setHijriMonth] = useState<number>(currentHijri.hm);
+    const [hijriYear, setHijriYear] = useState<number>(currentHijri.hy);
     const { formProps, saveButtonProps, form } = useForm<ITagihanSantri>({
         onMutationSuccess: (data) => {
             logActivity({
@@ -25,7 +29,6 @@ export const TagihanCreate = () => {
     });
     const selectedSantriNis = Form.useWatch("santri_nis", form);
     const selectedPaymentRefId = Form.useWatch("jenis_pembayaran_id", form);
-    const dueDate = Form.useWatch("tanggal_jatuh_tempo", form);
 
     const { selectProps: santriSelectProps } = useSelect<ISantri>({
         resource: "santri",
@@ -64,9 +67,13 @@ export const TagihanCreate = () => {
             if (!selectedSantriNis || !selectedPaymentRefId) return;
             const selectedRef = paymentRefs.find((ref) => Number(ref.id) === Number(selectedPaymentRefId));
             if (!selectedRef) return;
+            if (!hijriMonth || !hijriYear) return;
 
             try {
-                const period = dueDate ? dayjs(dueDate) : dayjs();
+                const periodLabel = formatHijriPeriod(hijriYear, hijriMonth);
+                const gregDate = hijriToGregorian(hijriYear, hijriMonth);
+                const jatuhTempo = dayjs(gregDate).endOf("month");
+
                 const rates = await loadSpecialRates([selectedSantriNis], [Number(selectedPaymentRefId)]);
                 const rateMap = buildSpecialRateMap(rates);
                 const nominal = resolveNominalWithSpecialRate(
@@ -77,9 +84,10 @@ export const TagihanCreate = () => {
                 );
 
                 form.setFieldsValue({
-                    deskripsi_tagihan: `${selectedRef.nama_pembayaran} ${period.format("MMMM YYYY")}`,
+                    deskripsi_tagihan: `${selectedRef.nama_pembayaran} ${periodLabel}`,
                     nominal_tagihan: nominal,
                     sisa_tagihan: nominal,
+                    tanggal_jatuh_tempo: jatuhTempo,
                 });
                 setSpecialRateApplied(rateMap.has(`${selectedSantriNis}:${Number(selectedPaymentRefId)}`));
             } catch (error) {
@@ -89,7 +97,7 @@ export const TagihanCreate = () => {
         };
 
         applyNominal();
-    }, [selectedSantriNis, selectedPaymentRefId, dueDate, paymentRefs, form]);
+    }, [selectedSantriNis, selectedPaymentRefId, hijriMonth, hijriYear, paymentRefs, form]);
 
     const handleNominalChange = (value: number | null) => {
         form.setFieldValue("sisa_tagihan", value);
@@ -102,7 +110,6 @@ export const TagihanCreate = () => {
                 {...formProps} 
                 layout="vertical"
                 initialValues={{
-                    tanggal_jatuh_tempo: dayjs().add(1, 'month'),
                     status: 'BELUM',
                 }}
             >
@@ -136,6 +143,32 @@ export const TagihanCreate = () => {
                                     }))}
                                 />
                             </Form.Item>
+
+                            <div style={{ marginBottom: 16 }}>
+                                <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13 }}>
+                                    Periode Tagihan (Hijriah)
+                                </label>
+                                <Row gutter={12}>
+                                    <Col span={12}>
+                                        <Select
+                                            value={hijriMonth}
+                                            onChange={setHijriMonth}
+                                            options={HIJRI_MONTH_OPTIONS}
+                                            placeholder="Bulan"
+                                            style={{ width: "100%" }}
+                                        />
+                                    </Col>
+                                    <Col span={12}>
+                                        <Select
+                                            value={hijriYear}
+                                            onChange={setHijriYear}
+                                            options={HIJRI_YEAR_OPTIONS}
+                                            placeholder="Tahun"
+                                            style={{ width: "100%" }}
+                                        />
+                                    </Col>
+                                </Row>
+                            </div>
 
                             <Form.Item
                                 label="Deskripsi Tagihan"
@@ -179,6 +212,7 @@ export const TagihanCreate = () => {
                                 label="Jatuh Tempo" 
                                 name="tanggal_jatuh_tempo"
                                 rules={[{ required: true }]}
+                                help="Otomatis diisi dari periode Hijriah, bisa disesuaikan"
                                 getValueProps={(value) => ({ value: value ? dayjs(value) : "" })}
                             >
                                 <DatePicker style={{ width: "100%" }} format="DD MMMM YYYY" />

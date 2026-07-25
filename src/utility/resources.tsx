@@ -55,6 +55,9 @@ export const resources: ResourceProps[] = [
     meta:{ label:"Master Data Diklat", parent:"diklat", icon:<SettingOutlined /> } },
 
   { name:"kesantrian_menu", meta:{ label:"Kesantrian", icon:<TeamOutlined /> } },
+  { name:"jadwal_kegiatan", list:"/jadwal-kegiatan", create:"/jadwal-kegiatan/create",
+    edit:"/jadwal-kegiatan/edit/:id", show:"/jadwal-kegiatan/show/:id",
+    meta:{ label:"Jadwal Kegiatan", parent:"kesantrian_menu", icon:<CalendarOutlined /> } },
   // Menu "Absensi Santri" dan "Tipe Kegiatan" disembunyikan sementara
   // { name:"attendance_sessions", list:"/absensi", show:"/absensi/show/:id",
   //   meta:{ label:"Absensi Santri", parent:"kesantrian_menu", icon:<ProjectOutlined /> } },

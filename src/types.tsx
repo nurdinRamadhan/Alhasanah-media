@@ -549,3 +549,44 @@ export interface ICryptoKeystore {
   failed_attempts: number;
   locked_until: string | null;
 }
+
+// --- JADWAL KEGIATAN PESANTREN ---
+
+export type FrekuensiKegiatan = 'harian' | 'mingguan' | 'bulanan' | 'tahunan' | 'khusus';
+export type StatusKegiatan = 'aktif' | 'nonaktif' | 'selesai';
+
+export interface IJadwalKategori {
+  id: string;
+  label: string;
+  warna: string;
+  icon?: string | null;
+  is_custom: boolean;
+  urutan: number;
+  aktif: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IJadwalKegiatan {
+  id: string;
+  nama_kegiatan: string;
+  deskripsi?: string | null;
+  kategori_id: string;
+  kategori?: IJadwalKategori;
+  frekuensi: FrekuensiKegiatan;
+  tanggal_mulai?: string | null;
+  tanggal_selesai?: string | null;
+  waktu_mulai?: string | null;
+  waktu_selesai?: string | null;
+  catatan_waktu?: string | null;
+  lokasi: string;
+  gambar_url?: string | null;
+  urutan: number;
+  is_publik: boolean;
+  status: StatusKegiatan;
+  notifikasi_aktif: boolean;
+  notifikasi_hari: number;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}

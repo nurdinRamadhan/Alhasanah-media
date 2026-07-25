@@ -79,6 +79,11 @@ export const SelfHealingCenterPage = React.lazy(() => import("./pages/backend-co
 export const BackendDiagnosticsPage = React.lazy(() => import("./pages/backend-command-center").then(m => ({ default: m.BackendDiagnosticsPage })));
 export const PrivateAuditLogPage = React.lazy(() => import("./pages/backend-command-center").then(m => ({ default: m.PrivateAuditLogPage })));
 
+// ── Jadwal Kegiatan ──
+export const JadwalKegiatanList   = React.lazy(() => import("./pages/jadwal-kegiatan/list").then(m => ({ default: m.JadwalKegiatanList })));
+export const JadwalKegiatanCreate = React.lazy(() => import("./pages/jadwal-kegiatan/form").then(m => ({ default: m.JadwalKegiatanCreate })));
+export const JadwalKegiatanEdit   = React.lazy(() => import("./pages/jadwal-kegiatan/form").then(m => ({ default: m.JadwalKegiatanEdit })));
+export const JadwalKegiatanShow   = React.lazy(() => import("./pages/jadwal-kegiatan/show").then(m => ({ default: m.JadwalKegiatanShow })));
 
 export const LoadingFallback = () => (
   <div style={{

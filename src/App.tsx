@@ -91,7 +91,8 @@ import {
   WeeklyTestList, WeeklyTestCreate, WeeklyTestArsip,
   NotificationList, NotificationCreate, SelfHealingCenterPage, BackendDiagnosticsPage,
   PrivateAuditLogPage, RagKnowledgePage, LoadingFallback,
-  KoreksiHijriahList
+  KoreksiHijriahList,
+  JadwalKegiatanList, JadwalKegiatanCreate, JadwalKegiatanEdit, JadwalKegiatanShow
 } from "./lazyPages";
 
 import { AiFloatingButton }   from "./components/AiFloatingButton";
@@ -1192,6 +1193,13 @@ const InnerApp: React.FC = () => {
                   <Route path="edit/:id" element={<KesehatanEdit />}  />
                 </Route>
                 <Route path="/prestasi" element={<PrestasiList />} />
+
+                <Route path="/jadwal-kegiatan">
+                  <Route index          element={<JadwalKegiatanList />}   />
+                  <Route path="create"  element={<JadwalKegiatanCreate />} />
+                  <Route path="edit/:id" element={<JadwalKegiatanEdit />}  />
+                  <Route path="show/:id" element={<JadwalKegiatanShow />}  />
+                </Route>
 
                 <Route path="/absensi">
                   <Route index          element={<AttendanceList />}   />

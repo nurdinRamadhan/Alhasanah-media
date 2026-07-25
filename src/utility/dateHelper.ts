@@ -93,6 +93,58 @@ export const formatFullDate = (date?: string | Date | dayjs.Dayjs): string => {
     return dayjs(date).tz().format("dddd, DD MMMM YYYY");
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  HIJRI PERIOD UTILITIES (for tagihan billing period selection)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Get Hijri month number and year from a Gregorian date.
+ * Returns { hm: 1-12, hy: hijri year }
+ */
+export const getHijriMonthYear = (date?: string | Date | dayjs.Dayjs): { hm: number; hy: number } => {
+    const d = dayjs(date).tz().add(HIJRI_OFFSET, 'day').toDate();
+    const hijri = hijriConverter.toHijri(d.getFullYear(), d.getMonth() + 1, d.getDate());
+    return { hm: hijri.hm, hy: hijri.hy };
+};
+
+/**
+ * Convert Hijri year + month (1-12) to a Gregorian Date (1st of that Hijri month).
+ * Used to compute tanggal_jatuh_tempo default from a Hijri period selection.
+ */
+export const hijriToGregorian = (hy: number, hm: number): Date => {
+    const greg = hijriConverter.toGregorian(hy, hm, 1);
+    return new Date(greg.gy, greg.gm - 1, greg.gd);
+};
+
+/**
+ * Format a Hijri period for tagihan billing.
+ * Example: "Muharram 1448 H"
+ */
+export const formatHijriPeriod = (hy: number, hm: number): string => {
+    const monthName = HIJRI_MONTHS[hm - 1] || HIJRI_MONTHS[0];
+    return `${monthName} ${hy} H`;
+};
+
+/**
+ * Dropdown options for Hijri months (1-12).
+ */
+export const HIJRI_MONTH_OPTIONS = HIJRI_MONTHS.map((name, i) => ({
+    value: i + 1,
+    label: name,
+}));
+
+/**
+ * Dropdown options for Hijri years (current year -3 to +2).
+ */
+export const HIJRI_YEAR_OPTIONS = (() => {
+    const current = getHijriMonthYear();
+    const years: { value: number; label: string }[] = [];
+    for (let y = current.hy - 3; y <= current.hy + 2; y++) {
+        years.push({ value: y, label: `${y} H` });
+    }
+    return years;
+})();
+
 /**
  * Export dayjs instance for custom usage
  */

@@ -16,7 +16,7 @@ import {
 } from "@ant-design/icons";
 import { IRefJenisPembayaran, ITagihanSantri, ISantri, IPembayaranTagihan, StatusTagihan, IUserIdentity } from "../../types";
 import { useNavigation, useDelete, useGetIdentity } from "@refinedev/core";
-import { formatHijri, formatMasehi } from "../../utility/dateHelper";
+import { formatHijri, formatMasehi, getHijriMonthYear, hijriToGregorian, formatHijriPeriod, HIJRI_MONTH_OPTIONS, HIJRI_YEAR_OPTIONS } from "../../utility/dateHelper";
 import { santriAlias } from "../../utility/privacy";
 import { buildSpecialRateMap, loadSpecialRates, resolveNominalWithSpecialRate } from "../../utility/paymentRates";
 import dayjs from "dayjs";
@@ -171,8 +171,8 @@ export const TagihanList = () => {
             const sisa = Number(item.sisa_tagihan || 0);
             current.tagihan.push(item);
             current.total_nominal += nominal;
-            current.total_sisa += sisa;
-            current.total_dibayar += Math.max(nominal - sisa, 0);
+            current.total_sisa += item.status !== "LUNAS" ? sisa : 0;
+            current.total_dibayar += item.status === "LUNAS" ? nominal : Math.max(nominal - sisa, 0);
             current.total_tagihan += 1;
             if (item.status === "BELUM") current.jumlah_belum += 1;
             if (item.status === "CICILAN") current.jumlah_cicilan += 1;
@@ -249,13 +249,17 @@ export const TagihanList = () => {
             .filter((item) => item.tipe === "bulanan")
             .map((item) => item.id);
 
+        const currentHijri = getHijriMonthYear();
+        const defaultJatuhTempo = hijriToGregorian(currentHijri.hy, currentHijri.hm);
+
         formBulk.setFieldsValue({
             kelas: ["1", "2", "3"],
             payment_ref_ids: monthlyRefs,
             gender: scope.lockedGender || undefined,
             jurusan: scope.lockedJurusan === 'ALL' ? 'ALL' : (scope.lockedJurusan || undefined),
-            periode: dayjs(),
-            jatuh_tempo: dayjs().endOf("month"),
+            hijri_month: currentHijri.hm,
+            hijri_year: currentHijri.hy,
+            jatuh_tempo: dayjs(defaultJatuhTempo).endOf("month"),
         });
         setIsBulkModalOpen(true);
     };
@@ -511,10 +515,13 @@ export const TagihanList = () => {
             if (error || !santris?.length)
                 throw new Error("Tidak ada santri aktif di kelas target.");
 
-            const periode = values.periode ? dayjs(values.periode) : dayjs();
-            const periodLabel = formatPaymentPeriod(periode);
-            const periodStart = periode.startOf("month").toISOString();
-            const periodEnd = periode.endOf("month").toISOString();
+            const hijriMonth = Number(values.hijri_month);
+            const hijriYear = Number(values.hijri_year);
+            const periodLabel = formatHijriPeriod(hijriYear, hijriMonth);
+
+            const gregDate = hijriToGregorian(hijriYear, hijriMonth);
+            const periodStart = dayjs(gregDate).startOf("month").toISOString();
+            const periodEnd = dayjs(gregDate).endOf("month").toISOString();
             const santriNisList = santris.map((s) => s.nis);
             const specialRates = await loadSpecialRates(santriNisList, selectedRefIds);
             const specialRateMap = buildSpecialRateMap(specialRates);
@@ -670,8 +677,20 @@ export const TagihanList = () => {
                 if (error) throw error;
 
                 let totalNominalExport = 0;
+                let totalLunasExport = 0;
+                let totalBelumExport = 0;
+                let countLunas = 0;
+                let countBelum = 0;
                 logs?.forEach((item, index) => {
-                    totalNominalExport += Number(item.nominal_tagihan);
+                    const nominal = Number(item.nominal_tagihan);
+                    totalNominalExport += nominal;
+                    if (item.status === "LUNAS") {
+                        totalLunasExport += nominal;
+                        countLunas++;
+                    } else {
+                        totalBelumExport += Number(item.sisa_tagihan || 0);
+                        countBelum++;
+                    }
                     const row = worksheet.addRow([
                         formatMasehi(item.created_at),
                         formatHijri(item.created_at),
@@ -699,19 +718,35 @@ export const TagihanList = () => {
                     });
                 });
 
-                const footerRow = worksheet.addRow([
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
+                worksheet.addRow([]);
+
+                const footerTotal = worksheet.addRow([
+                    "", "", "", "", "", "",
                     "TOTAL KESELURUHAN",
                     totalNominalExport,
                     "",
                 ]);
-                footerRow.font = { bold: true };
-                worksheet.getCell(`H${footerRow.number}`).numFmt = "#,##0";
+                footerTotal.font = { bold: true };
+                worksheet.getCell(`H${footerTotal.number}`).numFmt = "#,##0";
+
+                const footerLunas = worksheet.addRow([
+                    "", "", "", "", "", "",
+                    `TOTAL LUNAS (${countLunas} tagihan)`,
+                    totalLunasExport,
+                    "",
+                ]);
+                footerLunas.font = { bold: true, color: { argb: "FF059669" } };
+                worksheet.getCell(`H${footerLunas.number}`).numFmt = "#,##0";
+
+                const footerBelum = worksheet.addRow([
+                    "", "", "", "", "", "",
+                    `TOTAL BELUM/CICILAN (${countBelum} tagihan)`,
+                    totalBelumExport,
+                    "",
+                ]);
+                footerBelum.font = { bold: true, color: { argb: "FFDC2626" } };
+                worksheet.getCell(`H${footerBelum.number}`).numFmt = "#,##0";
+
                 worksheet.autoFilter = "A7:I7";
                 worksheet.views = [{ state: "frozen", ySplit: 7 }];
                 [15, 20, 12, 30, 10, 15, 30, 15, 12].forEach((w, i) => {
@@ -779,11 +814,18 @@ export const TagihanList = () => {
                     };
                 });
 
+                let totalNominalPersonal = 0;
+                let totalDibayarPersonal = 0;
+                let totalSisaPersonal = 0;
+
                 logs?.forEach((item) => {
                     const dibayar =
                         item.status === "LUNAS"
                             ? item.nominal_tagihan
                             : Number(item.nominal_tagihan) - Number(item.sisa_tagihan);
+                    totalNominalPersonal += Number(item.nominal_tagihan);
+                    totalDibayarPersonal += Number(dibayar);
+                    totalSisaPersonal += Number(item.sisa_tagihan || 0);
                     worksheet
                         .addRow([
                             formatMasehi(item.created_at),
@@ -802,6 +844,21 @@ export const TagihanList = () => {
                                 right: { style: "thin", color: { argb: "FFE5E7EB" } },
                             };
                         });
+                });
+
+                worksheet.addRow([]);
+
+                const footerPersonal = worksheet.addRow([
+                    "", "",
+                    "TOTAL",
+                    totalNominalPersonal,
+                    totalDibayarPersonal,
+                    totalSisaPersonal,
+                    "",
+                ]);
+                footerPersonal.font = { bold: true };
+                [4, 5, 6].forEach((col) => {
+                    worksheet.getCell(`${String.fromCharCode(64 + col)}${footerPersonal.number}`).numFmt = "#,##0";
                 });
 
                 worksheet.columns.forEach((col) => { col.width = 22; });
@@ -2354,17 +2411,30 @@ export const TagihanList = () => {
                         </div>
 
                         <Row gutter={12}>
-                            <Col xs={24} md={12}>
+                            <Col xs={12} md={6}>
                                 <Form.Item
-                                    name="periode"
+                                    name="hijri_month"
                                     label={
                                         <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.7px", textTransform: "uppercase", color: token.colorTextSecondary }}>
-                                            Periode Tagihan
+                                            Bulan Hijriah
                                         </span>
                                     }
-                                    rules={[{ required: true, message: "Pilih periode tagihan" }]}
+                                    rules={[{ required: true, message: "Pilih bulan" }]}
                                 >
-                                    <DatePicker picker="month" style={{ width: "100%" }} format="MMMM YYYY" />
+                                    <Select placeholder="Bulan" options={HIJRI_MONTH_OPTIONS} />
+                                </Form.Item>
+                            </Col>
+                            <Col xs={12} md={6}>
+                                <Form.Item
+                                    name="hijri_year"
+                                    label={
+                                        <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.7px", textTransform: "uppercase", color: token.colorTextSecondary }}>
+                                            Tahun Hijriah
+                                        </span>
+                                    }
+                                    rules={[{ required: true, message: "Pilih tahun" }]}
+                                >
+                                    <Select placeholder="Tahun" options={HIJRI_YEAR_OPTIONS} />
                                 </Form.Item>
                             </Col>
                             <Col xs={24} md={12}>
