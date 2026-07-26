@@ -17,8 +17,9 @@ const { useToken } = theme;
 const STATUS_ABSENSI = [
   { key: 'HADIR',   label: 'Hadir',       icon: '✅', color: '#16A34A', bg: 'rgba(22,163,74,0.10)' },
   { key: 'SAKIT',   label: 'Sakit',       icon: '🤒', color: '#D97706', bg: 'rgba(217,119,6,0.10)' },
+  { key: 'IZIN',    label: 'Izin',        icon: '📋', color: '#2563EB', bg: 'rgba(37,99,235,0.10)' },
   { key: 'GHAIB',   label: 'Ghaib',       icon: '❌', color: '#DC2626', bg: 'rgba(220,38,38,0.10)' },
-  { key: 'SEKOLAH', label: 'Sekolah',     icon: '🏫', color: '#2563EB', bg: 'rgba(37,99,235,0.10)' },
+  { key: 'SEKOLAH', label: 'Sekolah',     icon: '🏫', color: '#6366F1', bg: 'rgba(99,102,241,0.10)' },
   { key: 'PULANG',  label: 'Pulang',      icon: '🏠', color: '#9333EA', bg: 'rgba(147,51,234,0.10)' },
 ];
 
@@ -41,7 +42,7 @@ export const MurojaahCreate = () => {
     const [submitting, setSubmitting] = useState(false);
     const [statusSetoran, setStatusSetoran] = useState<string>('LANCAR');
     const [jenisMurojaah, setJenisMurojaah] = useState<string>('SABAQ');
-    const [penyimakOptions, setPenyimakOptions] = useState<IProfile[]>([]);
+    const [penyimakList, setPenyimakList] = useState<{ id: number; nama: string }[]>([]);
     const selectedDate = Form.useWatch("tanggal", form);
     const selectedSantriNis = Form.useWatch("santri_nis", form);
 
@@ -65,27 +66,16 @@ export const MurojaahCreate = () => {
         }
     }, [form, searchParams]);
 
-    // Auto-fill penyimak when santri selected
-    React.useEffect(() => {
-        if (!selectedSantriNis || !user) return;
+    useEffect(() => {
         supabaseClient
-            .from("santri")
-            .select("penyimak_mode, pembimbing")
-            .eq("nis", selectedSantriNis)
-            .maybeSingle()
+            .from("ref_penyimak")
+            .select("id, nama")
+            .eq("is_active", true)
+            .order("nama")
             .then(({ data }) => {
-                const mode = data?.penyimak_mode || 'admin';
-                if (mode === 'admin' && user?.id) {
-                    form.setFieldValue("penyimak_id", user.id);
-                } else if (mode === 'pembimbing' && data?.pembimbing) {
-                    const match = penyimakOptions.find(p =>
-                        p.full_name?.toLowerCase().includes(data!.pembimbing!.toLowerCase())
-                    );
-                    if (match) form.setFieldValue("penyimak_id", match.id);
-                    else form.setFieldValue("penyimak_id", user?.id || undefined);
-                }
+                if (data) setPenyimakList(data);
             });
-    }, [selectedSantriNis, user, penyimakOptions, form]);
+    }, []);
 
     const { selectProps: santriSelectProps } = useSelect<ISantri>({
         resource: "santri",
@@ -166,6 +156,8 @@ export const MurojaahCreate = () => {
                         halaman_akhir: values.halaman_akhir || null,
                         predikat: values.predikat,
                         catatan: values.catatan || null,
+                        detail_hafalan: values.detail_hafalan || null,
+                        penyimak: values.penyimak || null,
                         dicatat_oleh_id: user?.id,
                         absensi_id: absensi.id,
                         status_setoran: statusSetoran,
@@ -350,29 +342,6 @@ export const MurojaahCreate = () => {
                                 </div>
                             )}
 
-                            {absensiStatus === 'HADIR' && (
-                                <Form.Item
-                                    label={<span style={{ ...labelStyle, fontSize: 11 }}>Penyimak</span>}
-                                    name="penyimak_id"
-                                    style={{ marginBottom: 0 }}
-                                >
-                                    <Select
-                                        placeholder="Pilih penyimak"
-                                        allowClear
-                                        showSearch
-                                        size="large"
-                                        style={{ borderRadius: 8 }}
-                                        filterOption={(input, option) =>
-                                            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                                        }
-                                        options={penyimakOptions.map(p => ({
-                                            label: p.full_name || p.id,
-                                            value: p.id,
-                                        }))}
-                                    />
-                                </Form.Item>
-                            )}
-
                             {absensiStatus !== 'HADIR' && (
                                 <div style={{ marginTop: 12 }}>
                                     {absensiStatus === 'GHAIB' && (
@@ -514,6 +483,27 @@ export const MurojaahCreate = () => {
 
                                 <Form.Item label={<span style={labelStyle}>Catatan</span>} name="catatan">
                                     <Input.TextArea rows={2} style={{ borderRadius: 8 }} />
+                                </Form.Item>
+
+                                <Form.Item label={<span style={labelStyle}>Detail Hafalan (Cakupan Ayat)</span>} name="detail_hafalan">
+                                    <Input.TextArea rows={2} placeholder="Contoh: سورة البقرة — الآيات ١ إلى ٥" style={{ borderRadius: 8, resize: "none", fontSize: 13 }} />
+                                </Form.Item>
+
+                                <Form.Item label={<span style={labelStyle}>Penyimak</span>} name="penyimak">
+                                    <Select
+                                        placeholder="Pilih penyimak"
+                                        allowClear
+                                        showSearch
+                                        size="large"
+                                        style={{ borderRadius: 8 }}
+                                        filterOption={(input, option) =>
+                                            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                        }
+                                        options={penyimakList.map(p => ({
+                                            label: p.nama,
+                                            value: p.nama,
+                                        }))}
+                                    />
                                 </Form.Item>
                             </Card>
                         ) : (

@@ -48,13 +48,14 @@ const { useToken } = theme;
 const STATUS_ABSENSI = [
   { key: 'HADIR',   label: 'Hadir',       icon: '✅', color: '#16A34A' },
   { key: 'SAKIT',   label: 'Sakit',       icon: '🤒', color: '#D97706' },
+  { key: 'IZIN',    label: 'Izin',        icon: '📋', color: '#2563EB' },
   { key: 'GHAIB',   label: 'Ghaib',       icon: '❌', color: '#DC2626' },
-  { key: 'SEKOLAH', label: 'Sekolah',     icon: '🏫', color: '#2563EB' },
+  { key: 'SEKOLAH', label: 'Sekolah',     icon: '🏫', color: '#6366F1' },
   { key: 'PULANG',  label: 'Pulang',      icon: '🏠', color: '#9333EA' },
 ];
 
 const STATUS_LABEL: Record<string, string> = {
-  HADIR: 'Hadir', SAKIT: 'Sakit', GHAIB: 'Ghaib', SEKOLAH: 'Sekolah', PULANG: 'Pulang',
+  HADIR: 'Hadir', SAKIT: 'Sakit', IZIN: 'Izin', GHAIB: 'Ghaib', SEKOLAH: 'Sekolah', PULANG: 'Pulang',
 };
 
 // ─────────────────────────── Helpers ───────────────────────────
@@ -438,8 +439,8 @@ export const HafalanCreate = () => {
     const [submitting, setSubmitting] = useState(false);
     const [statusSetoran, setStatusSetoran] = useState<string>('LANCAR');
     const [manualSesiWaktu, setManualSesiWaktu] = useState<'PAGI' | 'SIANG' | null>(null);
-    const [penyimakOptions, setPenyimakOptions] = useState<IProfile[]>([]);
     const [selectedSantriNis, setSelectedSantriNis] = useState<string | undefined>();
+    const [penyimakList, setPenyimakList] = useState<{ id: number; nama: string }[]>([]);
 
     const { mutate: updateSantri } = useUpdate();
 
@@ -463,16 +464,14 @@ export const HafalanCreate = () => {
         }
     }, [form, searchParams]);
 
-    // Load daftar penyimak (dewan/kesantrian dengan akses TAHFIDZ)
     useEffect(() => {
         supabaseClient
-            .from("profiles")
-            .select("id, full_name")
-            .in("role", ["dewan", "kesantrian"])
-            .or("akses_jurusan.eq.ALL,akses_jurusan.ilike.%TAHFIDZ%")
-            .order("full_name")
+            .from("ref_penyimak")
+            .select("id, nama")
+            .eq("is_active", true)
+            .order("nama")
             .then(({ data }) => {
-                if (data) setPenyimakOptions(data as IProfile[]);
+                if (data) setPenyimakList(data);
             });
     }, []);
 
@@ -481,7 +480,7 @@ export const HafalanCreate = () => {
         let mounted = true;
         supabaseClient
             .from("santri")
-            .select("total_hafalan, penyimak_mode, pembimbing")
+            .select("total_hafalan")
             .eq("nis", selectedSantriNis)
             .maybeSingle()
             .then(({ data }) => {
@@ -489,21 +488,9 @@ export const HafalanCreate = () => {
                 const total = data?.total_hafalan ?? "0";
                 setCurrentTotalSource(String(total));
                 form.setFieldValue("total_hafalan", parseTotalHafalan(total));
-
-                // Auto-fill penyimak based on mode
-                const mode = data?.penyimak_mode || 'admin';
-                if (mode === 'admin' && user?.id) {
-                    form.setFieldValue("penyimak_id", user.id);
-                } else if (mode === 'pembimbing' && data?.pembimbing) {
-                    const match = penyimakOptions.find(p =>
-                        p.full_name?.toLowerCase().includes(data!.pembimbing!.toLowerCase())
-                    );
-                    if (match) form.setFieldValue("penyimak_id", match.id);
-                    else form.setFieldValue("penyimak_id", user?.id || undefined);
-                }
             });
         return () => { mounted = false; };
-    }, [form, selectedSantriNis, user, penyimakOptions]);
+    }, [form, selectedSantriNis]);
 
     const handleSuratChange = (value: string) => {
         const surat = DATA_SURAT.find((s) => s.nama === value);
@@ -576,6 +563,8 @@ export const HafalanCreate = () => {
                         status: "LANCAR",
                         status_setoran: statusSetoran,
                         alasan_tolak: statusSetoran === 'MENGULANG' ? (values.alasan_tolak || null) : null,
+                        detail_hafalan: values.detail_hafalan || null,
+                        penyimak: values.penyimak || null,
                     }, { onConflict: "absensi_id" });
                 if (hafError) throw hafError;
 
@@ -835,37 +824,6 @@ export const HafalanCreate = () => {
 
                             {/* Preview Card Santri */}
                             <SantriPreview nis={selectedSantriNis} isDark={isDark} />
-
-                            {absensiStatus === 'HADIR' && (
-                                <>
-                                    <Divider style={{ borderColor: isDark ? "#1E293B" : "#F1F5F9", margin: "16px 0" }} />
-                                    <Form.Item
-                                        label={
-                                            <span style={labelStyle}>
-                                                <SafetyCertificateOutlined style={{ marginRight: 4 }} />
-                                                Penyimak
-                                            </span>
-                                        }
-                                        name="penyimak_id"
-                                        style={{ marginBottom: 0 }}
-                                    >
-                                        <Select
-                                            placeholder="Pilih penyimak (ustadz penguji)"
-                                            allowClear
-                                            showSearch
-                                            size="large"
-                                            style={{ borderRadius: 8 }}
-                                            filterOption={(input, option) =>
-                                                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                                            }
-                                            options={penyimakOptions.map(p => ({
-                                                label: p.full_name || p.id,
-                                                value: p.id,
-                                            }))}
-                                        />
-                                    </Form.Item>
-                                </>
-                            )}
 
                             <Divider style={{ borderColor: isDark ? "#1E293B" : "#F1F5F9", margin: "20px 0" }} />
 
@@ -1169,7 +1127,7 @@ export const HafalanCreate = () => {
                                 <Form.Item
                                     label={<span style={labelStyle}>Catatan Musyrif</span>}
                                     name="catatan"
-                                    style={{ marginBottom: 0 }}
+                                    style={{ marginBottom: 12 }}
                                 >
                                     <Input.TextArea
                                     rows={3}
@@ -1179,6 +1137,39 @@ export const HafalanCreate = () => {
                                         resize: "none",
                                         fontSize: 13,
                                     }}
+                                />
+                            </Form.Item>
+
+                            <Form.Item
+                                label={<span style={labelStyle}>Detail Hafalan (Cakupan Ayat)</span>}
+                                name="detail_hafalan"
+                                style={{ marginBottom: 12 }}
+                            >
+                                <Input.TextArea
+                                    rows={2}
+                                    placeholder="Contoh: سورة آل عمران — الآيات ١ إلى ١٠"
+                                    style={{ borderRadius: 8, resize: "none", fontSize: 13 }}
+                                />
+                            </Form.Item>
+
+                            <Form.Item
+                                label={<span style={labelStyle}>Penyimak</span>}
+                                name="penyimak"
+                                style={{ marginBottom: 0 }}
+                            >
+                                <Select
+                                    placeholder="Pilih penyimak"
+                                    allowClear
+                                    showSearch
+                                    size="large"
+                                    style={{ borderRadius: 8 }}
+                                    filterOption={(input, option) =>
+                                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                    }
+                                    options={penyimakList.map(p => ({
+                                        label: p.nama,
+                                        value: p.nama,
+                                    }))}
                                 />
                             </Form.Item>
                         </div>

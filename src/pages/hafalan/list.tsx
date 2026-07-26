@@ -47,8 +47,9 @@ const { useToken } = theme;
 const STATUS_ABSENSI = [
   { key: 'HADIR',   label: 'Hadir',       icon: '✅', color: '#16A34A', bg: 'rgba(22,163,74,0.10)' },
   { key: 'SAKIT',   label: 'Sakit',       icon: '🤒', color: '#D97706', bg: 'rgba(217,119,6,0.10)' },
+  { key: 'IZIN',    label: 'Izin',        icon: '📋', color: '#2563EB', bg: 'rgba(37,99,235,0.10)' },
   { key: 'GHAIB',   label: 'Ghaib',       icon: '❌', color: '#DC2626', bg: 'rgba(220,38,38,0.10)' },
-  { key: 'SEKOLAH', label: 'Sekolah',     icon: '🏫', color: '#2563EB', bg: 'rgba(37,99,235,0.10)' },
+  { key: 'SEKOLAH', label: 'Sekolah',     icon: '🏫', color: '#6366F1', bg: 'rgba(99,102,241,0.10)' },
   { key: 'PULANG',  label: 'Pulang',      icon: '🏠', color: '#9333EA', bg: 'rgba(147,51,234,0.10)' },
 ];
 
@@ -816,12 +817,12 @@ export const HafalanList = () => {
             const startStr = exportDateRange[0].format("YYYY-MM-DD");
             const endStr = exportDateRange[1].format("YYYY-MM-DD");
 
-            const [absensiRes, santriRes, profileRes] = await Promise.all([
+            const [absensiRes, santriRes] = await Promise.all([
                 supabaseClient
                     .from("tahfidz_absensi")
-                    .select(`id, santri_nis, status, setoran, penyimak_id,
+                    .select(`id, santri_nis, status, setoran,
                         tahfidz_sesi!inner(tanggal, sesi),
-                        hafalan_tahfidz(surat, ayat_awal, ayat_akhir, juz, predikat, status_setoran)`)
+                        hafalan_tahfidz(surat, ayat_awal, ayat_akhir, juz, predikat, status_setoran, detail_hafalan, penyimak)`)
                     .gte("tahfidz_sesi.tanggal", startStr)
                     .lte("tahfidz_sesi.tanggal", endStr)
                     .eq("tahfidz_sesi.kegiatan_id", "ZIYADAH"),
@@ -829,13 +830,11 @@ export const HafalanList = () => {
                     .select("nis, nama, kelas")
                     .eq("jurusan", "TAHFIDZ")
                     .eq("status_santri", "AKTIF"),
-                supabaseClient.from("profiles").select("id, full_name"),
             ]);
 
             if (absensiRes.error) throw absensiRes.error;
             const absensiList = absensiRes.data || [];
             const santriList = santriRes.data || [];
-            const profileList = profileRes.data || [];
 
             let filteredAbsensi = absensiList;
             if (exportType === "PERSONAL") {
@@ -848,9 +847,8 @@ export const HafalanList = () => {
             }
 
             const santriMap = new Map(santriList.map((s: any) => [s.nis, s]));
-            const penyimakMap = new Map(profileList.map((p: any) => [p.id, p.full_name]));
 
-            const lookup = new Map<string, { status: string; setoranLabel: string; materi: string; penyimak: string; predikat: string }>();
+            const lookup = new Map<string, { status: string; setoranLabel: string; materi: string; detail_hafalan: string; penyimak: string; predikat: string }>();
             const allDates = new Set<string>();
             const allNis = new Set<string>();
 
@@ -866,9 +864,10 @@ export const HafalanList = () => {
                 const hasSetoran = !!(a.setoran && h);
                 const materi = h ? formatSetoranText(h) : '';
                 const setoranLabel = a.status === 'HADIR' ? (hasSetoran ? 'SETOR' : 'TIDAK SETOR') : '-';
-                const penyimak = a.penyimak_id ? (penyimakMap.get(a.penyimak_id) || '') : '';
+                const detail_hafalan = (h as any)?.detail_hafalan || '';
+                const penyimak = (h as any)?.penyimak || '';
                 const predikat = (h as any)?.predikat || '-';
-                lookup.set(key, { status: a.status, setoranLabel, materi, penyimak, predikat });
+                lookup.set(key, { status: a.status, setoranLabel, materi, detail_hafalan, penyimak, predikat });
             }
 
             const dates = [...allDates].sort();
@@ -904,11 +903,11 @@ export const HafalanList = () => {
         ws: any,
         dates: string[],
         santriNis: string[],
-        lookup: Map<string, { status: string; setoranLabel: string; materi: string; penyimak: string; predikat: string }>,
+        lookup: Map<string, { status: string; setoranLabel: string; materi: string; detail_hafalan: string; penyimak: string; predikat: string }>,
         santriMap: Map<string, any>,
         dateRange: [dayjs.Dayjs, dayjs.Dayjs],
     ) => {
-        const totalCols = 11;
+        const totalCols = 12;
 
         const applySesiHeaderStyle = (cell: any, fillColor: string) => {
             cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -935,7 +934,7 @@ export const HafalanList = () => {
         // ── Column headers (row 4) ──
         ws.getRow(4).values = [
             "NO", "Hari, Tgl (M)", "Tanggal (H)", "NIS", "Nama Santri", "Kelas",
-            "Status", "Setoran", "Materi", "Predikat", "Penyimak",
+            "Status", "Setoran", "Materi", "Detail Hafalan", "Predikat", "Penyimak",
         ];
         ws.getRow(4).font = { bold: true };
         ws.getRow(4).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
@@ -951,6 +950,7 @@ export const HafalanList = () => {
             { key: "pagi_status", width: 11 },
             { key: "pagi_setoran", width: 11 },
             { key: "pagi_materi", width: 26 },
+            { key: "pagi_detail_hafalan", width: 30 },
             { key: "pagi_predikat", width: 13 },
             { key: "pagi_penyimak", width: 16 },
         ];
@@ -971,8 +971,9 @@ export const HafalanList = () => {
         const STATUS_FILLS: Record<string, string> = {
             HADIR: 'FFD1FAE5',
             SAKIT: 'FFFEF3C7',
+            IZIN: 'FFDBEAFE',
             GHAIB: 'FFFEE2E2',
-            SEKOLAH: 'FFDBEAFE',
+            SEKOLAH: 'FFE0E7FF',
             PULANG: 'FFFFEDD5',
         };
 
@@ -988,6 +989,7 @@ export const HafalanList = () => {
                 pagi_status: pagi?.status || "-",
                 pagi_setoran: pagi?.setoranLabel || "-",
                 pagi_materi: pagi?.materi || "-",
+                pagi_detail_hafalan: pagi?.detail_hafalan || "-",
                 pagi_predikat: pagi?.predikat || "-",
                 pagi_penyimak: pagi?.penyimak || "-",
             });
@@ -1020,23 +1022,23 @@ export const HafalanList = () => {
         ws.getCell(sr, 1).fill = LGF;
         ws.getCell(sr, 1).alignment = C;
 
-        const sumHeaders = ['Nama Santri', '', '', '', '', '', 'H', 'TS', 'S', 'GH', 'Sk', 'P'];
+        const sumHeaders = ['Nama Santri', '', '', '', '', '', 'H', 'TS', 'S', 'I', 'GH', 'Sk', 'P'];
         ws.addRow(sumHeaders);
         ws.getRow(ws.rowCount).font = B;
         ws.getRow(ws.rowCount).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
 
         for (const nis of santriNis) {
             const nama = santriMap.get(nis)?.nama || nis;
-            const totals: Record<string, number> = { H: 0, TS: 0, S: 0, GH: 0, Sk: 0, P: 0 };
+            const totals: Record<string, number> = { H: 0, TS: 0, S: 0, I: 0, GH: 0, Sk: 0, P: 0 };
             for (const tgl of dates) {
                 const entry = lookup.get(`${tgl}::PAGI::${nis}`);
                 if (!entry) continue;
                 const code = entry.status === 'HADIR'
                     ? (entry.setoranLabel === 'SETOR' ? 'H' : 'TS')
-                    : (entry.status === 'SAKIT' ? 'S' : entry.status === 'GHAIB' ? 'GH' : entry.status === 'SEKOLAH' ? 'Sk' : entry.status === 'PULANG' ? 'P' : '');
+                    : (entry.status === 'SAKIT' ? 'S' : entry.status === 'IZIN' ? 'I' : entry.status === 'GHAIB' ? 'GH' : entry.status === 'SEKOLAH' ? 'Sk' : entry.status === 'PULANG' ? 'P' : '');
                 if (code && code in totals) totals[code]++;
             }
-            ws.addRow([nama, '', '', '', '', '', totals.H || '', totals.TS || '', totals.S || '', totals.GH || '', totals.Sk || '', totals.P || '']);
+            ws.addRow([nama, '', '', '', '', '', totals.H || '', totals.TS || '', totals.S || '', totals.I || '', totals.GH || '', totals.Sk || '', totals.P || '']);
             const row = ws.getRow(ws.rowCount);
             for (let c = 1; c <= totalCols; c++) ws.getCell(ws.rowCount, c).border = TB;
         }

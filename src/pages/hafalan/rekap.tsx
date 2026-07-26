@@ -34,8 +34,9 @@ const { useToken } = theme;
 const STATUS_CFG: Record<string, { label: string; color: string }> = {
     HADIR:   { label: "Hadir",   color: "#16A34A" },
     SAKIT:   { label: "Sakit",   color: "#D97706" },
+    IZIN:    { label: "Izin",    color: "#2563EB" },
     GHAIB:   { label: "Ghaib",   color: "#DC2626" },
-    SEKOLAH: { label: "Sekolah", color: "#2563EB" },
+    SEKOLAH: { label: "Sekolah", color: "#6366F1" },
     PULANG:  { label: "Pulang",  color: "#9333EA" },
 };
 
@@ -899,8 +900,8 @@ export const HafalanRekap = () => {
             // ── Data rows: one per tanggal ──
             const sRow = santriListExport.find(s => s.nis === expSantriNis) || { nama: namaSantri, kelas: '-' };
             const STATUS_FILLS_ZY: Record<string, string> = {
-                HADIR: 'FFD1FAE5', SAKIT: 'FFFEF3C7', GHAIB: 'FFFEE2E2',
-                SEKOLAH: 'FFDBEAFE', PULANG: 'FFFFEDD5',
+                HADIR: 'FFD1FAE5', SAKIT: 'FFFEF3C7', IZIN: 'FFDBEAFE',
+                GHAIB: 'FFFEE2E2', SEKOLAH: 'FFE0E7FF', PULANG: 'FFFFEDD5',
             };
 
             dates.forEach((tgl, idx) => {
@@ -1039,8 +1040,8 @@ export const HafalanRekap = () => {
 
             const sRow2 = santriListExport.find(s => s.nis === expSantriNis) || { nama: namaSantri, kelas: '-' };
             const STATUS_FILLS_MR: Record<string, string> = {
-                HADIR: 'FFD1FAE5', SAKIT: 'FFFEF3C7', GHAIB: 'FFFEE2E2',
-                SEKOLAH: 'FFDBEAFE', PULANG: 'FFFFEDD5',
+                HADIR: 'FFD1FAE5', SAKIT: 'FFFEF3C7', IZIN: 'FFDBEAFE',
+                GHAIB: 'FFFEE2E2', SEKOLAH: 'FFE0E7FF', PULANG: 'FFFFEDD5',
             };
 
             dates2.forEach((tgl, idx) => {

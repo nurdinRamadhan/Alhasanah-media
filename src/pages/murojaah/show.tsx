@@ -39,6 +39,8 @@ type MurojaahRow = {
     catatan: string | null;
     status_absensi: string | null;
     sesi: string | null;
+    detail_hafalan: string | null;
+    penyimak: string | null;
 };
 
 type MurojaahSummary = {
@@ -341,6 +343,8 @@ export const MurojaahShow: React.FC = () => {
         catatan: raw.catatan,
         status_absensi: raw.tahfidz_absensi?.status ?? null,
         sesi: raw.tahfidz_absensi?.tahfidz_sesi?.sesi ?? null,
+        detail_hafalan: raw.detail_hafalan ?? null,
+        penyimak: raw.penyimak ?? null,
     });
 
     React.useEffect(() => {
@@ -405,8 +409,9 @@ export const MurojaahShow: React.FC = () => {
     const STATUS_CFG: Record<string, { label: string; color: string }> = {
         HADIR: { label: "Hadir", color: "#16A34A" },
         SAKIT: { label: "Sakit", color: "#D97706" },
+        IZIN: { label: "Izin", color: "#2563EB" },
         GHAIB: { label: "Ghaib", color: "#DC2626" },
-        SEKOLAH: { label: "Sekolah", color: "#2563EB" },
+        SEKOLAH: { label: "Sekolah", color: "#6366F1" },
         PULANG: { label: "Pulang", color: "#9333EA" },
     };
 
@@ -504,6 +509,26 @@ export const MurojaahShow: React.FC = () => {
                     {item.catatan || "–"}
                 </Text>
             ),
+        },
+        {
+            title: "Detail Hafalan",
+            dataIndex: "detail_hafalan",
+            width: 200,
+            render: (_, item) => (
+                <Text type="secondary" ellipsis={{ tooltip: item.detail_hafalan || "–" }} style={{ fontSize: 12 }}>
+                    {item.detail_hafalan || "–"}
+                </Text>
+            ),
+        },
+        {
+            title: "Penyimak",
+            dataIndex: "penyimak",
+            width: 100,
+            render: (_, item) => item.penyimak ? (
+                <Tag color="blue" style={{ borderRadius: 6, fontWeight: 600, fontSize: 11 }}>
+                    {item.penyimak}
+                </Tag>
+            ) : <Text type="secondary" style={{ fontSize: 12 }}>–</Text>,
         },
     ];
 
@@ -767,7 +792,7 @@ export const MurojaahShow: React.FC = () => {
                             const { data, error, count } = await supabaseClient
                                 .from("murojaah_tahfidz")
                                 .select(`
-                                    id,tanggal,jenis_murojaah,juz,surat,ayat_awal,ayat_akhir,halaman_awal,halaman_akhir,predikat,catatan,
+                                    id,tanggal,jenis_murojaah,juz,surat,ayat_awal,ayat_akhir,halaman_awal,halaman_akhir,predikat,catatan,detail_hafalan,penyimak,
                                     tahfidz_absensi!absensi_id(
                                         status,
                                         tahfidz_sesi!inner(sesi)

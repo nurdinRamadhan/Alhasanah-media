@@ -55,8 +55,9 @@ const TEAL        = "#0D9488";
 const STATUS_CFG: Record<string, { label: string; color: string }> = {
     HADIR:   { label: "Hadir",   color: EMERALD  },
     SAKIT:   { label: "Sakit",   color: WARNING  },
+    IZIN:    { label: "Izin",    color: INFO     },
     GHAIB:   { label: "Ghaib",   color: DANGER   },
-    SEKOLAH: { label: "Sekolah", color: INFO     },
+    SEKOLAH: { label: "Sekolah", color: "#6366F1" },
     PULANG:  { label: "Pulang",  color: PURPLE   },
 };
 const HARI_LABEL: Record<number, { short: string }> = {
@@ -619,7 +620,7 @@ export const HafalanRekap = () => {
             const namaSantri=(sRow as any).nama||santriAlias(expSantriNis!);
             const wb=new ExcelJS.Workbook();
             const applyHdr=(cell:any,fillColor:string)=>{cell.font={bold:true,color:{argb:"FFFFFFFF"}};cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:fillColor}};cell.alignment={horizontal:"center",vertical:"middle"};};
-            const SF_ZY:Record<string,string>={HADIR:"FFD1FAE5",SAKIT:"FFFEF3C7",GHAIB:"FFFEE2E2",SEKOLAH:"FFDBEAFE",PULANG:"FFFFEDD5"};
+            const SF_ZY:Record<string,string>={HADIR:"FFD1FAE5",SAKIT:"FFFEF3C7",IZIN:"FFDBEAFE",GHAIB:"FFFEE2E2",SEKOLAH:"FFE0E7FF",PULANG:"FFFFEDD5"};
             // Sheet 1 — Ziyadah
             const ws1=wb.addWorksheet("Setoran Hafalan");
             const setoranStart=expSantriSetoran?.[0].format("YYYY-MM-DD")||""; const setoranEnd=expSantriSetoran?.[1].format("YYYY-MM-DD")||"";

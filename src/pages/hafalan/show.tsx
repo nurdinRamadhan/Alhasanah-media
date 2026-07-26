@@ -55,6 +55,8 @@ type HafalanRow = {
     status_absensi: string | null;
     sesi: string | null;
     penyimak_id: string | null;
+    detail_hafalan: string | null;
+    penyimak: string | null;
 };
 
 type HafalanSummary = {
@@ -287,6 +289,8 @@ export const HafalanShow = () => {
         status_absensi: raw.tahfidz_absensi?.status ?? null,
         sesi: raw.tahfidz_absensi?.tahfidz_sesi?.sesi ?? null,
         penyimak_id: raw.tahfidz_absensi?.penyimak_id ?? null,
+        detail_hafalan: raw.detail_hafalan ?? null,
+        penyimak: raw.penyimak ?? null,
     });
 
     const fetchHafalan = React.useCallback(async (start: string, end: string) => {
@@ -296,7 +300,7 @@ export const HafalanShow = () => {
             const { data, count, error } = await supabaseClient
                 .from("hafalan_tahfidz")
                 .select(`
-                    id,tanggal,surat,ayat_awal,ayat_akhir,juz,total_hafalan,status,predikat,catatan,status_setoran,alasan_tolak,
+                    id,tanggal,surat,ayat_awal,ayat_akhir,juz,total_hafalan,status,predikat,catatan,status_setoran,alasan_tolak,detail_hafalan,penyimak,
                     tahfidz_absensi!absensi_id(
                         status,
                         penyimak_id,
@@ -424,8 +428,9 @@ export const HafalanShow = () => {
     const STATUS_CFG: Record<string, { label: string; color: string }> = {
         HADIR: { label: "Hadir", color: "#16A34A" },
         SAKIT: { label: "Sakit", color: "#D97706" },
+        IZIN: { label: "Izin", color: "#2563EB" },
         GHAIB: { label: "Ghaib", color: "#DC2626" },
-        SEKOLAH: { label: "Sekolah", color: "#2563EB" },
+        SEKOLAH: { label: "Sekolah", color: "#6366F1" },
         PULANG: { label: "Pulang", color: "#9333EA" },
     };
 
@@ -541,6 +546,32 @@ export const HafalanShow = () => {
                     </Text>
                 </Tooltip>
             ),
+        },
+        {
+            title: "Detail Hafalan",
+            dataIndex: "detail_hafalan",
+            ellipsis: { showTitle: false },
+            render: (_, item) => (
+                <Tooltip title={item.detail_hafalan || "–"}>
+                    <Text style={{ color: token.colorTextSecondary, fontSize: 12 }} ellipsis>
+                        {item.detail_hafalan || "–"}
+                    </Text>
+                </Tooltip>
+            ),
+        },
+        {
+            title: "Penyimak",
+            dataIndex: "penyimak",
+            width: 100,
+            render: (_, item) => item.penyimak ? (
+                <Tag style={{
+                    background: isDark ? "#1E3A5F" : "#DBEAFE",
+                    border: "none", borderRadius: 6,
+                    color: "#2563EB", fontWeight: 600, fontSize: 11,
+                }}>
+                    {item.penyimak}
+                </Tag>
+            ) : <Text style={{ color: token.colorTextSecondary }}>–</Text>,
         },
     ];
 
@@ -813,7 +844,7 @@ export const HafalanShow = () => {
                                 let query = supabaseClient
                                     .from("hafalan_tahfidz")
                                     .select(`
-                                        id,tanggal,surat,ayat_awal,ayat_akhir,juz,total_hafalan,status,predikat,catatan,status_setoran,alasan_tolak,
+                                        id,tanggal,surat,ayat_awal,ayat_akhir,juz,total_hafalan,status,predikat,catatan,status_setoran,alasan_tolak,detail_hafalan,penyimak,
                                         tahfidz_absensi!absensi_id(
                                             status,
                                             penyimak_id,

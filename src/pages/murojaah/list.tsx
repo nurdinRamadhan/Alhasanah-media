@@ -172,7 +172,7 @@ const fetchAbsensiPivot = async (params: {
     let sesiQuery = supabaseClient
         .from("tahfidz_sesi")
         .select(
-            "id, tanggal, sesi, tahfidz_absensi(santri_nis, status, penyimak_id, penyimak:profiles!penyimak_id(full_name))"
+            "id, tanggal, sesi, tahfidz_absensi(santri_nis, status)"
         )
         .eq("kegiatan_id", "MUROJAAH")
         .gte("tanggal", params.startDate.slice(0, 10))
@@ -232,7 +232,8 @@ const fetchAbsensiPivot = async (params: {
                 status: a.status || "-",
                 jenis: detail?.jenis_murojaah || "-",
                 cakupan: formatCakupan(detail),
-                penyimak: a.penyimak?.full_name || "-",
+                detail_hafalan: detail?.detail_hafalan || "-",
+                penyimak: detail?.penyimak || "-",
             };
             if (sesi.sesi === "PAGI") rowMap[rowKey].pagi = sesiInfo;
             if (sesi.sesi === "SIANG") rowMap[rowKey].siang = sesiInfo;
@@ -292,8 +293,9 @@ const STATUS_CONFIG: Record<ActivityStatus, { label: string; color: string; antC
 const STATUS_ABSENSI = [
   { key: 'HADIR',   label: 'Hadir',       icon: '✅', color: '#16A34A', bg: 'rgba(22,163,74,0.10)' },
   { key: 'SAKIT',   label: 'Sakit',       icon: '🤒', color: '#D97706', bg: 'rgba(217,119,6,0.10)' },
+  { key: 'IZIN',    label: 'Izin',        icon: '📋', color: '#2563EB', bg: 'rgba(37,99,235,0.10)' },
   { key: 'GHAIB',   label: 'Ghaib',       icon: '❌', color: '#DC2626', bg: 'rgba(220,38,38,0.10)' },
-  { key: 'SEKOLAH', label: 'Sekolah',     icon: '🏫', color: '#2563EB', bg: 'rgba(37,99,235,0.10)' },
+  { key: 'SEKOLAH', label: 'Sekolah',     icon: '🏫', color: '#6366F1', bg: 'rgba(99,102,241,0.10)' },
   { key: 'PULANG',  label: 'Pulang',      icon: '🏠', color: '#9333EA', bg: 'rgba(147,51,234,0.10)' },
 ];
 
@@ -753,24 +755,27 @@ export const MurojaahList: React.FC = () => {
                 .eq("status_santri", "AKTIF");
             const santriMap = new Map((santriList || []).map((s: any) => [s.nis, s]));
 
-            // Kolom satu blok sesi (Pagi / Siang): Status, Jenis, Cakupan, Penyimak
-            const sesiColumns = (key: string, width = [11, 11, 26, 16]) => [
+            // Kolom satu blok sesi (Pagi / Siang): Status, Jenis, Cakupan, Detail Hafalan, Penyimak
+            const sesiColumns = (key: string, width = [11, 11, 26, 30, 16]) => [
                 { key: `${key}_status`, width: width[0] },
                 { key: `${key}_jenis`, width: width[1] },
                 { key: `${key}_cakupan`, width: width[2] },
-                { key: `${key}_penyimak`, width: width[3] },
+                { key: `${key}_detail_hafalan`, width: width[3] },
+                { key: `${key}_penyimak`, width: width[4] },
             ];
 
             const STATUS_FILLS: Record<string, string> = {
                 HADIR: 'FFD1FAE5',
                 SAKIT: 'FFFEF3C7',
+                IZIN: 'FFDBEAFE',
                 GHAIB: 'FFFEE2E2',
-                SEKOLAH: 'FFDBEAFE',
+                SEKOLAH: 'FFE0E7FF',
                 PULANG: 'FFFFEDD5',
             };
             const mapStatusKode = (s: string, _jenis: string): string => {
                 if (s === 'HADIR') return 'H';
                 if (s === 'SAKIT') return 'S';
+                if (s === 'IZIN') return 'I';
                 if (s === 'GHAIB') return 'GH';
                 if (s === 'SEKOLAH') return 'Sk';
                 if (s === 'PULANG') return 'P';
@@ -802,7 +807,7 @@ export const MurojaahList: React.FC = () => {
                 // Header baris 2: nama kolom detail
                 ws.getRow(4).values = [
                     "NO", "Hari, Tgl (M)", "Tanggal (H)", "NIS", "Nama Santri", "Kelas",
-                    "Status", "Jenis", "Cakupan", "Penyimak",
+                    "Status", "Jenis", "Cakupan", "Detail Hafalan", "Penyimak",
                 ];
                 ws.getRow(4).font = { bold: true };
                 ws.getRow(4).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
@@ -828,6 +833,7 @@ export const MurojaahList: React.FC = () => {
                         siang_status: r.siang?.status || "-",
                         siang_jenis: r.siang?.jenis || "-",
                         siang_cakupan: r.siang?.cakupan || "-",
+                        siang_detail_hafalan: r.siang?.detail_hafalan || "-",
                         siang_penyimak: r.siang?.penyimak || "-",
                     });
                     const row = ws.getRow(ws.rowCount);
@@ -848,7 +854,7 @@ export const MurojaahList: React.FC = () => {
                 rows.forEach((r: any) => {
                     if (santriSeen.has(r.santri_nis)) return;
                     santriSeen.add(r.santri_nis);
-                    const h = { nis: r.santri_nis, nama: r.nama, H: 0, S: 0, GH: 0, Sk: 0, P: 0 };
+                    const h = { nis: r.santri_nis, nama: r.nama, H: 0, S: 0, I: 0, GH: 0, Sk: 0, P: 0 };
                     rows.forEach((rr: any) => {
                         if (rr.santri_nis !== r.santri_nis) return;
                         [rr.pagi, rr.siang].forEach((sesi: any) => {
@@ -867,7 +873,7 @@ export const MurojaahList: React.FC = () => {
                 rekapTitle.font = { size: 11, bold: true, color: { argb: 'FF065F46' } };
 
                 const rekapHeaderRow = rekapStart + 1;
-                ws.getRow(rekapHeaderRow).values = ['NIS', 'Nama Santri', 'H', 'S', 'GH', 'Sk', 'P'];
+                ws.getRow(rekapHeaderRow).values = ['NIS', 'Nama Santri', 'H', 'S', 'I', 'GH', 'Sk', 'P'];
                 ws.getRow(rekapHeaderRow).eachCell((cell: any) => { cell.font = B; cell.alignment = C; });
                 ws.getRow(rekapHeaderRow).fill = LGF;
                 ws.getRow(rekapHeaderRow).outlineLevel = 0;
@@ -877,20 +883,20 @@ export const MurojaahList: React.FC = () => {
 
                 rekapRows.forEach((h: any, i: number) => {
                     const r = rekapStart + 2 + i;
-                    ws.getRow(r).values = [h.nis, h.nama, h.H, h.S, h.GH, h.Sk, h.P];
+                    ws.getRow(r).values = [h.nis, h.nama, h.H, h.S, h.I, h.GH, h.Sk, h.P];
                     ws.getRow(r).eachCell((cell: any, colIdx: number) => {
                         if (colIdx > 2) cell.alignment = C;
                     });
                     // Color the count cells
-                    const colorMap: Record<string, string> = { H: 'FFD1FAE5', S: 'FFFEF3C7', GH: 'FFFEE2E2', Sk: 'FFDBEAFE', P: 'FFFFEDD5' };
-                    ['H', 'S', 'GH', 'Sk', 'P'].forEach((k, ci) => {
+                    const colorMap: Record<string, string> = { H: 'FFD1FAE5', S: 'FFFEF3C7', I: 'FFDBEAFE', GH: 'FFFEE2E2', Sk: 'FFE0E7FF', P: 'FFFFEDD5' };
+                    ['H', 'S', 'I', 'GH', 'Sk', 'P'].forEach((k, ci) => {
                         const cell = ws.getCell(`${String.fromCharCode(67 + ci)}${r}`);
                         if ((h as any)[k] > 0) { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colorMap[k] } }; }
                     });
                 });
 
                 // Filter & freeze pada baris header detail (baris 4)
-                ws.autoFilter = { from: "A4", to: "J4" };
+                ws.autoFilter = { from: "A4", to: "K4" };
                 ws.views = [{ state: "frozen", ySplit: 4 }];
             } else {
                 if (!selectedSantri) {
@@ -921,13 +927,13 @@ export const MurojaahList: React.FC = () => {
                 ws.mergeCells("A7:B7");
                 ws.getCell("A7").value = "TANGGAL";
                 applySesiHeaderStyle(ws.getCell("A7"), "FF374151");
-                ws.mergeCells("C7:F7");
+                ws.mergeCells("C7:G7");
                 ws.getCell("C7").value = "SESI SIANG";
                 applySesiHeaderStyle(ws.getCell("C7"), "FF2563EB");
 
                 ws.getRow(8).values = [
                     "Hari, Masehi", "Hijriah",
-                    "Status", "Jenis", "Cakupan", "Penyimak",
+                    "Status", "Jenis", "Cakupan", "Detail Hafalan", "Penyimak",
                 ];
                 ws.getRow(8).font = { bold: true };
                 ws.getRow(8).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
@@ -945,6 +951,7 @@ export const MurojaahList: React.FC = () => {
                         siang_status: r.siang?.status || "-",
                         siang_jenis: r.siang?.jenis || "-",
                         siang_cakupan: r.siang?.cakupan || "-",
+                        siang_detail_hafalan: r.siang?.detail_hafalan || "-",
                         siang_penyimak: r.siang?.penyimak || "-",
                     });
                     const row = ws.getRow(ws.rowCount);
@@ -952,7 +959,7 @@ export const MurojaahList: React.FC = () => {
                     if (sFill) row.getCell(3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: sFill } };
                 });
 
-                ws.autoFilter = { from: "A8", to: "F8" };
+                ws.autoFilter = { from: "A8", to: "G8" };
                 ws.views = [{ state: "frozen", ySplit: 8 }];
             }
 
