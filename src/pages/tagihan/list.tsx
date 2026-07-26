@@ -110,7 +110,7 @@ export const TagihanList = () => {
     useEffect(() => {
         supabaseClient
             .from("tagihan_santri")
-            .select("*, santri(nama, nis)")
+            .select("*, santri(nama, nis, kelas, jurusan, jenis_kelamin)")
             .then(({ data, error }) => {
                 if (!error && data) setAllTagihanForKpi(data as ITagihanSantri[]);
             });
@@ -409,7 +409,7 @@ export const TagihanList = () => {
         try {
             const { data, error } = await supabaseClient
                 .from("tagihan_santri")
-                .select("*, ref_jenis_pembayaran!inner(nama_pembayaran)")
+                .select("*, santri(nama, nis, kelas, jurusan), ref_jenis_pembayaran!inner(nama_pembayaran)")
                 .eq("santri_nis", group.santri_nis)
                 .order("created_at", { ascending: false });
             
