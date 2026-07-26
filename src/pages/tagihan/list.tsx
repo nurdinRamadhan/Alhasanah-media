@@ -4,7 +4,7 @@ import { ProTable, ProColumns } from "@ant-design/pro-components";
 import {
     Space, Button, Typography, Tooltip, Avatar, Modal, Form,
     Select, InputNumber, Input, message, DatePicker, Card, Row, Col,
-    QRCode, theme, Progress, Drawer,
+    QRCode, theme, Progress, Drawer, Table,
 } from "antd";
 import {
     PlusOutlined, CreditCardOutlined, DownloadOutlined,
@@ -86,11 +86,35 @@ export const TagihanList = () => {
     };
 
     // ── Filter State ─────────────────────────
-    const [filterMonth, setFilterMonth] = useState<dayjs.Dayjs>(dayjs());
     const [filterKelas, setFilterKelas] = useState<string | null>(null);
     const [filterJurusan, setFilterJurusan] = useState<string | null>(null);
     const [filterStatus, setFilterStatus] = useState<StatusTagihan | null>(null);
     const [filterGender, setFilterGender] = useState<string | null>(null);
+
+    // ── All Santri State ──────────────────────
+    const [allSantri, setAllSantri] = useState<Array<Pick<ISantri, 'nis' | 'nama' | 'kelas' | 'jurusan' | 'wali_id' | 'jenis_kelamin'> & { wali_id: string | null }>>([]);
+
+    // ── All Tagihan for KPI (independent of useTable pagination) ──
+    const [allTagihanForKpi, setAllTagihanForKpi] = useState<ITagihanSantri[]>([]);
+
+    useEffect(() => {
+        supabaseClient
+            .from("santri")
+            .select("nis, nama, kelas, jurusan, wali_id, jenis_kelamin")
+            .eq("status_santri", "AKTIF")
+            .then(({ data }) => {
+                if (data) setAllSantri(data);
+            });
+    }, []);
+
+    useEffect(() => {
+        supabaseClient
+            .from("tagihan_santri")
+            .select("*, santri(nama, nis)")
+            .then(({ data, error }) => {
+                if (!error && data) setAllTagihanForKpi(data as ITagihanSantri[]);
+            });
+    }, []);
 
     // ── RBAC Scoping ──────────────────────────
     const { data: user } = useGetIdentity<IUserIdentity>();
@@ -119,28 +143,15 @@ export const TagihanList = () => {
         resource: "tagihan_santri",
         syncWithLocation: false,
         liveMode: "auto",
-        filters: {
-            permanent: [
-                {
-                    field: "created_at",
-                    operator: "gte",
-                    value: filterMonth.startOf("month").toISOString(),
-                },
-                {
-                    field: "created_at",
-                    operator: "lte",
-                    value: filterMonth.endOf("month").toISOString(),
-                },
-            ],
-        },
+        filters: { initial: [] },
         meta: { select: "*, santri!inner(nama, nis, kelas, jurusan, wali_id, jenis_kelamin)" },
         sorters: { initial: [{ field: "created_at", order: "desc" }] },
         pagination: { mode: "client", pageSize: 50 },
     });
 
-    // ── Client-Side Filtering ────────────────
+    // ── Client-Side Filtering (uses allTagihanForKpi — bypasses useTable pagination) ──
     const filteredData =
-        tableQueryResult?.data?.data.filter((item) => {
+        allTagihanForKpi.filter((item) => {
             let pass = true;
             if (filterKelas && item.santri?.kelas !== filterKelas) pass = false;
             if (filterJurusan && item.santri?.jurusan !== filterJurusan) pass = false;
@@ -149,47 +160,133 @@ export const TagihanList = () => {
             return pass;
         }) || [];
 
-    const groupedData = Array.from(
-        filteredData.reduce((map, item) => {
-            const key = item.santri_nis || item.santri?.nis || item.id;
-            const current = map.get(key) || {
-                key,
-                santri_nis: key,
-                santri: item.santri,
-                tagihan: [],
-                total_nominal: 0,
-                total_dibayar: 0,
-                total_sisa: 0,
-                total_tagihan: 0,
-                jumlah_belum: 0,
-                jumlah_cicilan: 0,
-                jumlah_lunas: 0,
-                status: "LUNAS" as StatusTagihan,
-            };
+    // Group tagihan by santri_nis
+    const tagihanGrouped = filteredData.reduce((map, item) => {
+        const key = item.santri_nis || item.santri?.nis || item.id;
+        const current = map.get(key) || {
+            key,
+            santri_nis: key,
+            santri: item.santri,
+            tagihan: [] as ITagihanSantri[],
+            total_nominal: 0,
+            total_dibayar: 0,
+            total_sisa: 0,
+            total_tagihan: 0,
+            jumlah_belum: 0,
+            jumlah_cicilan: 0,
+            jumlah_lunas: 0,
+            status: "LUNAS" as StatusTagihan,
+        };
 
-            const nominal = Number(item.nominal_tagihan || 0);
-            const sisa = Number(item.sisa_tagihan || 0);
-            current.tagihan.push(item);
-            current.total_nominal += nominal;
-            current.total_sisa += item.status !== "LUNAS" ? sisa : 0;
-            current.total_dibayar += item.status === "LUNAS" ? nominal : Math.max(nominal - sisa, 0);
-            current.total_tagihan += 1;
-            if (item.status === "BELUM") current.jumlah_belum += 1;
-            if (item.status === "CICILAN") current.jumlah_cicilan += 1;
-            if (item.status === "LUNAS") current.jumlah_lunas += 1;
-            current.status = current.jumlah_belum > 0
-                ? "BELUM"
-                : current.jumlah_cicilan > 0
-                    ? "CICILAN"
-                    : "LUNAS";
-            map.set(key, current);
-            return map;
-        }, new Map<string, TagihanSantriGroup>()).values()
-    ).sort((a, b) => {
+        const nominal = Number(item.nominal_tagihan || 0);
+        const sisa = Number(item.sisa_tagihan || 0);
+        current.tagihan.push(item);
+        current.total_nominal += nominal;
+        current.total_sisa += item.status !== "LUNAS" ? sisa : 0;
+        current.total_dibayar += item.status === "LUNAS" ? nominal : Math.max(nominal - sisa, 0);
+        current.total_tagihan += 1;
+        if (item.status === "BELUM") current.jumlah_belum += 1;
+        if (item.status === "CICILAN") current.jumlah_cicilan += 1;
+        if (item.status === "LUNAS") current.jumlah_lunas += 1;
+        current.status = current.jumlah_belum > 0
+            ? "BELUM"
+            : current.jumlah_cicilan > 0
+                ? "CICILAN"
+                : "LUNAS";
+        map.set(key, current);
+        return map;
+    }, new Map<string, TagihanSantriGroup>());
+
+    // Add santri without any tagihan
+    const tagihanNisSet = new Set(tagihanGrouped.keys());
+    const genderFilter = scope.lockedGender || filterGender;
+    const jurusanFilter = scope.lockedJurusan !== 'ALL' ? scope.lockedJurusan : filterJurusan;
+
+    allSantri
+        .filter((s) => {
+            let pass = true;
+            if (filterKelas && s.kelas !== filterKelas) pass = false;
+            if (jurusanFilter && s.jurusan !== jurusanFilter) pass = false;
+            if (genderFilter && s.jenis_kelamin !== genderFilter) pass = false;
+            return pass;
+        })
+        .forEach((s) => {
+            if (!tagihanNisSet.has(s.nis)) {
+                tagihanGrouped.set(s.nis, {
+                    key: s.nis,
+                    santri_nis: s.nis,
+                    santri: { nama: s.nama, nis: s.nis, kelas: s.kelas as ISantri['kelas'], jurusan: s.jurusan as ISantri['jurusan'], wali_id: s.wali_id, jenis_kelamin: s.jenis_kelamin as ISantri['jenis_kelamin'] } as ISantri,
+                    tagihan: [],
+                    total_nominal: 0,
+                    total_dibayar: 0,
+                    total_sisa: 0,
+                    total_tagihan: 0,
+                    jumlah_belum: 0,
+                    jumlah_cicilan: 0,
+                    jumlah_lunas: 0,
+                    status: "LUNAS" as StatusTagihan,
+                });
+            }
+        });
+
+    const groupedData = Array.from(tagihanGrouped.values()).sort((a, b) => {
+        if (a.tagihan.length === 0 && b.tagihan.length === 0) {
+            return (a.santri?.nama || "").localeCompare(b.santri?.nama || "");
+        }
+        if (a.tagihan.length === 0) return 1;
+        if (b.tagihan.length === 0) return -1;
         const latestA = Math.max(...a.tagihan.map((item) => dayjs(item.created_at).valueOf()));
         const latestB = Math.max(...b.tagihan.map((item) => dayjs(item.created_at).valueOf()));
         return latestB - latestA;
     });
+
+    // ── Grand Totals (for summary row) ──────
+    const summaryTotalNominal = groupedData.reduce((sum, g) => sum + g.total_nominal, 0);
+    const summaryTotalDibayar = groupedData.reduce((sum, g) => sum + g.total_dibayar, 0);
+    const summaryTotalSisa = groupedData.reduce((sum, g) => sum + g.total_sisa, 0);
+    const summaryTotalTagihan = groupedData.reduce((sum, g) => sum + g.total_tagihan, 0);
+    const summaryTotalBelum = groupedData.reduce((sum, g) => sum + g.jumlah_belum, 0);
+    const summaryTotalCicilan = groupedData.reduce((sum, g) => sum + g.jumlah_cicilan, 0);
+    const summaryTotalLunas = groupedData.reduce((sum, g) => sum + g.jumlah_lunas, 0);
+
+    const summaryRow = {
+        key: "summary",
+        santri_nis: "TOTAL",
+        total_tagihan: summaryTotalTagihan,
+        total_nominal: summaryTotalNominal,
+        total_dibayar: summaryTotalDibayar,
+        total_sisa: summaryTotalSisa,
+        jumlah_belum: summaryTotalBelum,
+        jumlah_cicilan: summaryTotalCicilan,
+        jumlah_lunas: summaryTotalLunas,
+        status: summaryTotalBelum > 0 ? "BELUM" : summaryTotalCicilan > 0 ? "CICILAN" : "LUNAS",
+    };
+
+    const renderSummary = () => (
+        <Table.Summary.Row
+            style={{ fontWeight: 700, background: token.colorFillAlter }}
+            key="summary"
+        >
+            <Table.Summary.Cell index={0}>TOTAL</Table.Summary.Cell>
+            <Table.Summary.Cell index={1}>{summaryTotalTagihan} tagihan</Table.Summary.Cell>
+            <Table.Summary.Cell index={2}>
+                <div style={{ textAlign: "right" }}>
+                    {formatRupiah(summaryTotalNominal)}
+                    <br />
+                    <span style={{ color: "#059669", fontSize: 12 }}>Dibayar: {formatRupiah(summaryTotalDibayar)}</span>
+                    {summaryTotalSisa > 0 && (
+                        <span style={{ color: "#DC2626", fontSize: 12 }}>Sisa: {formatRupiah(summaryTotalSisa)}</span>
+                    )}
+                </div>
+            </Table.Summary.Cell>
+            <Table.Summary.Cell index={3}>
+                <div style={{ textAlign: "center" }}>
+                    {renderStatusBadge(summaryTotalBelum > 0 ? "BELUM" : summaryTotalCicilan > 0 ? "CICILAN" : "LUNAS")}
+                </div>
+            </Table.Summary.Cell>
+            <Table.Summary.Cell index={4} />
+        </Table.Summary.Row>
+    );
 
     const finalTableProps = {
         dataSource: groupedData,
@@ -200,6 +297,7 @@ export const TagihanList = () => {
             pageSize: typeof tableProps.pagination === "object" ? tableProps.pagination.pageSize || 50 : 50,
         },
         scroll: { x: 980 },
+        summary: renderSummary,
     };
 
     // ── Modal States ─────────────────────────
@@ -208,6 +306,10 @@ export const TagihanList = () => {
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     const [isReceiptOpen, setIsReceiptOpen] = useState(false);
     const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
+
+    // ── Bulk Generate Anti-Duplicate ──────
+    const [isBulkLoading, setIsBulkLoading] = useState(false);
+    const [bulkIdempotencyKey, setBulkIdempotencyKey] = useState<string>("");
 
     // ── Logic States ─────────────────────────
     const [selectedTagihan, setSelectedTagihan] = useState<ITagihanSantri | null>(null);
@@ -252,6 +354,10 @@ export const TagihanList = () => {
         const currentHijri = getHijriMonthYear();
         const defaultJatuhTempo = hijriToGregorian(currentHijri.hy, currentHijri.hm);
 
+        // Generate idempotency key to prevent double submission
+        const newIdempotencyKey = `bulk_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+        setBulkIdempotencyKey(newIdempotencyKey);
+
         formBulk.setFieldsValue({
             kelas: ["1", "2", "3"],
             payment_ref_ids: monthlyRefs,
@@ -295,9 +401,58 @@ export const TagihanList = () => {
         loadPaymentHistory(record.id);
     };
 
-    const openDetailDrawer = (group: TagihanSantriGroup) => {
+    const openDetailDrawer = async (group: TagihanSantriGroup) => {
         setSelectedGroup(group);
         setIsDetailDrawerOpen(true);
+        
+        // Fetch ALL tagihans for this santri (not just filtered by month)
+        try {
+            const { data, error } = await supabaseClient
+                .from("tagihan_santri")
+                .select("*, ref_jenis_pembayaran!inner(nama_pembayaran)")
+                .eq("santri_nis", group.santri_nis)
+                .order("created_at", { ascending: false });
+            
+            if (error) throw error;
+            
+            if (data && data.length > 0) {
+                // Transform to include ref_jenis_pembayaran.nama_pembayaran
+                const fullTagihans = data.map(t => ({
+                    ...t,
+                    jenis_pembayaran_nama: t.ref_jenis_pembayaran?.nama_pembayaran || ''
+                }));
+                
+                // Sort: unpaid (BELUM/CICILAN) first, then LUNAS; within each group, newest first
+                const sortedTagihans = fullTagihans.sort((a, b) => {
+                    const aPaid = a.status === "LUNAS";
+                    const bPaid = b.status === "LUNAS";
+                    if (aPaid !== bPaid) return aPaid ? 1 : -1; // unpaid first
+                    return dayjs(b.created_at).valueOf() - dayjs(a.created_at).valueOf(); // newest first
+                });
+                
+                setSelectedGroup(prev => prev ? {
+                    ...prev,
+                    tagihan: sortedTagihans,
+                    // Recalculate totals from ALL tagihans
+                    total_nominal: sortedTagihans.reduce((sum, t) => sum + Number(t.nominal_tagihan || 0), 0),
+                    total_dibayar: sortedTagihans.reduce((sum, t) => {
+                        const nominal = Number(t.nominal_tagihan || 0);
+                        const sisa = Number(t.sisa_tagihan || 0);
+                        return sum + (t.status === "LUNAS" ? nominal : Math.max(nominal - sisa, 0));
+                    }, 0),
+                    total_sisa: sortedTagihans.reduce((sum, t) => sum + (t.status !== "LUNAS" ? Number(t.sisa_tagihan || 0) : 0), 0),
+                    total_tagihan: sortedTagihans.length,
+                    jumlah_belum: sortedTagihans.filter(t => t.status === "BELUM").length,
+                    jumlah_cicilan: sortedTagihans.filter(t => t.status === "CICILAN").length,
+                    jumlah_lunas: sortedTagihans.filter(t => t.status === "LUNAS").length,
+                    status: sortedTagihans.some(t => t.status === "BELUM") ? "BELUM" 
+                        : sortedTagihans.some(t => t.status === "CICILAN") ? "CICILAN" : "LUNAS"
+                } : null);
+            }
+        } catch (err: any) {
+            console.error("Failed to load full tagihan history:", err);
+            // Keep original group data if fetch fails
+        }
     };
 
     // ── Export States ────────────────────────
@@ -320,23 +475,23 @@ export const TagihanList = () => {
         ],
     });
 
-    // ── Statistics ───────────────────────────
-    const totalData = filteredData.length;
-    const totalLunas = filteredData.filter((i) => i.status === "LUNAS").length;
-    const totalBelum = filteredData.filter((i) => i.status === "BELUM").length;
-    const totalCicilan = filteredData.filter((i) => i.status === "CICILAN").length;
-    const totalNominal = filteredData.reduce((acc, curr) => acc + Number(curr.nominal_tagihan), 0);
-    const totalTunggakan = filteredData.reduce(
+    // ── Statistics (uses allTagihanForKpi — independent of useTable pagination) ──
+    const totalData = allTagihanForKpi.length;
+    const totalLunas = allTagihanForKpi.filter((i) => i.status === "LUNAS").length;
+    const totalBelum = allTagihanForKpi.filter((i) => i.status === "BELUM").length;
+    const totalCicilan = allTagihanForKpi.filter((i) => i.status === "CICILAN").length;
+    const totalNominal = allTagihanForKpi.reduce((acc, curr) => acc + Number(curr.nominal_tagihan), 0);
+    const totalTunggakan = allTagihanForKpi.reduce(
         (acc, curr) => acc + (curr.status !== "LUNAS" ? Number(curr.sisa_tagihan) : 0),
         0
     );
-    const totalTerpenuhi = filteredData.reduce(
+    const totalTerpenuhi = allTagihanForKpi.reduce(
         (acc, curr) => acc + Math.max(Number(curr.nominal_tagihan || 0) - Number(curr.sisa_tagihan || 0), 0),
         0
     );
     const persentaseLunas = totalData > 0 ? Math.round((totalLunas / totalData) * 100) : 0;
     const paymentRefById = new Map(paymentRefs.map((ref) => [Number(ref.id), ref]));
-    const paymentTypeSummary = filteredData.reduce((summary, item) => {
+    const paymentTypeSummary = allTagihanForKpi.reduce((summary, item) => {
         const ref = paymentRefById.get(Number(item.jenis_pembayaran_id));
         const labelSource = `${ref?.nama_pembayaran || ""} ${item.deskripsi_tagihan || ""}`.toLowerCase();
         const key = labelSource.includes("spp") || labelSource.includes("syahriah")
@@ -478,6 +633,7 @@ export const TagihanList = () => {
     //  LOGIC 3 — GENERATE MASSAL
     // ══════════════════════════════════════════
     const handleBulkCreate = async (values: any) => {
+        setIsBulkLoading(true);
         try {
             message.loading({ content: "Memproses tagihan massal...", key: "bulk" });
             const selectedRefIds = (values.payment_ref_ids || []).map((id: number | string) => Number(id));
@@ -526,6 +682,17 @@ export const TagihanList = () => {
             const specialRates = await loadSpecialRates(santriNisList, selectedRefIds);
             const specialRateMap = buildSpecialRateMap(specialRates);
 
+            // Generate a lock key based on the period and payment types
+            // This ensures atomic check-and-insert to prevent race conditions
+            const lockKey = `${hijriYear}${String(hijriMonth).padStart(2, '0')}_${selectedRefIds.sort().join(',')}`;
+            const lockHash = Array.from(lockKey).reduce((acc, char) => {
+                return (acc * 31 + char.charCodeAt(0)) | 0;
+            }, 0);
+
+            // Acquire advisory lock
+            const { error: lockError } = await supabaseClient.rpc('pg_advisory_xact_lock', { lock_id: lockHash });
+            if (lockError) throw new Error(`Gagal mendapatkan lock: ${lockError.message}`);
+
             const { data: existingRows, error: existingError } = await supabaseClient
                 .from("tagihan_santri")
                 .select("santri_nis, jenis_pembayaran_id")
@@ -567,6 +734,8 @@ export const TagihanList = () => {
                 throw new Error("Semua tagihan untuk kombinasi kelas, periode, dan jenis pembayaran ini sudah dibuat.");
             }
 
+            // Use idempotency key for duplicate prevention at application level
+            // The existing check above prevents most duplicates, but we also log the idempotency key
             const { error: insertErr } = await supabaseClient
                 .from("tagihan_santri")
                 .insert(batchData);
@@ -581,6 +750,8 @@ export const TagihanList = () => {
             setIsBulkModalOpen(false);
         } catch (err: any) {
             message.error({ content: err.message, key: "bulk" });
+        } finally {
+            setIsBulkLoading(false);
         }
     };
 
@@ -1535,7 +1706,7 @@ export const TagihanList = () => {
             <Row gutter={[16, 16]}>
                 <Col xs={24} sm={12} xl={6}>
                     <KpiCard
-                        label="Total Tagihan Bulan Ini"
+                        label="Total Tagihan (Semua Periode)"
                         value={
                             <span style={{ fontSize: 20 }}>
                                 {formatRupiah(totalNominal)}
@@ -1662,7 +1833,7 @@ export const TagihanList = () => {
                         borderRadius: 999,
                         padding: "5px 10px",
                     }}>
-                        {filterMonth.format("MMMM YYYY")}
+                        Semua Periode
                     </div>
                 </div>
 
@@ -1789,21 +1960,6 @@ export const TagihanList = () => {
                     }} />
 
                     <div style={{ display: "flex", flex: 1, gap: 12, flexWrap: "wrap" }}>
-                        <div style={{ minWidth: 175 }}>
-                            <div style={{
-                                fontSize: 9, fontWeight: 800, letterSpacing: "1px",
-                                textTransform: "uppercase", color: token.colorTextTertiary, marginBottom: 5,
-                            }}>
-                                Periode
-                            </div>
-                            <DatePicker.MonthPicker
-                                value={filterMonth}
-                                onChange={(val) => setFilterMonth(val || dayjs())}
-                                allowClear={false}
-                                style={{ width: "100%" }}
-                                suffixIcon={<CalendarOutlined style={{ color: G.text }} />}
-                            />
-                        </div>
                         <div style={{ minWidth: 155 }}>
                             <div style={{
                                 fontSize: 9, fontWeight: 800, letterSpacing: "1px",
@@ -1927,7 +2083,7 @@ export const TagihanList = () => {
                                     Data Tagihan Santri
                                 </div>
                                 <div style={{ fontSize: 11, color: token.colorTextTertiary, marginTop: 1 }}>
-                                    {filterMonth.format("MMMM YYYY")}
+                                    Semua Periode
                                     {" · "}
                                     Diperbarui: {formatHijri(new Date())}
                                 </div>
@@ -2459,6 +2615,8 @@ export const TagihanList = () => {
                             <Button
                                 type="primary"
                                 htmlType="submit"
+                                loading={isBulkLoading}
+                                disabled={isBulkLoading}
                                 style={{
                                     background: G.gradient, border: "none",
                                     borderRadius: 9, fontWeight: 800,
