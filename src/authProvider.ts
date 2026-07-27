@@ -46,6 +46,18 @@ export const authProvider: AuthBindings = {
           };
         }
 
+        const blockedRoles = ["wali", "alumni"];
+        if (blockedRoles.includes(profile?.role)) {
+          await supabaseClient.auth.signOut();
+          return {
+            success: false,
+            error: {
+              message: "Akun wali santri tidak dapat mengakses panel admin. Silakan gunakan aplikasi Al-Hasanah Media.",
+              name: "Role Blocked",
+            },
+          };
+        }
+
         let targetUrl = "/";
         const role = profile?.role || "dewan";
 
@@ -79,7 +91,7 @@ export const authProvider: AuthBindings = {
 
         const { data: profile, error: profileError } = await supabaseClient
           .from("profiles")
-          .select("is_active")
+          .select("is_active, role")
           .eq("id", session.user.id)
           .maybeSingle();
 
@@ -89,6 +101,12 @@ export const authProvider: AuthBindings = {
         }
 
         if (!profile?.is_active) {
+          await supabaseClient.auth.signOut();
+          clearIdentityCache();
+          return { authenticated: false, redirectTo: "/login" };
+        }
+
+        if (["wali", "alumni"].includes(profile?.role)) {
           await supabaseClient.auth.signOut();
           clearIdentityCache();
           return { authenticated: false, redirectTo: "/login" };

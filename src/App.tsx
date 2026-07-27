@@ -92,7 +92,8 @@ import {
   NotificationList, NotificationCreate, SelfHealingCenterPage, BackendDiagnosticsPage,
   PrivateAuditLogPage, RagKnowledgePage, LoadingFallback,
   KoreksiHijriahList,
-  JadwalKegiatanList, JadwalKegiatanCreate, JadwalKegiatanEdit, JadwalKegiatanShow
+  JadwalKegiatanList, JadwalKegiatanCreate, JadwalKegiatanEdit, JadwalKegiatanShow,
+  DownloadPage
 } from "./lazyPages";
 
 import { AiFloatingButton }   from "./components/AiFloatingButton";
@@ -1144,6 +1145,9 @@ const InnerApp: React.FC = () => {
               <Route element={<Authenticated key="auth-pages" fallback={<Outlet />}><NavigateToResource /></Authenticated>}>
                 <Route path="/login" element={<PremiumLoginPage />} />
               </Route>
+
+              {/* PUBLIC PAGES — tanpa auth, tanpa layout admin */}
+              <Route path="/download" element={<DownloadPage />} />
 
               {/* PROTECTED */}
               <Route element={

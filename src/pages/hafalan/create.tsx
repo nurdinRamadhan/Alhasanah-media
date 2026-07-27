@@ -50,8 +50,6 @@ const STATUS_ABSENSI = [
   { key: 'SAKIT',   label: 'Sakit',       icon: '🤒', color: '#D97706' },
   { key: 'IZIN',    label: 'Izin',        icon: '📋', color: '#2563EB' },
   { key: 'GHAIB',   label: 'Ghaib',       icon: '❌', color: '#DC2626' },
-  { key: 'SEKOLAH', label: 'Sekolah',     icon: '🏫', color: '#6366F1' },
-  { key: 'PULANG',  label: 'Pulang',      icon: '🏠', color: '#9333EA' },
 ];
 
 const STATUS_LABEL: Record<string, string> = {

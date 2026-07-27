@@ -85,6 +85,9 @@ export const JadwalKegiatanCreate = React.lazy(() => import("./pages/jadwal-kegi
 export const JadwalKegiatanEdit   = React.lazy(() => import("./pages/jadwal-kegiatan/form").then(m => ({ default: m.JadwalKegiatanEdit })));
 export const JadwalKegiatanShow   = React.lazy(() => import("./pages/jadwal-kegiatan/show").then(m => ({ default: m.JadwalKegiatanShow })));
 
+// ── Public Pages ──
+export const DownloadPage = React.lazy(() => import("./pages/public/download").then(m => ({ default: m.DownloadPage })));
+
 export const LoadingFallback = () => (
   <div style={{
     height: "70vh", display: "flex", alignItems: "center", justifyContent: "center",

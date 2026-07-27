@@ -295,8 +295,6 @@ const STATUS_ABSENSI = [
   { key: 'SAKIT',   label: 'Sakit',       icon: '🤒', color: '#D97706', bg: 'rgba(217,119,6,0.10)' },
   { key: 'IZIN',    label: 'Izin',        icon: '📋', color: '#2563EB', bg: 'rgba(37,99,235,0.10)' },
   { key: 'GHAIB',   label: 'Ghaib',       icon: '❌', color: '#DC2626', bg: 'rgba(220,38,38,0.10)' },
-  { key: 'SEKOLAH', label: 'Sekolah',     icon: '🏫', color: '#6366F1', bg: 'rgba(99,102,241,0.10)' },
-  { key: 'PULANG',  label: 'Pulang',      icon: '🏠', color: '#9333EA', bg: 'rgba(147,51,234,0.10)' },
 ];
 
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
@@ -1426,8 +1424,6 @@ export const MurojaahList: React.FC = () => {
                                             <Tag color="green" style={{ fontSize: 10 }}>HADIR = Setoran</Tag>
                                             <Tag color="red" style={{ fontSize: 10 }}>GHAIB</Tag>
                                             <Tag color="orange" style={{ fontSize: 10 }}>SAKIT</Tag>
-                                            <Tag color="purple" style={{ fontSize: 10 }}>PULANG</Tag>
-                                            <Tag color="blue" style={{ fontSize: 10 }}>SEKOLAH</Tag>
                                             <DatePicker
                                                 value={sesiTanggal}
                                                 onChange={(d) => d && setSesiTanggal(d)}
