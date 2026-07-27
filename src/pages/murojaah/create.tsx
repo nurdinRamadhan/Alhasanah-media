@@ -44,16 +44,29 @@ export const MurojaahCreate = () => {
     const selectedDate = Form.useWatch("tanggal", form);
     const selectedSantriNis = Form.useWatch("santri_nis", form);
 
-    // Load daftar penyimak (dewan/kesantrian dengan akses TAHFIDZ)
+    // Load daftar penyimak dari ref_penyimak (master data)
     useEffect(() => {
         supabaseClient
-            .from("profiles")
-            .select("id, full_name")
-            .in("role", ["dewan", "kesantrian"])
-            .or("akses_jurusan.eq.ALL,akses_jurusan.ilike.%TAHFIDZ%")
-            .order("full_name")
-            .then(({ data }) => {
-                if (data) setPenyimakList(data.map((d: any) => ({ id: d.id, nama: d.full_name })));
+            .from("ref_penyimak")
+            .select("id, nama")
+            .eq("is_active", true)
+            .order("nama")
+            .then(({ data, error }) => {
+                if (error) {
+                    console.error("Gagal load ref_penyimak:", error);
+                    // Fallback: load dari profiles
+                    supabaseClient
+                        .from("profiles")
+                        .select("id, full_name")
+                        .in("role", ["dewan", "kesantrian"])
+                        .or("akses_jurusan.eq.ALL,akses_jurusan.ilike.%TAHFIDZ%")
+                        .order("full_name")
+                        .then(({ data: fallback }) => {
+                            if (fallback) setPenyimakList(fallback.map((d: any) => ({ id: d.id, nama: d.full_name })));
+                        });
+                } else if (data) {
+                    setPenyimakList(data);
+                }
             });
     }, []);
 
@@ -63,17 +76,6 @@ export const MurojaahCreate = () => {
             form.setFieldValue("santri_nis", nisFromUrl);
         }
     }, [form, searchParams]);
-
-    useEffect(() => {
-        supabaseClient
-            .from("ref_penyimak")
-            .select("id, nama")
-            .eq("is_active", true)
-            .order("nama")
-            .then(({ data }) => {
-                if (data) setPenyimakList(data);
-            });
-    }, []);
 
     const { selectProps: santriSelectProps } = useSelect<ISantri>({
         resource: "santri",
