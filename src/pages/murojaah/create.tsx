@@ -55,7 +55,7 @@ export const MurojaahCreate = () => {
             .or("akses_jurusan.eq.ALL,akses_jurusan.ilike.%TAHFIDZ%")
             .order("full_name")
             .then(({ data }) => {
-                if (data) setPenyimakOptions(data as IProfile[]);
+                if (data) setPenyimakList(data.map((d: any) => ({ id: d.id, nama: d.full_name })));
             });
     }, []);
 
