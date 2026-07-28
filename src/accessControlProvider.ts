@@ -88,14 +88,19 @@ export const accessControlProvider: AccessControlProvider = {
             "ulangan_menu", "weekly_tests", "ulangan_arsip",
             "santri", "diklat", "berita", "komunikasi_menu", "alumni_menu", "alumni_data", "forum_reports", "chat_monitoring",
             "forum_threads", "forum_comments", "forum_moderation_actions",
-            "attendance_sessions", // Izin untuk fitur absensi
-            "mingguan_absensi", "ngaji_absensi", "sholat_hifdzi_absensi"
+            "attendance_sessions",
+            "mingguan_absensi", "ngaji_absensi", "sholat_hifdzi_absensi",
+            "laporan_masalah",
         ];
         
         if (allowedKesantrian.includes(targetResource)) {
             // Kesantrian tidak diizinkan akses attendance_types
             if (targetResource === "attendance_types") {
                 return { can: false, reason: "Akses ditolak. Pengaturan tipe absensi khusus Dewan/Rois/Admin." };
+            }
+            // Kesantrian hanya bisa melihat laporan, tidak bisa update
+            if (targetResource === "laporan_masalah" && ["edit", "delete"].includes(action || "")) {
+                return { can: false, reason: "Akses ditolak. Kesantrian hanya dapat melihat laporan masalah." };
             }
             // Sholat Hifdzi: hanya kesantrian dengan scope L + TAHFIDZ
             if (targetResource === "sholat_hifdzi_absensi") {

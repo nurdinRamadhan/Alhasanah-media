@@ -8,13 +8,13 @@ const GOLD_BRIGHT = "#FFB700";
 const GOLD_DEEP   = "#8B6914";
 
 const DOWNLOAD_CONFIG = {
-  version: "v1.1.0",
+  version: "v1.1.1",
   downloadUrl:
-    "https://github.com/nurdinRamadhan/aplikasi-android/releases/download/v1.1.0/AlhasanahMedia-v1.1.0.apk",
+    "https://github.com/nurdinRamadhan/aplikasi-android/releases/download/v1.1.1/AlhasanahMedia-v1.1.1.apk",
   releaseDate: "28 Juli 2026",
   apkSize: "~20 MB",
   qrValue:
-    "https://github.com/nurdinRamadhan/aplikasi-android/releases/download/v1.1.0/AlhasanahMedia-v1.1.0.apk",
+    "https://github.com/nurdinRamadhan/aplikasi-android/releases/download/v1.1.1/AlhasanahMedia-v1.1.1.apk",
   contact: { whatsapp: "62882000979741", email: "nurdincrs123@gmail.com" },
 };
 

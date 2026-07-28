@@ -88,6 +88,10 @@ export const JadwalKegiatanShow   = React.lazy(() => import("./pages/jadwal-kegi
 // ── Public Pages ──
 export const DownloadPage = React.lazy(() => import("./pages/public/download").then(m => ({ default: m.DownloadPage })));
 
+// ── Laporan Masalah ──
+export const LaporanMasalahList = React.lazy(() => import("./pages/laporan/list").then(m => ({ default: m.LaporanMasalahList })));
+export const LaporanMasalahShow = React.lazy(() => import("./pages/laporan/show").then(m => ({ default: m.LaporanMasalahShow })));
+
 export const LoadingFallback = () => (
   <div style={{
     height: "70vh", display: "flex", alignItems: "center", justifyContent: "center",

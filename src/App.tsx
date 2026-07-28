@@ -93,7 +93,8 @@ import {
   PrivateAuditLogPage, RagKnowledgePage, LoadingFallback,
   KoreksiHijriahList,
   JadwalKegiatanList, JadwalKegiatanCreate, JadwalKegiatanEdit, JadwalKegiatanShow,
-  DownloadPage
+  DownloadPage,
+  LaporanMasalahList, LaporanMasalahShow,
 } from "./lazyPages";
 
 import { AiFloatingButton }   from "./components/AiFloatingButton";
@@ -1282,6 +1283,11 @@ const InnerApp: React.FC = () => {
                 <Route path="/notifications">
                   <Route index         element={<NotificationList />}   />
                   <Route path="create" element={<NotificationCreate />} />
+                </Route>
+
+                <Route path="/laporan-masalah">
+                  <Route index         element={<LaporanMasalahList />} />
+                  <Route path="show/:id" element={<LaporanMasalahShow />} />
                 </Route>
 
                 <Route path="/backend-command-center">

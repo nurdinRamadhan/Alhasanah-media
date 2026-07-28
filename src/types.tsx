@@ -590,3 +590,47 @@ export interface IJadwalKegiatan {
   created_at: string;
   updated_at: string;
 }
+
+// --- LAPORAN MASALAH ---
+export type LaporanKategori = 'BUG' | 'FITUR' | 'PERTANYAAN' | 'MASUKAN';
+export type LaporanPrioritas = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+export type LaporanStatus = 'OPEN' | 'IN_PROGRESS' | 'PROCESSING' | 'FIXED' | 'REJECTED' | 'NEED_INFO';
+
+export interface ILaporanMasalah {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  user_id: string | null;
+  nama_pengguna: string | null;
+  nis: string | null;
+  judul: string;
+  deskripsi: string;
+  kategori: LaporanKategori;
+  prioritas: LaporanPrioritas;
+  status: LaporanStatus;
+  app_version: string | null;
+  android_version: string | null;
+  device_brand: string | null;
+  device_model: string | null;
+  device_manufacturer: string | null;
+  device_sdk: number | null;
+  locale: string | null;
+  timezone: string | null;
+  screenshot_url: string | null;
+  attachment_paths: string[];
+  admin_note: string | null;
+  fixed_at: string | null;
+  fixed_by: string | null;
+  source: string;
+  is_public: boolean;
+}
+
+export interface ILaporanMasalahLog {
+  id: number;
+  created_at: string;
+  laporan_id: string;
+  old_status: string | null;
+  new_status: string;
+  changed_by: string | null;
+  catatan: string | null;
+}

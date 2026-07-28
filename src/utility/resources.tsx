@@ -99,6 +99,8 @@ export const resources: ResourceProps[] = [
     meta:{ label:"Notifikasi", parent:"komunikasi_menu", icon:<BellOutlined /> } },
   { name:"rag_knowledge", list:"/rag",
     meta:{ label:"RAG Knowledge", parent:"komunikasi_menu", icon:<DatabaseOutlined /> } },
+  { name:"laporan_masalah", list:"/laporan-masalah", show:"/laporan-masalah/show/:id",
+    meta:{ label:"Laporan Masalah", parent:"komunikasi_menu", icon:<WarningOutlined /> } },
 
   { name:"alumni_menu", meta:{ label:"Alumni", icon:<TeamOutlined /> } },
   { name:"alumni_data",  list:"/alumni",      meta:{ label:"Data Alumni", parent:"alumni_menu", icon:<GlobalOutlined /> } },
