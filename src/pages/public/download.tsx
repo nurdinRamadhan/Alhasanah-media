@@ -797,7 +797,7 @@ export const DownloadPage: React.FC = () => {
                   letterSpacing: "0.3px",
                 }}
               >
-                Aplikasi resmi layanan santri dan wali santri.
+                Aplikasi untuk monitoring keseharian santri.
               </div>
               <div
                 style={{
