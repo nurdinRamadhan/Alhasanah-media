@@ -9,7 +9,7 @@ import {
   DashboardOutlined, BankOutlined, ShoppingCartOutlined,
   SafetyCertificateOutlined, HistoryOutlined,
   DatabaseOutlined, MessageOutlined, ShopOutlined,
-  TrophyOutlined, BarChartOutlined, CalendarOutlined,
+  TrophyOutlined, BarChartOutlined, CalendarOutlined, AppstoreOutlined,
 } from "@ant-design/icons";
 
 export const resources: ResourceProps[] = [
@@ -40,6 +40,8 @@ export const resources: ResourceProps[] = [
     meta:{ label:"Murojaah (Ulang)", parent:"tahfidz_menu", icon:<SyncOutlined /> } },
   { name:"tahfidz_rekap", list:"/hafalan/rekap",
     meta:{ label:"Rekap Tahfidz", parent:"tahfidz_menu", icon:<BarChartOutlined /> } },
+  { name:"tahfidz_peta", list:"/hafalan/peta",
+    meta:{ label:"Peta Hafalan", parent:"tahfidz_menu", icon:<AppstoreOutlined /> } },
   { name:"hafalan_kitab", list:"/hafalan-kitab", create:"/hafalan-kitab/create", show:"/hafalan-kitab/show/:id",
     meta:{ label:"Hafalan Kitab", parent:"tahfidz_menu", icon:<BookOutlined /> } },
   { name:"mingguan_absensi", list:"/tahfidz/mingguan",

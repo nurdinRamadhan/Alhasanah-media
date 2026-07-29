@@ -80,7 +80,7 @@ import {
   PerizinanList, PerizinanCreate, PerizinanEdit, KesehatanList, KesehatanCreate, 
   KesehatanEdit, PrestasiList, 
   AttendanceList, AttendanceShow, AttendanceTypesList,
-  HafalanList, HafalanCreate, HafalanEdit, HafalanShow, HafalanRekap,
+  HafalanList, HafalanCreate, HafalanEdit, HafalanShow, HafalanRekap, HafalanPeta,
   BeritaList, BeritaCreate, BeritaEdit, InventarisList, InventarisCreate, 
   InventarisShow, TagihanList, TagihanCreate, TagihanEdit, TransaksiList, 
   JenisPembayaranList, TransaksiCreate, DompetSantriList, DompetOperasionalList, DompetSecurityAuditList, KantinManagementList,
@@ -1214,6 +1214,7 @@ const InnerApp: React.FC = () => {
 
                 <Route path="/hafalan">
                   <Route index          element={<HafalanList />}   />
+                  <Route path="peta"    element={<HafalanPeta />}    />
                   <Route path="rekap"   element={<HafalanRekap />}  />
                   <Route path="create"  element={<HafalanCreate />} />
                   <Route path="edit/:id" element={<HafalanEdit />}  />

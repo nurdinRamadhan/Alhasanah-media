@@ -31,6 +31,7 @@ export const HafalanCreate      = React.lazy(() => import("./pages/hafalan/creat
 export const HafalanEdit        = React.lazy(() => import("./pages/hafalan/edit").then(m => ({ default: m.HafalanEdit })));
 export const HafalanShow        = React.lazy(() => import("./pages/hafalan/show").then(m => ({ default: m.HafalanShow })));
 export const HafalanRekap       = React.lazy(() => import("./pages/hafalan/rekap").then(m => ({ default: m.HafalanRekap })));
+export const HafalanPeta        = React.lazy(() => import("./pages/hafalan/peta").then(m => ({ default: m.PetaHafalan })));
 export const BeritaList         = React.lazy(() => import("./pages/berita/list").then(m => ({ default: m.BeritaList })));
 export const BeritaCreate       = React.lazy(() => import("./pages/berita/create").then(m => ({ default: m.BeritaCreate })));
 export const BeritaEdit         = React.lazy(() => import("./pages/berita/edit").then(m => ({ default: m.BeritaEdit })));

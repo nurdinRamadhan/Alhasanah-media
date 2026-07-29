@@ -494,13 +494,15 @@ export const TagihanList = () => {
     const paymentTypeSummary = allTagihanForKpi.reduce((summary, item) => {
         const ref = paymentRefById.get(Number(item.jenis_pembayaran_id));
         const labelSource = `${ref?.nama_pembayaran || ""} ${item.deskripsi_tagihan || ""}`.toLowerCase();
-        const key = labelSource.includes("spp") || labelSource.includes("syahriah")
-            ? "spp"
+        const key = labelSource.includes("makan")
+            ? "makan"
             : labelSource.includes("listrik")
                 ? "listrik"
                 : labelSource.includes("kas")
                     ? "kas"
-                    : "lainnya";
+                    : labelSource.includes("tilawah")
+                        ? "tilawah"
+                        : "lainnya";
         const current = summary[key];
         const nominal = Number(item.nominal_tagihan || 0);
         const sisa = Number(item.sisa_tagihan || 0);
@@ -513,10 +515,11 @@ export const TagihanList = () => {
         if (item.status === "LUNAS") current.lunas += 1;
         return summary;
     }, {
-        spp: { label: "SPP", total: 0, paid: 0, remaining: 0, count: 0, belum: 0, cicilan: 0, lunas: 0, color: "#B45309", icon: <WalletOutlined /> },
+        makan: { label: "Makan", total: 0, paid: 0, remaining: 0, count: 0, belum: 0, cicilan: 0, lunas: 0, color: "#DC2626", icon: <ShopOutlined /> },
         listrik: { label: "Listrik", total: 0, paid: 0, remaining: 0, count: 0, belum: 0, cicilan: 0, lunas: 0, color: "#2563EB", icon: <ThunderboltOutlined /> },
-        kas: { label: "Kas", total: 0, paid: 0, remaining: 0, count: 0, belum: 0, cicilan: 0, lunas: 0, color: "#059669", icon: <ShopOutlined /> },
-        lainnya: { label: "Lainnya", total: 0, paid: 0, remaining: 0, count: 0, belum: 0, cicilan: 0, lunas: 0, color: "#7C3AED", icon: <BarChartOutlined /> },
+        kas: { label: "Kas", total: 0, paid: 0, remaining: 0, count: 0, belum: 0, cicilan: 0, lunas: 0, color: "#059669", icon: <WalletOutlined /> },
+        tilawah: { label: "Tilawah", total: 0, paid: 0, remaining: 0, count: 0, belum: 0, cicilan: 0, lunas: 0, color: "#7C3AED", icon: <BarChartOutlined /> },
+        lainnya: { label: "Lainnya", total: 0, paid: 0, remaining: 0, count: 0, belum: 0, cicilan: 0, lunas: 0, color: "#B45309", icon: <ClockCircleOutlined /> },
     });
     const paymentTypeSummaryRows = Object.values(paymentTypeSummary);
 
