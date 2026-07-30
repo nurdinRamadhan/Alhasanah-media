@@ -1401,11 +1401,35 @@ async function executeActionTool(supabase: any, toolName: string, args: any, cal
 
     // ── update_status_tagihan ────────────────────────────────
     case "update_status_tagihan": {
+      if (args.status_baru === "LUNAS") {
+        // Insert pembayaran_tagihan first, let trigger sync status
+        const { data: tagihanData, error: tagihanErr } = await supabase
+          .from("tagihan_santri").select("santri_nis, nominal_tagihan, sisa_tagihan, deskripsi_tagihan, status")
+          .eq("id", args.tagihan_id).single();
+        if (tagihanErr || !tagihanData) throw new Error("Tagihan tidak ditemukan");
+        if (tagihanData.status === "LUNAS") return { success: true, affected: 0, message: "Sudah LUNAS" };
+
+        const sisa = Math.max(Number(tagihanData.nominal_tagihan || 0) - Number(tagihanData.sisa_tagihan || 0), 0);
+        if (sisa <= 0) throw new Error("Tidak ada sisa tagihan yang perlu dibayar");
+
+        const { error: payErr } = await supabase.from("pembayaran_tagihan").insert({
+          tagihan_id: args.tagihan_id,
+          santri_nis: tagihanData.santri_nis,
+          amount: tagihanData.sisa_tagihan || tagihanData.nominal_tagihan,
+          metode_pembayaran: "cash",
+          source: "system",
+          status: "posted",
+          paid_at: new Date().toISOString(),
+          keterangan: `Pembayaran via AI agent: ${tagihanData.deskripsi_tagihan}`,
+        });
+        if (payErr) throw payErr;
+        return { success: true, affected: 1 };
+      }
+
       const updateData: Record<string, unknown> = {
         status: args.status_baru,
         updated_at: new Date().toISOString(),
       };
-      if (args.status_baru === "LUNAS") updateData.sisa_tagihan = 0;
       if (args.sisa_tagihan !== undefined) updateData.sisa_tagihan = args.sisa_tagihan;
 
       const { error } = await supabase.from("tagihan_santri").update(updateData).eq("id", args.tagihan_id);

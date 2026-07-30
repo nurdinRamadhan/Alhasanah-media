@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { logActivity } from "../../utility/logger";
 import { Create, useForm, useSelect } from "@refinedev/antd";
-import { Form, Input, Select, DatePicker, InputNumber, Card, Row, Col, Alert, message } from "antd";
+import { Form, Input, Select, DatePicker, InputNumber, Card, Row, Col, Alert, message, Typography } from "antd";
+const { Text } = Typography;
 import { IRefJenisPembayaran, ITagihanSantri, ISantri } from "../../types";
 import dayjs from "dayjs";
 import { useGetIdentity } from "@refinedev/core";
@@ -221,8 +222,11 @@ export const TagihanCreate = () => {
                             <Form.Item label="Status Awal" name="status">
                                 <Select options={[
                                     { label: "Belum Lunas", value: "BELUM" },
-                                    { label: "Lunas (Manual)", value: "LUNAS" },
+                                    { label: "Lunas (via pembayaran)", value: "LUNAS", disabled: true },
                                 ]} />
+                                <Text type="secondary" style={{ fontSize: 11 }}>
+                                    Status LUNAS akan diatur otomatis oleh sistem setelah pembayaran tercatat
+                                </Text>
                             </Form.Item>
                         </Card>
                     </Col>
