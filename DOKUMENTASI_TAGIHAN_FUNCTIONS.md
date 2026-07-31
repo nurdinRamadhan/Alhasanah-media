@@ -630,3 +630,41 @@ FOR EACH ROW EXECUTE FUNCTION tr_sync_tagihan_payment_status();
 - Audit log mencatat semua perubahan dengan `change_source = 'trigger_cascade'` ✅
 - 0 tagihan dengan sisa=0 tapi bukan LUNAS ✅
 - 0 tagihan dengan sisa>0 tapi LUNAS ✅
+
+---
+
+### Cleanup Test Data — 31 Juli 2026 (Sesi yang sama)
+
+**Masalah**: Saat verifikasi trigger,2 record pembayaran test (Rp 150,000 × 2) dibuat untuk santri Muhammad Syakir Al-Munawwar (NIS 20202001) — Makan Safar 1448 H. Data ini bukan pembayaran asli.
+
+**Yang dilakukan**:
+1. Drop sementara 3 immutable triggers (⚠️ seharusnya DISABLE, bukan DROP — lihat catatan di bawah)
+2. Hapus 2 mutasi_dana (id 81, 82)
+3. Hapus 2 pembayaran_tagihan (test records)
+4. Recalculate saldo_dana id 28: 4,200,000 → 3,900,000
+5. Reset tagihan Makan: LUNAS/sisa=0 → BELUM/sisa=300,000
+6. Recreate 3 immutable triggers
+
+**Verifikasi pasca-cleanup**:
+- 4 tabel keuangan sync di Rp 4,800,000 (48 records) ✅
+- 0 sisa=0 tapi bukan LUNAS ✅
+- 0 sisa>0 tapi LUNAS ✅
+- 0 status mismatch ✅
+- 0 test records remaining ✅
+- Semua saldo_dana konsisten dengan mutasi_dana ✅
+- Semua trigger aktif & verified via `pg_get_triggerdef` ✅
+
+> ⚠️ **Catatan Prosedural**: Seharusnya pakai `ALTER TABLE ... DISABLE/ENABLE TRIGGER` bukan `DROP/CREATE`. DISABLE/ENABLE lebih aman karena tidak menghapus definisi trigger dari catalog. DROP/CREATE berisiko trigger tidak ter-recreate jika ada error di tengah proses.
+
+**Prosedur yang benar untuk bypass immutable trigger**:
+```sql
+-- DISABLE (aman, reversible)
+ALTER TABLE mutasi_dana DISABLE TRIGGER tg_blokir_update_mutasi_dana;
+-- ... operasi ...
+ALTER TABLE mutasi_dana ENABLE TRIGGER tg_blokir_update_mutasi_dana;
+
+-- BUKAN:
+DROP TRIGGER tg_blokir_update_mutasi_dana ON mutasi_dana;
+-- ... operasi ...
+CREATE TRIGGER ... ; -- berisiko gagal
+```
