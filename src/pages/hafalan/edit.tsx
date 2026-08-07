@@ -62,7 +62,8 @@ const { formProps, saveButtonProps, queryResult } = useForm<IHafalanTahfidz>({
                                 <Col span={12}><Form.Item label="Ayat Awal" name="ayat_awal"><InputNumber style={{width: '100%'}} onChange={(val) => {
                                     const surat = formProps.form?.getFieldValue("surat");
                                     if (surat && val) {
-                                        const juz = getJuzFromSurat(surat, val);
+                                        const numVal = typeof val === 'number' ? val : parseInt(String(val), 10);
+                                        const juz = getJuzFromSurat(surat, numVal);
                                         if (juz) formProps.form?.setFieldsValue({ juz });
                                     }
                                 }} /></Form.Item></Col>
