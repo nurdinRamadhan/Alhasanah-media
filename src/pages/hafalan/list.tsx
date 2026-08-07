@@ -808,6 +808,12 @@ export const HafalanList = () => {
             message.error("Mohon pilih rentang tanggal terlebih dahulu");
             return;
         }
+        // Validasi maksimal 3 bulan
+        const dayDiff = exportDateRange[1].diff(exportDateRange[0], 'day');
+        if (dayDiff > 92) {
+            message.error("Rentang tanggal maksimal 3 bulan");
+            return;
+        }
         setIsLoadingExport(true);
         try {
             const startStr = exportDateRange[0].format("YYYY-MM-DD");
@@ -823,7 +829,7 @@ export const HafalanList = () => {
                     .lte("tahfidz_sesi.tanggal", endStr)
                     .eq("tahfidz_sesi.kegiatan_id", "ZIYADAH"),
                 supabaseClient.from("santri")
-                    .select("nis, nama, kelas")
+                    .select("nis, nama, kelas, total_hafalan")
                     .eq("jurusan", "TAHFIDZ")
                     .eq("status_santri", "AKTIF"),
             ]);
@@ -871,16 +877,104 @@ export const HafalanList = () => {
                 (santriMap.get(a)?.nama || '').localeCompare(santriMap.get(b)?.nama || ''),
             );
 
+            // ── Fetch Peta Hafalan data for Sheet 2 ──
+            const nisList = santriList.map((s: any) => s.nis).filter(Boolean);
+
+            // 1. Current peta hafalan state (grid visual — keseluruhan, tanpa filter tanggal)
+            const { data: petaRows, error: petaErr } = await supabaseClient
+                .from("santri_peta_hafalan")
+                .select("santri_nis, juz, is_completed, halaman_progress")
+                .in("santri_nis", nisList)
+                .order("juz");
+            if (petaErr) throw petaErr;
+
+            // 2. Hitung delta periode dari snapshot (snapshot harus di-capture admin di awal periode)
+            const { data: mingguanRows } = await supabaseClient.rpc("get_peta_hafalan_mingguan", {
+                p_snapshot_date: endStr,
+            });
+
+            // 3. Daftar surat per santri via RPC (server-side aggregation, performa baik)
+            const { data: surahRows } = await supabaseClient.rpc("get_hafalan_surah_per_juz", {
+                p_start_date: startStr + "T00:00:00Z",
+                p_end_date: endStr + "T23:59:59Z",
+            });
+
+            // 4. Total ayat per santri — computed from absensi join (avoids timestamp filter bug on hafalan_tahfidz.tanggal)
+            const hafalanCountMap = new Map<string, number>();
+            for (const a of filteredAbsensi) {
+                const h = a.hafalan_tahfidz as any;
+                if (!h || h.ayat_awal == null || h.ayat_akhir == null) continue;
+                const nis = a.santri_nis as string;
+                const prev = hafalanCountMap.get(nis) || 0;
+                const ayatCount = (h.ayat_akhir || 0) - (h.ayat_awal || 0) + 1;
+                hafalanCountMap.set(nis, prev + Math.max(ayatCount, 0));
+            }
+            const hafalanCountForSheet = [...hafalanCountMap.entries()].map(([santri_nis, total_ayat]) => ({ santri_nis, total_ayat }));
+
+            // Build peta data map: nis -> juz entries
+            const petaDataMap = new Map<number, { juz: number; is_completed: boolean; halaman_progress: number }[]>();
+            for (const row of petaRows || []) {
+                if (!petaDataMap.has(row.santri_nis)) petaDataMap.set(row.santri_nis, []);
+                petaDataMap.get(row.santri_nis)!.push({
+                    juz: row.juz,
+                    is_completed: row.is_completed,
+                    halaman_progress: row.halaman_progress,
+                });
+            }
+
+            // Build mingguan delta map: nis -> total delta
+            const mingguanMap = new Map<string, { deltaHalaman: number; deltaJuz: number }>();
+            for (const row of mingguanRows || []) {
+                const existing = mingguanMap.get(row.santri_nis) || { deltaHalaman: 0, deltaJuz: 0 };
+                existing.deltaHalaman += row.delta_halaman || 0;
+                existing.deltaJuz += row.delta_juz_selesai || 0;
+                mingguanMap.set(row.santri_nis, existing);
+            }
+
+            // Build surah map from RPC result
+            const surahMap = new Map<string, Set<string>>();
+            for (const row of surahRows || []) {
+                if (!surahMap.has(row.santri_nis)) surahMap.set(row.santri_nis, new Set());
+                const names = (row.surah_list || '').split(',').map((s: string) => s.trim()).filter(Boolean);
+                for (const n of names) surahMap.get(row.santri_nis)!.add(n);
+            }
+
             const wb = new ExcelJS.Workbook();
 
             if (exportType === "GLOBAL") {
                 const ws = wb.addWorksheet("Rekap Setoran Ziyadah");
                 buildSheet(ws, dates, santriNis, lookup, santriMap, exportDateRange);
+
+                // Sheet 2: Peta Hafalan
+                const wsPeta = wb.addWorksheet("Peta Hafalan");
+                const filteredSantri = santriList;
+                buildPetaHafalanSheet(
+                    wsPeta,
+                    filteredSantri,
+                    petaDataMap,
+                    mingguanMap,
+                    surahMap,
+                    hafalanCountForSheet,
+                    exportDateRange,
+                );
             } else {
                 const santri = santriMap.get(selectedExportSantri!);
                 if (!santri) throw new Error("Data santri tidak ditemukan.");
                 const ws = wb.addWorksheet(`Setoran - ${(santri.nama || selectedExportSantri).substring(0, 20)}`);
                 buildSheet(ws, dates, santriNis, lookup, santriMap, exportDateRange);
+
+                // Sheet 2: Peta Hafalan personal
+                const wsPeta = wb.addWorksheet("Peta Hafalan");
+                const personalSantri = santriList.filter((s: any) => s.nis === selectedExportSantri);
+                buildPetaHafalanSheet(
+                    wsPeta,
+                    personalSantri,
+                    petaDataMap,
+                    mingguanMap,
+                    surahMap,
+                    hafalanCountForSheet,
+                    exportDateRange,
+                );
             }
 
             const buffer = await wb.xlsx.writeBuffer();
@@ -1038,6 +1132,297 @@ export const HafalanList = () => {
             const row = ws.getRow(ws.rowCount);
             for (let c = 1; c <= totalCols; c++) ws.getCell(ws.rowCount, c).border = TB;
         }
+    };
+
+    // ── Build Peta Hafalan + Evaluasi Sheet ──
+    const buildPetaHafalanSheet = (
+        ws: any,
+        santriList: any[],
+        petaData: Map<number, { juz: number; is_completed: boolean; halaman_progress: number }[]>,
+        mingguanMapData: Map<string, { deltaHalaman: number; deltaJuz: number }>,
+        surahMapData: Map<string, Set<string>>,
+        hafalanCountData: { santri_nis: string; total_ayat: number }[],
+        dateRange: [dayjs.Dayjs, dayjs.Dayjs],
+    ) => {
+        const GREEN = 'FF22C55E';
+        const YELLOW = 'FFEAB308';
+        const RED = 'FFEF4444';
+        const EMPTY_BG = 'FFF8FAFC';
+        const HEADER_BG = 'FF047857';
+        const HEADER_BG_ALT = 'FF374151';
+        const EVAL_HEADER_BG = 'FF1E3A5F';
+        const BORDER_THIN = {
+            top: { style: 'thin' as const },
+            left: { style: 'thin' as const },
+            bottom: { style: 'thin' as const },
+            right: { style: 'thin' as const },
+        };
+        const CENTER = { horizontal: 'center' as const, vertical: 'middle' as const };
+
+        // ── Hafalan count map: nis -> total ayat in period ──
+        const ayatCountMap = new Map<string, number>();
+        for (const row of hafalanCountData) {
+            ayatCountMap.set(row.santri_nis, row.total_ayat || 0);
+        }
+
+        // ── Title ──
+        const totalGridCols = 33; // A(NO) + B(NAMA) + C(JUMLAH) + D-AE(30 juz)
+        ws.mergeCells(`A1:${colLetter(totalGridCols)}1`);
+        const title = ws.getCell('A1');
+        title.value = 'PETA HAFALAN';
+        title.font = { size: 13, bold: true, color: { argb: 'FFFFFFFF' } };
+        title.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEADER_BG } };
+        title.alignment = { horizontal: 'center', vertical: 'middle' };
+        ws.getRow(1).height = 24;
+
+        // ── Grid Header Row (row 2): NO | NAMA | JUMLAH | 1 | 2 | ... | 30 ──
+        const gridHeaderRow = ws.getRow(2);
+        gridHeaderRow.getCell(1).value = 'NO';
+        gridHeaderRow.getCell(2).value = 'NAMA';
+        gridHeaderRow.getCell(3).value = 'JUMLAH';
+        for (let j = 1; j <= 30; j++) {
+            gridHeaderRow.getCell(3 + j).value = j;
+        }
+        for (let c = 1; c <= totalGridCols; c++) {
+            const cell = gridHeaderRow.getCell(c);
+            cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEADER_BG_ALT } };
+            cell.alignment = CENTER;
+            cell.border = BORDER_THIN;
+        }
+        gridHeaderRow.height = 18;
+
+        // ── Grid Data Rows (diurutkan: merah di atas, kuning tengah, hijau bawah) ──
+        const sortedSantri = [...santriList].sort((a, b) => {
+            const aVal = parseInt(String(a.total_hafalan ?? '0').replace(/[^0-9]/g, ''), 10) || 0;
+            const bVal = parseInt(String(b.total_hafalan ?? '0').replace(/[^0-9]/g, ''), 10) || 0;
+            return aVal - bVal;
+        });
+        let gridRowNum = 3;
+        for (let idx = 0; idx < sortedSantri.length; idx++) {
+            const santri = sortedSantri[idx];
+            const nis = santri.nis;
+            const juzData = petaData.get(nis) || [];
+            const jumlahJuz = parseInt(String(santri.total_hafalan ?? '0').replace(/[^0-9]/g, ''), 10) || 0;
+
+            const row = ws.getRow(gridRowNum);
+            row.getCell(1).value = idx + 1;
+            row.getCell(2).value = santri.nama || nis;
+            row.getCell(3).value = `${jumlahJuz} Juz`;
+
+            // Style NO, NAMA, JUMLAH — row background berdasarkan total_hafalan
+            const rowBg = jumlahJuz >= 21 ? 'FFDCFCE7'   // hijau muda
+                : jumlahJuz >= 11 ? 'FFFEF9C3'           // kuning muda
+                : jumlahJuz >= 1 ? 'FFFEE2E2'             // merah muda
+                : 'FFFFFFFF';                              // putih (belum ada hafalan)
+            for (let c = 1; c <= 3; c++) {
+                const cell = row.getCell(c);
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
+                cell.alignment = c === 2 ? { horizontal: 'left', vertical: 'middle' } : CENTER;
+                cell.border = BORDER_THIN;
+                cell.font = c === 2 ? { bold: true, size: 10 } : { size: 10 };
+            }
+
+            // Juz nodes (columns 4-33 = juz 1-30)
+            for (let j = 1; j <= 30; j++) {
+                const cell = row.getCell(3 + j);
+                const juzEntry = juzData.find(d => d.juz === j);
+                cell.border = BORDER_THIN;
+                cell.alignment = CENTER;
+
+                if (juzEntry?.is_completed) {
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN } };
+                    cell.value = '✓';
+                    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 9 };
+                } else if (juzEntry && juzEntry.halaman_progress > 0) {
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: YELLOW } };
+                    cell.value = '…';
+                    cell.font = { bold: true, color: { argb: 'FF78350F' }, size: 9 };
+                } else {
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: EMPTY_BG } };
+                    cell.value = '';
+                }
+            }
+
+            gridRowNum++;
+        }
+
+        // ── Separator ──
+        gridRowNum++;
+
+        // ── Evaluasi Section Title ──
+        ws.mergeCells(`A${gridRowNum}:AF${gridRowNum}`);
+        const evalTitle = ws.getCell(gridRowNum, 1);
+        evalTitle.value = `EVALUASI PERIODE — ${dateRange[0].format('DD MMM')} s/d ${dateRange[1].format('DD MMM YYYY')} M  /  ${formatHijri(dateRange[0].toDate())} s/d ${formatHijri(dateRange[1].toDate())} H`;
+        evalTitle.font = { size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
+        evalTitle.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: EVAL_HEADER_BG } };
+        evalTitle.alignment = { horizontal: 'center', vertical: 'middle' };
+        ws.getRow(gridRowNum).height = 22;
+        gridRowNum++;
+
+        // ── Evaluasi Header (merged cells biar lebar) ──
+        const evalHeaderRow = ws.getRow(gridRowNum);
+        // NO (col 1)
+        ws.mergeCells(`A${gridRowNum}:A${gridRowNum}`);
+        evalHeaderRow.getCell(1).value = 'NO';
+        // NAMA (col 2-3)
+        ws.mergeCells(`B${gridRowNum}:C${gridRowNum}`);
+        evalHeaderRow.getCell(2).value = 'NAMA';
+        // PROGRESS PERIODE / delta (col 4-13)
+        ws.mergeCells(`D${gridRowNum}:M${gridRowNum}`);
+        evalHeaderRow.getCell(4).value = 'PROGRESS PERIODE';
+        // TOTAL AYAT (col 14-19)
+        ws.mergeCells(`N${gridRowNum}:S${gridRowNum}`);
+        evalHeaderRow.getCell(14).value = 'TOTAL AYAT';
+        // DAFTAR SURAT (col 20-28)
+        ws.mergeCells(`T${gridRowNum}:AB${gridRowNum}`);
+        evalHeaderRow.getCell(20).value = 'DAFTAR SURAT';
+        // KETERANGAN (col 29-33)
+        ws.mergeCells(`AC${gridRowNum}:AG${gridRowNum}`);
+        evalHeaderRow.getCell(29).value = 'KETERANGAN';
+
+        for (const c of [1, 2, 4, 14, 20, 29]) {
+            const cell = evalHeaderRow.getCell(c);
+            cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF475569' } };
+            cell.alignment = CENTER;
+            cell.border = BORDER_THIN;
+        }
+        evalHeaderRow.height = 18;
+        const evalHeaderRowNum = gridRowNum;
+        gridRowNum++;
+
+        // AutoFilter pada header evaluasi (hanya kolom yang ada header-nya)
+        ws.autoFilter = {
+            from: { row: evalHeaderRowNum, column: 1 },
+            to: { row: evalHeaderRowNum, column: 33 },
+        };
+
+        // ── Evaluasi Data Rows ──
+        const formatDeltaProgress = (deltaHalaman: number, deltaJuz: number): string => {
+            const kuartal = Math.abs(deltaHalaman) % 4;
+            const fullHalaman = Math.floor(Math.abs(deltaHalaman) / 4);
+            const sign = deltaHalaman < 0 || deltaJuz < 0 ? '-' : '';
+            const parts: string[] = [];
+            if (deltaJuz !== 0) parts.push(`${Math.abs(deltaJuz)} Juz`);
+            if (fullHalaman > 0) parts.push(`${fullHalaman} Halaman`);
+            if (kuartal === 1) parts.push('¼');
+            else if (kuartal === 2) parts.push('½');
+            else if (kuartal === 3) parts.push('¾');
+            return parts.length > 0 ? sign + parts.join(', ') : '0';
+        };
+
+        const formatCurrentProgress = (juzData: { juz: number; is_completed: boolean; halaman_progress: number }[], totalAyat: number, suratSet: Set<string>): string => {
+            const completedJuz = juzData.filter(j => j.is_completed).length;
+            const currentJuz = juzData.find(j => !j.is_completed && j.halaman_progress > 0);
+            const parts: string[] = [];
+
+            // Info juz selesai
+            parts.push(`${completedJuz} Juz selesai`);
+
+            // Info posisi sedang dihafal
+            if (currentJuz) {
+                const kuartal = currentJuz.halaman_progress % 4;
+                const fullHalaman = Math.floor(currentJuz.halaman_progress / 4);
+                let halStr = `Juz ${currentJuz.juz}`;
+                if (fullHalaman > 0) halStr += ` Hal ${fullHalaman}`;
+                if (kuartal === 1) halStr += ' ¼';
+                else if (kuartal === 2) halStr += ' ½';
+                else if (kuartal === 3) halStr += ' ¾';
+                parts.push(`sedang di ${halStr}`);
+            } else if (completedJuz >= 30) {
+                parts.push('selesai semua');
+            }
+
+            // Info periode ini
+            if (totalAyat > 0) parts.push(`${totalAyat} ayat dihafal`);
+            if (suratSet.size > 0) parts.push(`${suratSet.size} surat`);
+
+            return parts.join(', ');
+        };
+
+        // ── Evaluasi Data Rows (diurutkan sama dengan grid) ──
+        const sortedEval = [...santriList].sort((a, b) => {
+            const aVal = parseInt(String(a.total_hafalan ?? '0').replace(/[^0-9]/g, ''), 10) || 0;
+            const bVal = parseInt(String(b.total_hafalan ?? '0').replace(/[^0-9]/g, ''), 10) || 0;
+            return aVal - bVal;
+        });
+
+        for (let idx = 0; idx < sortedEval.length; idx++) {
+            const santri = sortedEval[idx];
+            const nis = santri.nis;
+            const juzData = petaData.get(nis) || [];
+            const mingguan = mingguanMapData.get(nis) || { deltaHalaman: 0, deltaJuz: 0 };
+            const suratSet = surahMapData.get(nis) || new Set<string>();
+            const totalAyat = ayatCountMap.get(nis) || 0;
+
+            const rowNum = gridRowNum;
+            const row = ws.getRow(rowNum);
+
+            // Zebra striping: putih dan biru muda
+            const evalRowBg = idx % 2 === 0 ? 'FFFFFFFF' : 'FFEFF6FF';
+
+            // NO
+            ws.mergeCells(`A${rowNum}:A${rowNum}`);
+            row.getCell(1).value = idx + 1;
+            row.getCell(1).alignment = CENTER;
+            row.getCell(1).border = BORDER_THIN;
+            row.getCell(1).font = { size: 10 };
+            row.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: evalRowBg } };
+
+            // NAMA (merge B-C)
+            ws.mergeCells(`B${rowNum}:C${rowNum}`);
+            row.getCell(2).value = santri.nama || nis;
+            row.getCell(2).alignment = { horizontal: 'left', vertical: 'middle' };
+            row.getCell(2).border = BORDER_THIN;
+            row.getCell(2).font = { bold: true, size: 10 };
+            row.getCell(2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: evalRowBg } };
+
+            // PROGRESS PERIODE (merge D-M) — delta dari snapshot
+            ws.mergeCells(`D${rowNum}:M${rowNum}`);
+            row.getCell(4).value = formatDeltaProgress(mingguan.deltaHalaman, mingguan.deltaJuz);
+            row.getCell(4).alignment = { horizontal: 'left', vertical: 'middle' };
+            row.getCell(4).border = BORDER_THIN;
+            row.getCell(4).font = { size: 10 };
+            row.getCell(4).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: evalRowBg } };
+
+            // TOTAL AYAT (merge N-S)
+            ws.mergeCells(`N${rowNum}:S${rowNum}`);
+            row.getCell(14).value = totalAyat;
+            row.getCell(14).alignment = CENTER;
+            row.getCell(14).border = BORDER_THIN;
+            row.getCell(14).font = { size: 10 };
+            row.getCell(14).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: evalRowBg } };
+
+            // DAFTAR SURAT (merge T-AB)
+            ws.mergeCells(`T${rowNum}:AB${rowNum}`);
+            row.getCell(20).value = [...suratSet].join(', ') || '-';
+            row.getCell(20).alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+            row.getCell(20).border = BORDER_THIN;
+            row.getCell(20).font = { size: 10 };
+            row.getCell(20).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: evalRowBg } };
+
+            // KETERANGAN (merge AC-AG) — informatif dengan koma
+            ws.mergeCells(`AC${rowNum}:AG${rowNum}`);
+            row.getCell(29).value = formatCurrentProgress(juzData, totalAyat, suratSet);
+            row.getCell(29).alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+            row.getCell(29).border = BORDER_THIN;
+            row.getCell(29).font = { size: 10 };
+            row.getCell(29).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: evalRowBg } };
+
+            gridRowNum++;
+        }
+
+        // ── Column widths (pakai getColumn, JANGAN pakai ws.columns = [...]) ──
+        ws.getColumn(1).width = 5;   // NO
+        ws.getColumn(2).width = 26;  // NAMA
+        ws.getColumn(3).width = 14;  // JUMLAH
+        for (let j = 1; j <= 30; j++) {
+            ws.getColumn(3 + j).width = 5; // Juz nodes
+        }
+
+        // ── Freeze panes ──
+        ws.views = [{ state: 'frozen', xSplit: 3, ySplit: 2 }];
     };
 
     // ── Columns ──
@@ -1798,14 +2183,22 @@ export const HafalanList = () => {
                             onChange={(dates) => setExportDateRange(dates as any)}
                             style={{ width: "100%" }}
                             format="DD MMM YYYY"
+                            disabledDate={(current) => {
+                                if (!exportDateRange || !exportDateRange[0]) return false;
+                                const start = exportDateRange[0];
+                                if (current && current.isAfter(start.add(3, 'month').endOf('day'))) return true;
+                                return false;
+                            }}
                             presets={[
                                 { label: "Hari ini", value: [dayjs(), dayjs()] },
                                 { label: "Minggu ini", value: [dayjs().startOf("week"), dayjs().endOf("week")] },
                                 { label: "Bulan ini", value: [dayjs().startOf("month"), dayjs().endOf("month")] },
+                                { label: "1 Bulan", value: [dayjs().startOf("month"), dayjs().endOf("month")] },
+                                { label: "3 Bulan", value: [dayjs().startOf("month"), dayjs().add(2, 'month').endOf("month")] },
                             ]}
                         />
                         <Text type="secondary" style={{ fontSize: 11, marginTop: 4, display: "block" }}>
-                            Disarankan export per bulan agar file tidak terlalu besar.
+                            Maksimal rentang 3 bulan. Disarankan export per bulan agar file tidak terlalu besar.
                         </Text>
                     </div>
                 </div>

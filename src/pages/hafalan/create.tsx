@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { logActivity } from "../../utility/logger";
 import { useSelect } from "@refinedev/antd";
 import {
@@ -19,11 +19,13 @@ import {
     Button,
     message,
     Segmented,
+    Modal,
+    Radio,
 } from "antd";
 import dayjs from "dayjs";
 import { ISantri, IProfile } from "../../types";
 import { useGetIdentity, useUpdate } from "@refinedev/core";
-import { DATA_SURAT } from "../../utility/quran-data";
+import { DATA_SURAT, getJuzFromSurat } from "../../utility/quran-data";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabaseClient } from "../../utility/supabaseClient";
 import {
@@ -39,6 +41,7 @@ import {
     TrophyOutlined,
     FireOutlined,
     SafetyCertificateOutlined,
+    ReloadOutlined,
 } from "@ant-design/icons";
 
 const { Text, Title } = Typography;
@@ -63,83 +66,501 @@ const parseTotalHafalan = (value?: string | number | null) => {
     return match ? Number(match[0]) : 0;
 };
 
-// ─────────────────────────── Juz Visual Picker ───────────────────────────
-const JuzPicker: React.FC<{
-    value?: number;
-    onChange?: (v: number) => void;
+// ─────────────────────────── Helpers: Halaman Display ───────────────────────────
+const formatHalaman = (kuartal: number): string => {
+    if (kuartal <= 0) return "—";
+    const h = Math.floor(kuartal / 4);
+    const s = kuartal % 4;
+    const pecahan = ["", "¼", "½", "¾"];
+    if (h === 0) return pecahan[s];
+    if (s === 0) return `${h}`;
+    return `${h} ${pecahan[s]}`;
+};
+
+interface PetaJuzData {
+    juz: number;
+    halaman_progress: number;
+    is_completed: boolean;
+}
+
+interface HalamanPerJuz {
+    juz: number;
+    total_halaman: number;
+}
+
+// ─────────────────────────── Juz Card (Grid) ───────────────────────────
+const JuzCard: React.FC<{
+    data: PetaJuzData;
+    totalHal: number;
+    isSelected: boolean;
     isDark: boolean;
-    completedJuz?: number;
-}> = ({ value, onChange, isDark, completedJuz = 0 }) => {
+    isCurrentJuz: boolean;
+    onClick: () => void;
+    onEdit: (e: React.MouseEvent) => void;
+}> = ({ data, totalHal, isSelected, isDark, isCurrentJuz, onClick, onEdit }) => {
+    const totalKuartal = totalHal * 4;
+    const progress = data.is_completed ? 1 : Math.min(data.halaman_progress / totalKuartal, 1);
+    const pct = Math.round(progress * 100);
+
+    // Hitung halaman dan pecahan
+    const halaman = Math.floor(data.halaman_progress / 4);
+    const pecahan = data.halaman_progress % 4;
+    const pecahanLabel = ["", "¼", "½", "¾"][pecahan];
+    const progressText = data.halaman_progress > 0
+        ? `${halaman > 0 ? halaman : ""}${pecahanLabel}`
+        : "—";
+
+    const cardBg = data.is_completed
+        ? (isDark ? "#022C22" : "#F0FDF4")
+        : data.halaman_progress > 0
+        ? (isDark ? "#422006" : "#FFFBEB")
+        : (isDark ? "#1E293B" : "#F8FAFC");
+
+    const barColor = data.is_completed ? "#047857" : data.halaman_progress > 0 ? "#D97706" : "#CBD5E1";
+    const textColor = data.is_completed ? "#047857" : data.halaman_progress > 0 ? "#D97706" : isDark ? "#64748B" : "#94A3B8";
+    const borderColor = isSelected
+        ? "#2563EB"
+        : isCurrentJuz
+        ? "#F59E0B"
+        : data.is_completed
+        ? "#047857"
+        : isDark ? "#334155" : "#E2E8F0";
+
     return (
-        <div>
+        <div
+            onClick={onClick}
+            style={{
+                padding: "8px 6px",
+                borderRadius: 10,
+                background: cardBg,
+                border: `1.5px solid ${borderColor}`,
+                cursor: "pointer",
+                transition: "all 0.15s",
+                position: "relative",
+                minHeight: 70,
+            }}
+        >
+            {/* Edit button */}
             <div
+                onClick={onEdit}
                 style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(10, 1fr)",
-                    gap: 5,
+                    position: "absolute",
+                    top: 3,
+                    right: 3,
+                    width: 18,
+                    height: 18,
+                    borderRadius: 4,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: isDark ? "#334155" : "#F1F5F9",
+                    color: isDark ? "#94A3B8" : "#64748B",
+                    fontSize: 9,
+                    cursor: "pointer",
+                    opacity: 0.7,
+                    zIndex: 1,
                 }}
             >
-                {Array.from({ length: 30 }, (_, i) => {
-                    const juzNum = i + 1;
-                    const isSelected = juzNum === value;
-                    const isDone = juzNum <= completedJuz;
-                    return (
-                        <Tooltip key={juzNum} title={`Juz ${juzNum}`}>
-                            <div
-                                onClick={() => onChange?.(juzNum)}
-                                style={{
-                                    aspectRatio: "1",
-                                    borderRadius: 6,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    fontSize: 11,
-                                    fontWeight: isSelected ? 700 : 500,
-                                    cursor: "pointer",
-                                    transition: "all 0.15s",
-                                    background: isSelected
-                                        ? "linear-gradient(135deg, #D97706, #F59E0B)"
-                                        : isDone
-                                        ? isDark ? "#022C22" : "#D1FAE5"
-                                        : isDark ? "#1E293B" : "#F1F5F9",
-                                    color: isSelected
-                                        ? "#fff"
-                                        : isDone
-                                        ? "#047857"
-                                        : isDark ? "#475569" : "#94A3B8",
-                                    border: isSelected
-                                        ? "2px solid #F59E0B"
-                                        : `1px solid ${isDark ? "#334155" : "#E2E8F0"}`,
-                                    boxShadow: isSelected ? "0 2px 8px rgba(217,119,6,0.4)" : "none",
-                                    transform: isSelected ? "scale(1.12)" : "scale(1)",
-                                }}
-                            >
-                                {juzNum}
-                            </div>
-                        </Tooltip>
-                    );
-                })}
+                <EditOutlined />
             </div>
-            <div style={{ display: "flex", gap: 12, marginTop: 8, alignItems: "center" }}>
-                {[
-                    { color: "#D97706", label: "Pilihan saat ini", border: false },
-                    { color: isDark ? "#022C22" : "#D1FAE5", label: "Sudah hafal", border: false },
-                    { color: isDark ? "#1E293B" : "#F1F5F9", label: "Belum", border: true },
-                ].map(({ color, label, border }) => (
-                    <div key={label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <div
-                            style={{
-                                width: 12,
-                                height: 12,
-                                borderRadius: 3,
-                                background: color,
-                                border: border ? `1px solid ${isDark ? "#334155" : "#CBD5E1"}` : "none",
-                            }}
-                        />
-                        <Text style={{ fontSize: 10, color: isDark ? "#64748B" : "#94A3B8" }}>{label}</Text>
+
+            {/* Juz number */}
+            <div style={{
+                fontSize: 13,
+                fontWeight: 700,
+                color: isDark ? "#F1F5F9" : "#0F172A",
+                marginBottom: 4,
+                textAlign: "center",
+                lineHeight: 1,
+            }}>
+                {data.juz}
+            </div>
+
+            {/* Progress bar */}
+            <div style={{
+                width: "100%",
+                height: 5,
+                borderRadius: 3,
+                background: isDark ? "#0F172A" : "#F1F5F9",
+                marginBottom: 5,
+                overflow: "hidden",
+            }}>
+                <div style={{
+                    width: `${pct}%`,
+                    height: "100%",
+                    borderRadius: 3,
+                    background: barColor,
+                    transition: "width 0.3s",
+                }} />
+            </div>
+
+            {/* Progress text - halaman info */}
+            <div style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: textColor,
+                textAlign: "center",
+                lineHeight: 1.2,
+                marginBottom: 2,
+            }}>
+                {data.is_completed ? "✓ Selesai" : progressText}
+            </div>
+
+            {/* Total info */}
+            {!data.is_completed && (
+                <div style={{
+                    fontSize: 8,
+                    color: isDark ? "#475569" : "#94A3B8",
+                    textAlign: "center",
+                    lineHeight: 1,
+                }}>
+                    / {totalHal} hal
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ─────────────────────────── Juz Detail Inline Modal ───────────────────────────
+const JuzDetailInlineModal: React.FC<{
+    open: boolean;
+    juz: number;
+    totalHal: number;
+    santriNis: string;
+    isDark: boolean;
+    onClose: () => void;
+    onSaved: () => void;
+}> = ({ open, juz, totalHal, santriNis, isDark, onClose, onSaved }) => {
+    const [status, setStatus] = useState<"PROSES" | "SELESAI">("PROSES");
+    const [halaman, setHalaman] = useState(0);
+    const [pecahan, setPecahan] = useState<0 | 1 | 2 | 3>(0);
+    const [loading, setLoading] = useState(false);
+
+    const kuartal = halaman * 4 + pecahan;
+
+    useEffect(() => {
+        if (!open || !santriNis || !juz) return;
+        supabaseClient
+            .from("santri_peta_hafalan")
+            .select("halaman_progress, is_completed")
+            .eq("santri_nis", santriNis)
+            .eq("juz", juz)
+            .maybeSingle()
+            .then(({ data }) => {
+                if (data) {
+                    setHalaman(Math.floor(data.halaman_progress / 4));
+                    setPecahan((data.halaman_progress % 4) as 0 | 1 | 2 | 3);
+                    setStatus(data.is_completed ? "SELESAI" : "PROSES");
+                } else {
+                    setHalaman(0);
+                    setPecahan(0);
+                    setStatus("PROSES");
+                }
+            });
+    }, [open, santriNis, juz]);
+
+    const handleSave = async () => {
+        setLoading(true);
+        try {
+            const totalKuartal = totalHal * 4;
+            const isCompleted = status === "SELESAI" || kuartal >= totalKuartal;
+
+            const { error } = await supabaseClient
+                .from("santri_peta_hafalan")
+                .upsert({
+                    santri_nis: santriNis,
+                    juz,
+                    halaman_progress: kuartal,
+                    is_completed: isCompleted,
+                }, { onConflict: "santri_nis, juz" });
+
+            if (error) throw error;
+            message.success(`Juz ${juz} berhasil diperbarui`);
+            onSaved();
+            onClose();
+        } catch (err: any) {
+            message.error(err.message || "Gagal menyimpan");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <Modal
+            open={open}
+            title={`Edit Juz ${juz}`}
+            onCancel={onClose}
+            onOk={handleSave}
+            okText="Simpan"
+            cancelText="Batal"
+            confirmLoading={loading}
+            width={400}
+        >
+            <div style={{ marginBottom: 16 }}>
+                <Text style={{ fontSize: 12, fontWeight: 600, color: isDark ? "#94A3B8" : "#64748B", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    Status
+                </Text>
+                <Radio.Group
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                    style={{ marginTop: 8, display: "flex", gap: 8 }}
+                >
+                    <Radio.Button value="PROSES" style={{ flex: 1, textAlign: "center" }}>
+                        🟡 Proses
+                    </Radio.Button>
+                    <Radio.Button value="SELESAI" style={{ flex: 1, textAlign: "center" }}>
+                        🟢 Selesai
+                    </Radio.Button>
+                </Radio.Group>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+                <Text style={{ fontSize: 12, fontWeight: 600, color: isDark ? "#94A3B8" : "#64748B", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    Halaman (0-{totalHal})
+                </Text>
+                <InputNumber
+                    min={0}
+                    max={totalHal}
+                    value={halaman}
+                    onChange={(v) => setHalaman(v || 0)}
+                    style={{ width: "100%", marginTop: 8 }}
+                    size="large"
+                />
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+                <Text style={{ fontSize: 12, fontWeight: 600, color: isDark ? "#94A3B8" : "#64748B", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    Pecahan
+                </Text>
+                <Segmented
+                    value={pecahan}
+                    onChange={(v) => setPecahan(v as 0 | 1 | 2 | 3)}
+                    options={[
+                        { label: "Utuh", value: 0 },
+                        { label: "¼", value: 1 },
+                        { label: "½", value: 2 },
+                        { label: "¾", value: 3 },
+                    ]}
+                    style={{ marginTop: 8, width: "100%" }}
+                />
+            </div>
+
+            <div style={{
+                padding: "8px 12px",
+                borderRadius: 8,
+                background: isDark ? "#1E293B" : "#F0FDF4",
+                border: `1px solid ${isDark ? "#334155" : "#BBF7D0"}`,
+            }}>
+                <Text style={{ fontSize: 12, color: isDark ? "#94A3B8" : "#64748B" }}>
+                    Total: <strong style={{ color: isDark ? "#F1F5F9" : "#0F172A" }}>
+                        {formatHalaman(kuartal)}
+                    </strong> halaman ({Math.round((kuartal / (totalHal * 4)) * 100)}%)
+                </Text>
+                <Text style={{ fontSize: 10, color: isDark ? "#475569" : "#94A3B8", display: "block", marginTop: 4 }}>
+                    * DATABASE adalah sumber kebenaran untuk progress hafalan
+                </Text>
+            </div>
+        </Modal>
+    );
+};
+
+// ─────────────────────────── Peta Hafalan Inline ───────────────────────────
+const PetaHafalanInline: React.FC<{
+    santriNis: string | undefined;
+    isDark: boolean;
+    value?: number;
+    onChange?: (juz: number) => void;
+    onRefresh?: () => void;
+}> = ({ santriNis, isDark, value, onChange, onRefresh }) => {
+    const [juzData, setJuzData] = useState<Map<number, PetaJuzData>>(new Map());
+    const [halamanPerJuz, setHalamanPerJuz] = useState<Map<number, number>>(new Map());
+    const [loading, setLoading] = useState(false);
+    const [editJuz, setEditJuz] = useState<number | null>(null);
+
+    // Fetch halaman per juz from backend (source of truth)
+    useEffect(() => {
+        supabaseClient
+            .rpc('get_halaman_per_juz')
+            .then(({ data }) => {
+                if (data) {
+                    const map = new Map<number, number>();
+                    data.forEach((row: HalamanPerJuz) => {
+                        map.set(row.juz, Number(row.total_halaman));
+                    });
+                    setHalamanPerJuz(map);
+                }
+            });
+    }, []);
+
+    const fetchData = useCallback(async () => {
+        if (!santriNis) { setJuzData(new Map()); return; }
+        setLoading(true);
+        try {
+            const { data } = await supabaseClient
+                .from("santri_peta_hafalan")
+                .select("juz, halaman_progress, is_completed")
+                .eq("santri_nis", santriNis)
+                .order("juz");
+
+            const map = new Map<number, PetaJuzData>();
+            if (data) {
+                data.forEach((row) => {
+                    map.set(row.juz, {
+                        juz: row.juz,
+                        halaman_progress: row.halaman_progress,
+                        is_completed: row.is_completed,
+                    });
+                });
+            }
+            setJuzData(map);
+        } catch {
+            // silently fail
+        } finally {
+            setLoading(false);
+        }
+    }, [santriNis]);
+
+    useEffect(() => { fetchData(); }, [fetchData]);
+
+    const handleSaved = () => {
+        fetchData();
+        onRefresh?.();
+    };
+
+    // Get total halaman for a juz (from backend)
+    const getTotalHal = (juz: number): number => {
+        return halamanPerJuz.get(juz) || 20; // fallback to 20 if not loaded yet
+    };
+
+    // Generate all 30 juz entries
+    const allJuz: PetaJuzData[] = Array.from({ length: 30 }, (_, i) => {
+        const juz = i + 1;
+        const existing = juzData.get(juz);
+        return existing || { juz, halaman_progress: 0, is_completed: false };
+    });
+
+    // Hitung total progress
+    const totalSelesai = allJuz.filter(j => j.is_completed).length;
+    const totalProses = allJuz.filter(j => !j.is_completed && j.halaman_progress > 0).length;
+    const totalBelum = allJuz.filter(j => !j.is_completed && j.halaman_progress === 0).length;
+
+    if (!santriNis) return null;
+
+    return (
+        <div>
+            {loading && juzData.size === 0 ? (
+                <div style={{ padding: "16px 0", textAlign: "center", color: isDark ? "#64748B" : "#94A3B8", fontSize: 12 }}>
+                    Memuat peta hafalan...
+                </div>
+            ) : (
+                <>
+                    {/* Summary */}
+                    <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+                        <div style={{
+                            flex: 1,
+                            minWidth: 60,
+                            padding: "4px 6px",
+                            borderRadius: 6,
+                            background: isDark ? "#022C22" : "#F0FDF4",
+                            border: `1px solid ${isDark ? "#065F46" : "#BBF7D0"}`,
+                            textAlign: "center",
+                        }}>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: "#047857" }}>{totalSelesai}</div>
+                            <div style={{ fontSize: 8, color: isDark ? "#6EE7B7" : "#059669" }}>Selesai</div>
+                        </div>
+                        <div style={{
+                            flex: 1,
+                            minWidth: 60,
+                            padding: "4px 6px",
+                            borderRadius: 6,
+                            background: isDark ? "#422006" : "#FFFBEB",
+                            border: `1px solid ${isDark ? "#92400E" : "#FDE68A"}`,
+                            textAlign: "center",
+                        }}>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: "#D97706" }}>{totalProses}</div>
+                            <div style={{ fontSize: 8, color: isDark ? "#FCD34D" : "#B45309" }}>Proses</div>
+                        </div>
+                        <div style={{
+                            flex: 1,
+                            minWidth: 60,
+                            padding: "4px 6px",
+                            borderRadius: 6,
+                            background: isDark ? "#1E293B" : "#F8FAFC",
+                            border: `1px solid ${isDark ? "#334155" : "#E2E8F0"}`,
+                            textAlign: "center",
+                        }}>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: isDark ? "#94A3B8" : "#64748B" }}>{totalBelum}</div>
+                            <div style={{ fontSize: 8, color: isDark ? "#64748B" : "#94A3B8" }}>Belum</div>
+                        </div>
                     </div>
-                ))}
-            </div>
+
+                    {/* Grid */}
+                    <div
+                        style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(6, 1fr)",
+                            gap: 5,
+                        }}
+                    >
+                        {allJuz.map((juz) => (
+                            <JuzCard
+                                key={juz.juz}
+                                data={juz}
+                                totalHal={getTotalHal(juz.juz)}
+                                isSelected={juz.juz === value}
+                                isDark={isDark}
+                                isCurrentJuz={false}
+                                onClick={() => onChange?.(juz.juz)}
+                                onEdit={(e) => { e.stopPropagation(); setEditJuz(juz.juz); }}
+                            />
+                        ))}
+                    </div>
+
+                    {/* Legend */}
+                    <div style={{ display: "flex", gap: 10, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
+                        {[
+                            { color: "#047857", label: "Selesai" },
+                            { color: "#D97706", label: "Proses" },
+                            { color: isDark ? "#1E293B" : "#E2E8F0", label: "Belum", border: true },
+                        ].map(({ color, label, border }) => (
+                            <div key={label} style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                                <div style={{
+                                    width: 8,
+                                    height: 8,
+                                    borderRadius: 2,
+                                    background: color,
+                                    border: border ? `1px solid ${isDark ? "#334155" : "#CBD5E1"}` : "none",
+                                }} />
+                                <Text style={{ fontSize: 9, color: isDark ? "#64748B" : "#94A3B8" }}>{label}</Text>
+                            </div>
+                        ))}
+                        <div style={{ marginLeft: "auto" }}>
+                            <Button
+                                type="link"
+                                size="small"
+                                icon={<ReloadOutlined />}
+                                onClick={fetchData}
+                                style={{ fontSize: 9, padding: 0 }}
+                            >
+                                Refresh
+                            </Button>
+                        </div>
+                    </div>
+                </>
+            )}
+
+            {/* Edit Modal */}
+            {editJuz !== null && (
+                <JuzDetailInlineModal
+                    open={editJuz !== null}
+                    juz={editJuz}
+                    totalHal={getTotalHal(editJuz)}
+                    santriNis={santriNis}
+                    isDark={isDark}
+                    onClose={() => setEditJuz(null)}
+                    onSaved={handleSaved}
+                />
+            )}
         </div>
     );
 };
@@ -438,6 +859,7 @@ export const HafalanCreate = () => {
     const [statusSetoran, setStatusSetoran] = useState<string>('LANCAR');
     const [manualSesiWaktu, setManualSesiWaktu] = useState<'PAGI' | 'SIANG' | null>(null);
     const [selectedSantriNis, setSelectedSantriNis] = useState<string | undefined>();
+    const [selectedJuz, setSelectedJuz] = useState<number>(30);
     const [penyimakList, setPenyimakList] = useState<{ id: number; nama: string }[]>([]);
 
     const { mutate: updateSantri } = useUpdate();
@@ -495,6 +917,12 @@ export const HafalanCreate = () => {
         if (surat) {
             setSelectedSuratMaxAyat(surat.ayat);
             form.setFieldValue("ayat_akhir", null);
+            // Auto-set juz berdasarkan surat (default: juz pertama untuk surat lintas juz)
+            const juz = getJuzFromSurat(value, null);
+            if (juz) {
+                form.setFieldValue("juz", juz);
+                setSelectedJuz(juz);
+            }
         }
     };
 
@@ -922,6 +1350,35 @@ export const HafalanCreate = () => {
                                 </div>
                             )}
                         </div>
+
+                        {/* Peta Hafalan Inline */}
+                        <div
+                            style={{
+                                background: token.colorBgContainer,
+                                border: `1px solid ${token.colorBorderSecondary}`,
+                                borderRadius: 16,
+                                padding: "20px",
+                                marginTop: 16,
+                            }}
+                        >
+                            <div style={{ ...labelStyle, marginBottom: 10 }}>
+                                Peta Hafalan (Preview)
+                                <Text style={{ fontSize: 10, color: token.colorTextSecondary, fontWeight: 400, marginLeft: 6, textTransform: "none" }}>
+                                    — data dari DATABASE, klik ✏️ untuk koreksi
+                                </Text>
+                            </div>
+                            <PetaHafalanInline
+                                santriNis={selectedSantriNis}
+                                isDark={isDark}
+                                value={selectedJuz}
+                                onChange={() => {
+                                    // Juz sekarang ditentukan otomatis dari surat + ayat_awal
+                                    // Grid hanya untuk visual, tidak override form juz
+                                }}
+                            />
+                            {/* Hidden form field for juz */}
+                            <Form.Item name="juz" hidden><InputNumber /></Form.Item>
+                        </div>
                     </Col>
 
                     {/* ── KOLOM KANAN ── */}
@@ -1004,6 +1461,16 @@ export const HafalanCreate = () => {
                                             size="large"
                                             style={{ width: "100%", borderRadius: 8 }}
                                             placeholder="1"
+                                            onChange={(val) => {
+                                                const surat = form.getFieldValue("surat");
+                                                if (surat && val) {
+                                                    const juz = getJuzFromSurat(surat, val);
+                                                    if (juz) {
+                                                        form.setFieldValue("juz", juz);
+                                                        setSelectedJuz(juz);
+                                                    }
+                                                }
+                                            }}
                                         />
                                     </Form.Item>
                                 </Col>
@@ -1026,25 +1493,6 @@ export const HafalanCreate = () => {
                             </Row>
 
                             <Divider style={{ borderColor: isDark ? "#1E293B" : "#F1F5F9", margin: "16px 0" }} />
-
-                            {/* Juz Picker */}
-                            <Form.Item
-                                label={
-                                    <span style={labelStyle}>
-                                        Posisi Juz Saat Ini
-                                        <Text style={{ fontSize: 10, color: token.colorTextSecondary, fontWeight: 400, marginLeft: 6, textTransform: "none" }}>
-                                            — santri sedang di juz mana?
-                                        </Text>
-                                    </span>
-                                }
-                                name="juz"
-                                style={{ marginBottom: 0 }}
-                            >
-                                <JuzPicker
-                                    isDark={isDark}
-                                    completedJuz={parseTotalHafalan(currentTotalSource)}
-                                />
-                            </Form.Item>
 
                             {/* Predikat + Catatan */}
                             <div

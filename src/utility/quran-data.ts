@@ -114,3 +114,144 @@ export const DATA_SURAT = [
   { nomor: 113, nama: "Al-Falaq", ayat: 5 },
   { nomor: 114, nama: "An-Nas", ayat: 6 },
 ];
+
+// ── Surat → Juz mapping (berdasarkan quran_page_index) ──
+// Beberapa surat lintas juz (contoh: Al-Baqarah → juz 1,2,3)
+// { juz, minAyat, maxAyat } menunjukkan rentang ayat per juz
+export interface JuzRange {
+  juz: number;
+  minAyat: number;
+  maxAyat: number;
+}
+
+export const SURAH_JUZ_MAP: Record<string, JuzRange[]> = {
+  "Al-Fatihah":        [{ juz: 1, minAyat: 1, maxAyat: 7 }],
+  "Al-Baqarah":        [{ juz: 1, minAyat: 1, maxAyat: 141 }, { juz: 2, minAyat: 142, maxAyat: 252 }, { juz: 3, minAyat: 253, maxAyat: 286 }],
+  "Ali 'Imran":        [{ juz: 3, minAyat: 1, maxAyat: 91 }, { juz: 4, minAyat: 92, maxAyat: 200 }],
+  "An-Nisa'":          [{ juz: 4, minAyat: 1, maxAyat: 23 }, { juz: 5, minAyat: 24, maxAyat: 147 }, { juz: 6, minAyat: 148, maxAyat: 176 }],
+  "Al-Ma'idah":        [{ juz: 6, minAyat: 1, maxAyat: 82 }, { juz: 7, minAyat: 83, maxAyat: 120 }],
+  "Al-An'am":          [{ juz: 7, minAyat: 1, maxAyat: 110 }, { juz: 8, minAyat: 111, maxAyat: 165 }],
+  "Al-A'raf":          [{ juz: 8, minAyat: 1, maxAyat: 87 }, { juz: 9, minAyat: 88, maxAyat: 206 }],
+  "Al-Anfal":          [{ juz: 9, minAyat: 1, maxAyat: 40 }, { juz: 10, minAyat: 41, maxAyat: 75 }],
+  "At-Taubah":         [{ juz: 10, minAyat: 1, maxAyat: 93 }, { juz: 11, minAyat: 94, maxAyat: 129 }],
+  "Yunus":             [{ juz: 11, minAyat: 1, maxAyat: 109 }],
+  "Hud":               [{ juz: 11, minAyat: 1, maxAyat: 5 }, { juz: 12, minAyat: 6, maxAyat: 123 }],
+  "Yusuf":             [{ juz: 12, minAyat: 1, maxAyat: 52 }, { juz: 13, minAyat: 53, maxAyat: 111 }],
+  "Ar-Ra'd":           [{ juz: 13, minAyat: 1, maxAyat: 43 }],
+  "Ibrahim":           [{ juz: 13, minAyat: 1, maxAyat: 52 }],
+  "Al-Hijr":           [{ juz: 13, minAyat: 1, maxAyat: 1 }, { juz: 14, minAyat: 2, maxAyat: 99 }],
+  "An-Nahl":           [{ juz: 14, minAyat: 1, maxAyat: 128 }],
+  "Al-Isra'":          [{ juz: 15, minAyat: 1, maxAyat: 111 }],
+  "Al-Kahf":           [{ juz: 15, minAyat: 1, maxAyat: 74 }, { juz: 16, minAyat: 75, maxAyat: 110 }],
+  "Maryam":            [{ juz: 16, minAyat: 1, maxAyat: 98 }],
+  "Ta-Ha":             [{ juz: 16, minAyat: 1, maxAyat: 135 }],
+  "Al-Anbiya'":        [{ juz: 17, minAyat: 1, maxAyat: 112 }],
+  "Al-Hajj":           [{ juz: 17, minAyat: 1, maxAyat: 78 }],
+  "Al-Mu'minun":       [{ juz: 18, minAyat: 1, maxAyat: 118 }],
+  "An-Nur":            [{ juz: 18, minAyat: 1, maxAyat: 64 }],
+  "Al-Furqan":         [{ juz: 18, minAyat: 1, maxAyat: 20 }, { juz: 19, minAyat: 21, maxAyat: 77 }],
+  "Asy-Syu'ara'":      [{ juz: 19, minAyat: 1, maxAyat: 227 }],
+  "An-Naml":           [{ juz: 19, minAyat: 1, maxAyat: 59 }, { juz: 20, minAyat: 60, maxAyat: 93 }],
+  "Al-Qasas":          [{ juz: 20, minAyat: 1, maxAyat: 88 }],
+  "Al-'Ankabut":       [{ juz: 20, minAyat: 1, maxAyat: 44 }, { juz: 21, minAyat: 45, maxAyat: 69 }],
+  "Ar-Rum":            [{ juz: 21, minAyat: 1, maxAyat: 60 }],
+  "Luqman":            [{ juz: 21, minAyat: 1, maxAyat: 34 }],
+  "As-Sajdah":         [{ juz: 21, minAyat: 1, maxAyat: 30 }],
+  "Al-Ahzab":          [{ juz: 21, minAyat: 1, maxAyat: 30 }, { juz: 22, minAyat: 31, maxAyat: 73 }],
+  "Saba'":             [{ juz: 22, minAyat: 1, maxAyat: 54 }],
+  "Fatir":             [{ juz: 22, minAyat: 1, maxAyat: 45 }],
+  "Ya-Sin":            [{ juz: 22, minAyat: 1, maxAyat: 21 }, { juz: 23, minAyat: 22, maxAyat: 83 }],
+  "As-Saffat":         [{ juz: 23, minAyat: 1, maxAyat: 182 }],
+  "Sad":               [{ juz: 23, minAyat: 1, maxAyat: 88 }],
+  "Az-Zumar":          [{ juz: 23, minAyat: 1, maxAyat: 31 }, { juz: 24, minAyat: 32, maxAyat: 75 }],
+  "Gafir":             [{ juz: 24, minAyat: 1, maxAyat: 85 }],
+  "Fussilat":          [{ juz: 24, minAyat: 1, maxAyat: 46 }, { juz: 25, minAyat: 47, maxAyat: 54 }],
+  "Asy-Syura":         [{ juz: 25, minAyat: 1, maxAyat: 53 }],
+  "Az-Zukhruf":        [{ juz: 25, minAyat: 1, maxAyat: 89 }],
+  "Ad-Dukhan":         [{ juz: 25, minAyat: 1, maxAyat: 59 }],
+  "Al-Jasiyah":        [{ juz: 25, minAyat: 1, maxAyat: 37 }],
+  "Al-Ahqaf":          [{ juz: 26, minAyat: 1, maxAyat: 35 }],
+  "Muhammad":          [{ juz: 26, minAyat: 1, maxAyat: 38 }],
+  "Al-Fath":           [{ juz: 26, minAyat: 1, maxAyat: 29 }],
+  "Al-Hujurat":        [{ juz: 26, minAyat: 1, maxAyat: 18 }],
+  "Qaf":               [{ juz: 26, minAyat: 1, maxAyat: 45 }],
+  "Az-Zariyat":        [{ juz: 26, minAyat: 1, maxAyat: 30 }, { juz: 27, minAyat: 31, maxAyat: 60 }],
+  "At-Tur":            [{ juz: 27, minAyat: 1, maxAyat: 49 }],
+  "An-Najm":           [{ juz: 27, minAyat: 1, maxAyat: 62 }],
+  "Al-Qamar":          [{ juz: 27, minAyat: 1, maxAyat: 55 }],
+  "Ar-Rahman":         [{ juz: 27, minAyat: 1, maxAyat: 78 }],
+  "Al-Waqi'ah":        [{ juz: 27, minAyat: 1, maxAyat: 96 }],
+  "Al-Hadid":          [{ juz: 27, minAyat: 1, maxAyat: 29 }],
+  "Al-Mujadilah":      [{ juz: 28, minAyat: 1, maxAyat: 22 }],
+  "Al-Hasyr":          [{ juz: 28, minAyat: 1, maxAyat: 24 }],
+  "Al-Mumtahanah":     [{ juz: 28, minAyat: 1, maxAyat: 13 }],
+  "As-Saff":           [{ juz: 28, minAyat: 1, maxAyat: 14 }],
+  "Al-Jumu'ah":        [{ juz: 28, minAyat: 1, maxAyat: 11 }],
+  "Al-Munafiqun":      [{ juz: 28, minAyat: 1, maxAyat: 11 }],
+  "At-Tagabun":        [{ juz: 28, minAyat: 1, maxAyat: 18 }],
+  "At-Talaq":          [{ juz: 28, minAyat: 1, maxAyat: 12 }],
+  "At-Tahrim":         [{ juz: 28, minAyat: 1, maxAyat: 12 }],
+  "Al-Mulk":           [{ juz: 29, minAyat: 1, maxAyat: 30 }],
+  "Al-Qalam":          [{ juz: 29, minAyat: 1, maxAyat: 52 }],
+  "Al-Haqqah":         [{ juz: 29, minAyat: 1, maxAyat: 52 }],
+  "Al-Ma'arij":        [{ juz: 29, minAyat: 1, maxAyat: 44 }],
+  "Nuh":               [{ juz: 29, minAyat: 1, maxAyat: 28 }],
+  "Al-Jinn":           [{ juz: 29, minAyat: 1, maxAyat: 28 }],
+  "Al-Muzzammil":      [{ juz: 29, minAyat: 1, maxAyat: 20 }],
+  "Al-Muddassir":      [{ juz: 29, minAyat: 1, maxAyat: 56 }],
+  "Al-Qiyamah":        [{ juz: 29, minAyat: 1, maxAyat: 40 }],
+  "Al-Insan":          [{ juz: 29, minAyat: 1, maxAyat: 31 }],
+  "Al-Mursalat":       [{ juz: 29, minAyat: 1, maxAyat: 50 }],
+  "An-Naba'":          [{ juz: 30, minAyat: 1, maxAyat: 40 }],
+  "An-Nazi'at":        [{ juz: 30, minAyat: 1, maxAyat: 46 }],
+  "'Abasa":            [{ juz: 30, minAyat: 1, maxAyat: 42 }],
+  "At-Takwir":         [{ juz: 30, minAyat: 1, maxAyat: 29 }],
+  "Al-Infitar":        [{ juz: 30, minAyat: 1, maxAyat: 19 }],
+  "Al-Mutaffifin":     [{ juz: 30, minAyat: 1, maxAyat: 36 }],
+  "Al-Insyiqaq":       [{ juz: 30, minAyat: 1, maxAyat: 25 }],
+  "Al-Buruj":          [{ juz: 30, minAyat: 1, maxAyat: 22 }],
+  "At-Tariq":          [{ juz: 30, minAyat: 1, maxAyat: 17 }],
+  "Al-A'la":           [{ juz: 30, minAyat: 1, maxAyat: 19 }],
+  "Al-Gasyiyah":       [{ juz: 30, minAyat: 1, maxAyat: 26 }],
+  "Al-Fajar":          [{ juz: 30, minAyat: 1, maxAyat: 30 }],
+  "Al-Balad":          [{ juz: 30, minAyat: 1, maxAyat: 20 }],
+  "Asy-Syams":         [{ juz: 30, minAyat: 1, maxAyat: 15 }],
+  "Al-Lail":           [{ juz: 30, minAyat: 1, maxAyat: 21 }],
+  "Ad-Duha":           [{ juz: 30, minAyat: 1, maxAyat: 11 }],
+  "Asy-Syarh":         [{ juz: 30, minAyat: 1, maxAyat: 8 }],
+  "At-Tin":            [{ juz: 30, minAyat: 1, maxAyat: 8 }],
+  "Al-'Alaq":          [{ juz: 30, minAyat: 1, maxAyat: 19 }],
+  "Al-Qadr":           [{ juz: 30, minAyat: 1, maxAyat: 5 }],
+  "Al-Bayyinah":       [{ juz: 30, minAyat: 1, maxAyat: 8 }],
+  "Az-Zalzalah":       [{ juz: 30, minAyat: 1, maxAyat: 8 }],
+  "Al-'Adiyat":        [{ juz: 30, minAyat: 1, maxAyat: 11 }],
+  "Al-Qari'ah":        [{ juz: 30, minAyat: 1, maxAyat: 11 }],
+  "At-Takasur":        [{ juz: 30, minAyat: 1, maxAyat: 8 }],
+  "Al-'Asr":           [{ juz: 30, minAyat: 1, maxAyat: 3 }],
+  "Al-Humazah":        [{ juz: 30, minAyat: 1, maxAyat: 9 }],
+  "Al-Fil":            [{ juz: 30, minAyat: 1, maxAyat: 5 }],
+  "Quraisy":           [{ juz: 30, minAyat: 1, maxAyat: 4 }],
+  "Al-Ma'un":          [{ juz: 30, minAyat: 1, maxAyat: 7 }],
+  "Al-Kausar":         [{ juz: 30, minAyat: 1, maxAyat: 3 }],
+  "Al-Kafirun":        [{ juz: 30, minAyat: 1, maxAyat: 6 }],
+  "An-Nasr":           [{ juz: 30, minAyat: 1, maxAyat: 3 }],
+  "Al-Lahab":          [{ juz: 30, minAyat: 1, maxAyat: 5 }],
+  "Al-Ikhlas":         [{ juz: 30, minAyat: 1, maxAyat: 4 }],
+  "Al-Falaq":          [{ juz: 30, minAyat: 1, maxAyat: 5 }],
+  "An-Nas":            [{ juz: 30, minAyat: 1, maxAyat: 6 }],
+};
+
+/**
+ * Tentukan juz berdasarkan nama surat dan ayat_awal.
+ * Untuk surat lintas juz (Al-Baqarah, Ali 'Imran, dst), juz ditentukan oleh ayat_awal.
+ * Mengembalikan juz 1-30, atau null jika tidak ditemukan.
+ */
+export function getJuzFromSurat(surat: string, ayatAwal?: number | null): number | null {
+  const ranges = SURAH_JUZ_MAP[surat];
+  if (!ranges || ranges.length === 0) return null;
+  if (!ayatAwal || ranges.length === 1) return ranges[0].juz;
+  for (const r of ranges) {
+    if (ayatAwal >= r.minAyat && ayatAwal <= r.maxAyat) return r.juz;
+  }
+  return ranges[0].juz;
+}
